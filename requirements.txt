@@ -1,4 +1,4 @@
-Django>=5.0,<5.2
+Django>=5.1.15
 python-decouple>=3.8
 requests>=2.31.0
 feedparser>=6.0.11
