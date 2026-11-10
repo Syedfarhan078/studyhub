@@ -16,6 +16,7 @@ venv/
 
 # Static / Media directories (to be generated)
 /media/
+staticfiles/
 
 # IDE / Editor folders
 .vscode/
