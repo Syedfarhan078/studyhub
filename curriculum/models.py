@@ -1,5 +1,6 @@
 from django.db import models
 import os
+
 # Create your models here.
 
 class Subject(models.Model):
@@ -16,7 +17,7 @@ class Subject(models.Model):
 
     def __str__(self):
         return f"{self.code} - {self.name}"
-    
+
 
 class Module(models.Model):
     subject = models.ForeignKey(
@@ -46,7 +47,7 @@ class Module(models.Model):
     def __str__(self):
         return f"{self.subject.code} - Module {self.module_number}: {self.title}"
 
-    
+
 class Topic(models.Model):
     module = models.ForeignKey(
         Module,
@@ -84,6 +85,7 @@ class Topic(models.Model):
     def __str__(self):
         return f"{self.module.subject.code} - M{self.module.module_number}: {self.title}"
 
+
 class TopicKeyword(models.Model):
     topic = models.ForeignKey(
         Topic,
@@ -105,10 +107,6 @@ class TopicKeyword(models.Model):
 
     def __str__(self):
         return f"{self.topic.title} -> {self.keyword}"
-
-    
-
-import os
 
 
 class ModuleNote(models.Model):
@@ -141,27 +139,41 @@ class ModuleNote(models.Model):
         verbose_name_plural = "Module Notes"
 
     def __str__(self):
-        return f"{self.module.subject.code} - M{self.module.module_number}: {self.title}"
+        try:
+            return f"{self.module.subject.code} - M{self.module.module_number}: {self.title}"
+        except Exception:
+            return self.title or "Module Note"
 
     @property
     def file_extension(self):
         """Returns the file extension in uppercase (e.g. 'PDF', 'DOCX')."""
-        name, extension = os.path.splitext(self.file.name)
-        return extension.replace('.', '').upper()
+        try:
+            if not self.file or not self.file.name:
+                return "PDF"
+            name, extension = os.path.splitext(self.file.name)
+            ext = extension.replace('.', '').upper()
+            return ext if ext else "PDF"
+        except Exception:
+            return "PDF"
 
     @property
     def file_size_display(self):
-        """Calculates and returns human-readable file size."""
+        """Calculates and returns human-readable file size safely without raising TypeError."""
         try:
+            if not self.file:
+                return "Unknown"
             bytes_size = self.file.size
+            if bytes_size is None or bytes_size <= 0:
+                return "Unknown"
             if bytes_size < 1024:
                 return f"{bytes_size} B"
             elif bytes_size < 1024 * 1024:
                 return f"{bytes_size / 1024:.1f} KB"
             else:
                 return f"{bytes_size / (1024 * 1024):.1f} MB"
-        except (ValueError, OSError):
+        except Exception:
             return "Unknown"
+
 
 class TopicProgress(models.Model):
     class Status(models.TextChoices):
