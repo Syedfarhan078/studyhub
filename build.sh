@@ -11,4 +11,8 @@ python manage.py collectstatic --no-input
 # 3. Apply database migrations to PostgreSQL
 python manage.py migrate
 
+# 4. Load syllabus seed data (idempotent)
 python manage.py loaddata curriculum_seed.json
+
+# 5. Automatically create production superuser from Render environment variables
+python create_superuser.py
