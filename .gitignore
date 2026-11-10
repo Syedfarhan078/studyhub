@@ -1,0 +1,22 @@
+# Python bytecode
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual Environment
+.venv/
+env/
+venv/
+
+# Environment Variables & Secrets
+.env
+
+# Database (keep local DB out of git)
+*.sqlite3
+
+# Static / Media directories (to be generated)
+/media/
+
+# IDE / Editor folders
+.vscode/
+.idea/

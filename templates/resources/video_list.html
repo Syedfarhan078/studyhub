@@ -1,0 +1,192 @@
+{% extends 'base.html' %}
+
+{% block title %}Videos: {{ topic.title }} | StudyHub{% endblock %}
+
+{% block content %}
+<!-- Standardized Horizontal Scrollable Breadcrumb for Mobile -->
+<div class="breadcrumb-wrapper mb-3">
+    <nav aria-label="breadcrumb">
+        <ol class="breadcrumb mb-0">
+            <li class="breadcrumb-item"><a href="/">Home</a></li>
+            <li class="breadcrumb-item"><a href="{% url 'curriculum:subject_detail' subject.slug %}">{{ subject.code }}</a></li>
+            <li class="breadcrumb-item text-secondary">Module {{ module.module_number }}</li>
+            <li class="breadcrumb-item active" aria-current="page">{{ topic.title }}</li>
+        </ol>
+    </nav>
+</div>
+
+<!-- Page Header Banner -->
+<div class="sh-panel mb-4 p-3.5 p-md-4">
+    <div class="d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center gap-3">
+        <div>
+            <div class="d-flex align-items-center gap-2 mb-2 flex-wrap">
+                <span class="badge bg-danger-subtle text-danger border border-danger-subtle d-inline-flex align-items-center gap-1.5" style="font-size: 0.72rem; font-weight: 600;">
+                    <i class="bi bi-youtube"></i> Video Learning Platform
+                </span>
+                <span class="text-secondary small">&bull; Module {{ module.module_number }}: {{ topic.title }}</span>
+            </div>
+            <h1 class="h2 fw-bold text-light mb-1">{{ topic.title }}</h1>
+            <p class="text-secondary small mb-0" style="max-width: 650px; line-height: 1.6;">
+                Curated educational video lectures and tutorials mapped to this VTU syllabus topic.
+            </p>
+        </div>
+
+        <!-- Symmetrical Header Action Buttons (Thumb-Friendly on Mobile) -->
+        <div class="d-flex align-items-center gap-2 flex-wrap w-100 w-md-auto">
+            <a href="{% url 'resources:topic_articles' topic.id %}" class="btn btn-sm btn-outline-info flex-fill flex-md-grow-0">
+                <i class="bi bi-newspaper"></i> Switch to Articles
+            </a>
+            <a href="{% url 'curriculum:subject_detail' subject.slug %}?topic={{ topic.slug }}" class="btn btn-sm btn-outline-secondary flex-fill flex-md-grow-0">
+                <i class="bi bi-arrow-left"></i> Syllabus
+            </a>
+            <a href="?refresh=1" class="btn btn-sm btn-outline-danger flex-fill flex-md-grow-0" title="Bypasses cache and queries YouTube API">
+                <i class="bi bi-arrow-clockwise"></i> Refresh
+            </a>
+        </div>
+    </div>
+</div>
+
+<!-- Standardized Keywords Pill Bar -->
+<div class="p-3 mb-4 rounded border border-secondary-subtle bg-dark-subtle d-flex flex-wrap align-items-center gap-2">
+    <span class="small text-secondary fw-semibold me-1" style="font-size: 0.75rem;"><i class="bi bi-tag-fill me-1"></i>Search Keywords:</span>
+    {% for kw in topic.keywords.all %}
+        <span class="sh-badge-tag">
+            {{ kw.keyword }}
+        </span>
+    {% empty %}
+        <span class="small text-secondary fst-italic">{{ topic.title }}</span>
+    {% endfor %}
+</div>
+
+<!-- Videos Grid -->
+{% if videos %}
+    <div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-4 gy-4">
+        {% for video in videos %}
+            <div class="col">
+                <div class="sh-card overflow-hidden">
+                    <!-- Thumbnail with 16:9 Aspect Ratio & Play Overlay Button -->
+                    <div class="position-relative ratio ratio-16x9 bg-black">
+                        <img src="{{ video.thumbnail_url }}" alt="{{ video.title }}" class="object-fit-cover w-100 h-100" style="opacity: 0.92;" loading="lazy">
+                        
+                        <!-- Center Play Overlay Button -->
+                        <button type="button" 
+                                class="btn btn-danger position-absolute top-50 start-50 translate-middle rounded-circle shadow d-flex align-items-center justify-content-center play-video-btn" 
+                                style="width: 48px; height: 48px; padding: 0 !important; opacity: 0.92;"
+                                data-bs-toggle="modal" 
+                                data-bs-target="#videoPlayerModal" 
+                                data-video-id="{{ video.youtube_video_id }}"
+                                data-video-title="{{ video.title }}"
+                                data-video-channel="{{ video.channel_title }}"
+                                aria-label="Play video">
+                            <i class="bi bi-play-fill fs-3" style="margin-left: 2px;"></i>
+                        </button>
+                    </div>
+
+                    <!-- Card Body -->
+                    <div class="p-3 d-flex flex-column flex-grow-1">
+                        <!-- Channel and Date Row -->
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <span class="text-light small fw-medium text-truncate" style="max-width: 170px; font-size: 0.775rem;">
+                                <i class="bi bi-person-circle text-secondary me-1"></i>{{ video.channel_title }}
+                            </span>
+                            <span class="text-secondary small" style="font-size: 0.72rem; font-family: var(--sh-font-mono);">
+                                {{ video.published_at|date:"M d, Y" }}
+                            </span>
+                        </div>
+
+                        <!-- Video Title (Uniform 2-line clamp) -->
+                        <h6 class="card-title fw-semibold text-light mb-2 sh-clamp-2" style="font-size: 0.875rem; line-height: 1.4; min-height: 38px;">
+                            {{ video.title }}
+                        </h6>
+
+                        <!-- Description (Uniform 2-line clamp) -->
+                        <p class="card-text text-secondary small flex-grow-1 mb-3 sh-clamp-2" style="font-size: 0.785rem; line-height: 1.5; min-height: 36px;">
+                            {{ video.description|default:"Educational video tutorial on this syllabus topic." }}
+                        </p>
+
+                        <!-- Action Bar -->
+                        <div class="pt-2 border-top border-secondary-subtle d-flex justify-content-between align-items-center">
+                            <button type="button" 
+                                    class="btn btn-sm btn-outline-light play-video-btn"
+                                    data-bs-toggle="modal" 
+                                    data-bs-target="#videoPlayerModal" 
+                                    data-video-id="{{ video.youtube_video_id }}"
+                                    data-video-title="{{ video.title }}"
+                                    data-video-channel="{{ video.channel_title }}">
+                                <i class="bi bi-play-circle text-danger"></i> Watch
+                            </button>
+                            <a href="{{ video.watch_url }}" target="_blank" rel="noopener noreferrer" class="text-secondary small text-decoration-none d-inline-flex align-items-center gap-1" style="font-size: 0.75rem;" title="Open directly on YouTube">
+                                <i class="bi bi-box-arrow-up-right"></i> YouTube
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        {% endfor %}
+    </div>
+{% else %}
+    <!-- Empty State -->
+    <div class="sh-panel p-5 text-center">
+        <i class="bi bi-camera-video-off fs-1 text-secondary mb-3 d-block"></i>
+        <h5 class="text-light">No Videos Found</h5>
+        <p class="text-secondary small mb-3">
+            Unable to retrieve videos for this topic yet. Check that your YouTube API key is active or try refreshing.
+        </p>
+        <a href="?refresh=1" class="btn btn-danger btn-sm">
+            <i class="bi bi-arrow-clockwise"></i> Try Fetching Videos
+        </a>
+    </div>
+{% endif %}
+
+<!-- Embedded Responsive YouTube Player Modal -->
+<div class="modal fade" id="videoPlayerModal" tabindex="-1" aria-labelledby="videoPlayerModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content border border-secondary-subtle">
+            <div class="modal-header border-bottom border-secondary-subtle py-2.5">
+                <div>
+                    <h6 class="modal-title text-light fw-semibold mb-0" id="videoPlayerModalLabel">Video Player</h6>
+                    <small class="text-secondary" id="modalChannelName"></small>
+                </div>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-0">
+                <div class="ratio ratio-16x9">
+                    <iframe id="youtubeIframe" 
+                            src="" 
+                            title="YouTube video player" 
+                            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" 
+                            referrerpolicy="strict-origin-when-cross-origin"
+                            allowfullscreen>
+                    </iframe>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        const modal = document.getElementById('videoPlayerModal');
+        const iframe = document.getElementById('youtubeIframe');
+        const titleEl = document.getElementById('videoPlayerModalLabel');
+        const channelEl = document.getElementById('modalChannelName');
+
+        modal.addEventListener('show.bs.modal', function (event) {
+            const button = event.relatedTarget;
+            const videoId = button.getAttribute('data-video-id');
+            const videoTitle = button.getAttribute('data-video-title');
+            const videoChannel = button.getAttribute('data-video-channel');
+
+            titleEl.textContent = videoTitle;
+            channelEl.textContent = 'Channel: ' + videoChannel;
+            iframe.src = `https://www.youtube.com/embed/${videoId}?autoplay=1`;
+        });
+
+        modal.addEventListener('hidden.bs.modal', function () {
+            iframe.src = '';
+        });
+    });
+</script>
+{% endblock %}

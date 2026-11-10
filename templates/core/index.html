@@ -1,0 +1,70 @@
+{% extends 'base.html' %}
+
+{% block title %}StudyHub - VTU Syllabus Learning Platform{% endblock %}
+
+{% block content %}
+<!-- Minimal Header Section -->
+<div class="row mb-4 pt-1">
+    <div class="col-lg-8">
+        <div class="d-inline-flex align-items-center gap-2 mb-2">
+            <span class="badge bg-primary-subtle text-primary border border-primary-subtle py-1 px-2" style="font-family: var(--sh-font-mono); font-size: 0.7rem; font-weight: 600;">VTU CSE/ISE</span>
+            <span class="text-secondary small">&bull; Syllabus-Aligned Learning Portal</span>
+        </div>
+        <h1 class="h2 fw-bold text-light mb-1.5">Curriculum Dashboard</h1>
+        <p class="text-secondary small mb-0" style="max-width: 600px; line-height: 1.6;">
+            Select a subject to explore its syllabus modules, browse curated educational videos, and discover technical articles.
+        </p>
+    </div>
+</div>
+
+<!-- Subjects Grid (Generous Vertical & Horizontal Card Spacing) -->
+<div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-4 gy-4">
+    {% for subject in subjects %}
+        <div class="col">
+            <a href="{% url 'curriculum:subject_detail' subject.slug %}" class="sh-card" style="padding: 1.25rem !important;">
+                <!-- Top Row: Code badge and module counter -->
+                <div class="d-flex justify-content-between align-items-center mb-2.5">
+                    <span class="sh-badge-code">{{ subject.code }}</span>
+                    <span class="sh-meta-pill">
+                        <i class="bi bi-folder2-open text-secondary"></i>
+                        <span>{{ subject.module_count }} Modules</span>
+                    </span>
+                </div>
+
+                <!-- Subject Title (2 lines max with fixed height) -->
+                <h5 class="card-title fw-semibold text-light mb-2 sh-clamp-2" style="font-size: 0.975rem; line-height: 1.35; min-height: 26px;" title="{{ subject.name }}">
+                    {{ subject.name }}
+                </h5>
+
+                <!-- Description: Strictly 2 lines max with fixed height (always uniform irrespective of DB text length) -->
+                <p class="card-text text-secondary small mb-3 sh-clamp-2" style="font-size: 0.8rem; line-height: 1.5; height: 38px; overflow: hidden; margin-bottom: 0.85rem !important;">
+                    {% if subject.description %}
+                        {{ subject.description|truncatewords:14 }}
+                    {% else %}
+                        Syllabus modules, video lectures, and technical articles.
+                    {% endif %}
+                </p>
+
+                <!-- Action Footer (Cleanly anchored at the bottom) -->
+                <div class="pt-2.5 border-top border-secondary-subtle d-flex justify-content-between align-items-center mt-auto">
+                    <span class="text-primary small fw-medium d-inline-flex align-items-center gap-1.5" style="font-size: 0.775rem;">
+                        Explore Syllabus <i class="bi bi-arrow-right"></i>
+                    </span>
+                    <span class="text-secondary" style="font-size: 0.7rem; font-family: var(--sh-font-mono);">VTU</span>
+                </div>
+            </a>
+        </div>
+    {% empty %}
+        <div class="col-12">
+            <div class="sh-panel p-5 text-center">
+                <i class="bi bi-journal-x fs-1 text-secondary mb-3 d-block"></i>
+                <h5 class="text-light">No subjects found</h5>
+                <p class="text-secondary small mb-3">You haven't added any subjects yet. Open the admin panel to add your VTU subjects.</p>
+                <a href="/admin/curriculum/subject/add/" class="btn btn-primary btn-sm">
+                    <i class="bi bi-plus-lg"></i> Add First Subject
+                </a>
+            </div>
+        </div>
+    {% endfor %}
+</div>
+{% endblock %}

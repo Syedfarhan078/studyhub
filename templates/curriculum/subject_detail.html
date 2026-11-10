@@ -1,0 +1,357 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ subject.code }} - {{ subject.name }} | StudyHub{% endblock %}
+
+{% block content %}
+<!-- Standardized Horizontal Scrollable Breadcrumb for Mobile -->
+<div class="breadcrumb-wrapper mb-3">
+    <nav aria-label="breadcrumb">
+        <ol class="breadcrumb mb-0">
+            <li class="breadcrumb-item"><a href="/">Home</a></li>
+            <li class="breadcrumb-item text-secondary">Subjects</li>
+            <li class="breadcrumb-item active" aria-current="page">{{ subject.name }}</li>
+        </ol>
+    </nav>
+</div>
+
+<!-- Subject Header Banner with Progress Bar -->
+<div class="sh-panel mb-4 p-3.5 p-md-4">
+    <div class="d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center gap-3 mb-3">
+        <div>
+            <div class="d-flex align-items-center gap-2 mb-2 flex-wrap">
+                <span class="sh-badge-code">{{ subject.code }}</span>
+                <span class="text-secondary small">&bull; {{ subject.modules.count }} Modules</span>
+                <span class="text-secondary small">&bull; {{ total_topics }} Topics Total</span>
+            </div>
+            <h1 class="h2 fw-bold text-light mb-1">{{ subject.name }}</h1>
+            <p class="text-secondary small mb-0" style="max-width: 680px; line-height: 1.6;">
+                {{ subject.description|default:"Syllabus modules, video lectures, and technical articles." }}
+            </p>
+        </div>
+        <a href="/" class="btn btn-sm btn-outline-secondary w-100 w-md-auto">
+            <i class="bi bi-arrow-left"></i> All Subjects
+        </a>
+    </div>
+
+    <!-- Syllabus Completion Progress Bar -->
+    <div class="pt-3 border-top border-secondary-subtle">
+        <div class="d-flex justify-content-between align-items-center small mb-1.5 flex-wrap gap-1">
+            <span class="text-secondary"><i class="bi bi-bar-chart-fill text-primary me-1.5"></i>Syllabus Learning Progress</span>
+            <span class="text-light fw-medium" style="font-family: var(--sh-font-mono); font-size: 0.75rem;">{{ completed_topics }} / {{ total_topics }} Completed ({{ progress_percent }}%)</span>
+        </div>
+        <div class="progress bg-dark" style="height: 6px; border-radius: 3px;">
+            <div class="progress-bar bg-primary" role="progressbar" style="width: {{ progress_percent }}%; border-radius: 3px;" aria-valuenow="{{ progress_percent }}" aria-valuemin="0" aria-valuemax="100"></div>
+        </div>
+    </div>
+</div>
+
+<!-- Main Syllabus Explorer Split Layout -->
+<div class="row g-4">
+
+    <!-- Left Column: Module & Topic Navigator -->
+    <div class="col-lg-4 col-md-5">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <span class="text-secondary text-uppercase fw-semibold" style="font-size: 0.72rem; letter-spacing: 0.05em;">
+                Syllabus Navigator
+            </span>
+            <span class="badge bg-dark-subtle border border-secondary-subtle text-secondary" style="font-size: 0.7rem; font-family: var(--sh-font-mono);">
+                {{ subject.modules.count }} Modules
+            </span>
+        </div>
+
+        {% if subject.modules.all %}
+            <div class="accordion" id="syllabusAccordion">
+                {% for module in subject.modules.all %}
+                    <div class="accordion-item mb-2 overflow-hidden">
+                        <h2 class="accordion-header" id="heading-{{ module.id }}">
+                            <button class="accordion-button {% if active_topic and active_topic.module.id != module.id %}collapsed{% endif %} py-2.5 px-3" 
+                                    type="button" 
+                                    data-bs-toggle="collapse" 
+                                    data-bs-target="#collapse-{{ module.id }}" 
+                                    aria-expanded="{% if active_topic and active_topic.module.id == module.id %}true{% else %}false{% endif %}" 
+                                    aria-controls="collapse-{{ module.id }}">
+                                <span class="d-flex flex-column text-start">
+                                    <span class="text-primary" style="font-family: var(--sh-font-mono); font-size: 0.7rem; font-weight: 600;">MODULE {{ module.module_number }}</span>
+                                    <span class="text-truncate" style="max-width: 240px; font-weight: 500;">{{ module.title }}</span>
+                                </span>
+                            </button>
+                        </h2>
+                        <div id="collapse-{{ module.id }}" 
+                             class="accordion-collapse collapse {% if active_topic and active_topic.module.id == module.id %}show{% endif %}" 
+                             aria-labelledby="heading-{{ module.id }}" 
+                             data-bs-parent="#syllabusAccordion">
+                            <div class="accordion-body p-2 border-top border-secondary-subtle">
+                                {% if module.topics.all %}
+                                    <div class="list-group list-group-flush">
+                                        {% for topic in module.topics.all %}
+                                            <a href="?topic={{ topic.slug }}" 
+                                               class="list-group-item list-group-item-action d-flex align-items-center justify-content-between p-2 rounded mb-1 border-0 small {% if active_topic and active_topic.id == topic.id %}bg-primary-subtle text-primary border border-primary-subtle fw-medium{% else %}text-secondary{% endif %}"
+                                               style="{% if active_topic and active_topic.id == topic.id %}background-color: rgba(47, 129, 247, 0.12) !important; color: #58a6ff !important; border: 1px solid rgba(47, 129, 247, 0.28) !important;{% else %}background: transparent;{% endif %}">
+                                                <span class="text-truncate me-2 d-flex align-items-center gap-2">
+                                                    {% if topic.progress.status == 'COMPLETED' %}
+                                                        <i class="bi bi-check-circle-fill text-success" title="Completed"></i>
+                                                    {% elif topic.progress.status == 'IN_PROGRESS' %}
+                                                        <i class="bi bi-hourglass-split text-warning" title="In Progress"></i>
+                                                    {% else %}
+                                                        <i class="bi bi-circle text-secondary" style="font-size: 0.7rem;" title="Not Started"></i>
+                                                    {% endif %}
+                                                    {{ topic.title }}
+                                                </span>
+                                                <i class="bi bi-chevron-right text-secondary" style="font-size: 0.65rem;"></i>
+                                            </a>
+                                        {% endfor %}
+                                    </div>
+                                {% else %}
+                                    <p class="text-secondary small fst-italic mb-0 p-2">No topics in this module yet.</p>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                {% endfor %}
+            </div>
+        {% else %}
+            <div class="sh-panel text-center p-4">
+                <i class="bi bi-inbox text-secondary fs-3 mb-2 d-block"></i>
+                <p class="small text-secondary mb-2">No modules created yet.</p>
+                <a href="/admin/curriculum/module/add/" class="btn btn-sm btn-outline-primary w-100">
+                    <i class="bi bi-plus-lg"></i> Add Module
+                </a>
+            </div>
+        {% endif %}
+    </div>
+
+    <!-- Right Column: Active Topic Workspace -->
+    <div class="col-lg-8 col-md-7">
+        {% if active_topic %}
+            <!-- Topic Detail Panel -->
+            <div class="sh-panel mb-4 p-3.5 p-md-4">
+                <!-- Top Meta Row -->
+                <div class="d-flex align-items-center gap-2 mb-2 flex-wrap">
+                    <span class="badge bg-secondary-subtle text-secondary-emphasis" style="font-family: var(--sh-font-mono); font-size: 0.7rem;">
+                        Module {{ active_topic.module.module_number }}
+                    </span>
+                    <span class="text-secondary small">&bull; Topic {{ active_topic.order }}</span>
+                </div>
+
+                <h3 class="h4 fw-bold text-light mb-2">{{ active_topic.title }}</h3>
+                <p class="text-secondary small mb-4" style="line-height: 1.65;">
+                    {{ active_topic.description|default:"No detailed syllabus description provided for this topic." }}
+                </p>
+
+                <!-- Status Switcher Bar (Segmented & Touch-Friendly on Mobile) -->
+                <div class="p-3 mb-3 rounded border border-secondary-subtle bg-dark-subtle d-flex flex-column flex-sm-row justify-content-between align-items-sm-center gap-3">
+                    <div class="d-flex align-items-center gap-2">
+                        <span class="text-secondary small" style="font-size: 0.75rem;">STATUS:</span>
+                        {% if active_topic.progress.status == 'COMPLETED' %}
+                            <span class="badge bg-success-subtle text-success border border-success-subtle"><i class="bi bi-check-circle-fill me-1"></i>Completed</span>
+                        {% elif active_topic.progress.status == 'IN_PROGRESS' %}
+                            <span class="badge bg-warning-subtle text-warning border border-warning-subtle"><i class="bi bi-hourglass-split me-1"></i>In Progress</span>
+                        {% else %}
+                            <span class="badge bg-secondary-subtle text-secondary-emphasis border border-secondary-subtle"><i class="bi bi-circle me-1"></i>Not Started</span>
+                        {% endif %}
+                    </div>
+
+                    <!-- Status Buttons Form (Flex-fill on mobile) -->
+                    <form action="{% url 'curriculum:update_topic_progress' active_topic.id %}" method="POST" class="d-flex w-100 w-sm-auto gap-1 mb-0">
+                        {% csrf_token %}
+                        <input type="hidden" name="personal_notes" value="{{ active_topic.progress.personal_notes|default:'' }}">
+                        <button type="submit" name="status" value="NOT_STARTED" class="btn btn-sm flex-fill {% if active_topic.progress.status == 'NOT_STARTED' or not active_topic.progress %}btn-secondary{% else %}btn-outline-secondary{% endif %}">
+                            Not Started
+                        </button>
+                        <button type="submit" name="status" value="IN_PROGRESS" class="btn btn-sm flex-fill {% if active_topic.progress.status == 'IN_PROGRESS' %}btn-warning{% else %}btn-outline-warning{% endif %}">
+                            In Progress
+                        </button>
+                        <button type="submit" name="status" value="COMPLETED" class="btn btn-sm flex-fill {% if active_topic.progress.status == 'COMPLETED' %}btn-success{% else %}btn-outline-success{% endif %}">
+                            Completed
+                        </button>
+                    </form>
+                </div>
+
+                <!-- Personal Topic Notes Accordion Drawer -->
+                <div class="mb-3">
+                    <button class="btn btn-sm btn-outline-secondary w-100 d-flex justify-content-between align-items-center py-2 px-3 text-light" type="button" data-bs-toggle="collapse" data-bs-target="#topicNotesCollapse" aria-expanded="false" aria-controls="topicNotesCollapse">
+                        <span><i class="bi bi-pencil-square text-primary me-2"></i>Personal Notes & Formulas for this Topic</span>
+                        <i class="bi bi-chevron-down small text-secondary"></i>
+                    </button>
+                    <div class="collapse mt-2" id="topicNotesCollapse">
+                        <form action="{% url 'curriculum:update_topic_progress' active_topic.id %}" method="POST" class="p-3 border border-secondary-subtle rounded bg-dark mb-0">
+                            {% csrf_token %}
+                            <input type="hidden" name="status" value="{{ active_topic.progress.status|default:'NOT_STARTED' }}">
+                            <div class="mb-2">
+                                <textarea name="personal_notes" rows="3" class="form-control bg-dark border-secondary-subtle text-light small" placeholder="Type key formulas, exam pointers, or reminders here...">{{ active_topic.progress.personal_notes|default:'' }}</textarea>
+                            </div>
+                            <button type="submit" class="btn btn-sm btn-primary w-100 w-sm-auto">
+                                <i class="bi bi-check2"></i> Save Notes
+                            </button>
+                        </form>
+                    </div>
+                </div>
+
+                <!-- Keywords Section -->
+                <div class="pt-3 border-top border-secondary-subtle">
+                    <span class="text-secondary text-uppercase fw-semibold d-block mb-2" style="font-size: 0.72rem; letter-spacing: 0.04em;">
+                        Search Keywords ({{ active_topic.keywords.count }})
+                    </span>
+                    <div class="d-flex flex-wrap gap-2">
+                        {% for kw in active_topic.keywords.all %}
+                            <span class="sh-badge-tag">
+                                <i class="bi bi-search text-secondary" style="font-size: 0.65rem;"></i>{{ kw.keyword }}
+                            </span>
+                        {% empty %}
+                            <span class="small text-secondary fst-italic">No keywords assigned yet.</span>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+
+            <!-- Two Symmetrical Learning Stream Cards (Stack on Mobile, Side-by-Side on Tablet/Desktop) -->
+            <div class="row g-3 mb-4">
+                <!-- Stream 1: YouTube Platform Card -->
+                <div class="col-md-6">
+                    <div class="sh-card p-4">
+                        <div class="d-flex align-items-center gap-2 mb-2 text-danger">
+                            <i class="bi bi-youtube fs-4"></i>
+                            <h5 class="fw-semibold text-light mb-0" style="font-size: 1.05rem;">Video Learning</h5>
+                        </div>
+                        <p class="text-secondary small flex-grow-1 mb-4" style="line-height: 1.6; font-size: 0.8125rem;">
+                            Discover educational video lectures and tutorials mapped to this syllabus topic.
+                        </p>
+                        <a href="{% url 'resources:topic_videos' active_topic.id %}" class="btn btn-sm btn-outline-danger w-100">
+                            <i class="bi bi-play-circle"></i> Explore Videos
+                        </a>
+                    </div>
+                </div>
+
+                <!-- Stream 2: Article Discovery Card -->
+                <div class="col-md-6">
+                    <div class="sh-card p-4">
+                        <div class="d-flex align-items-center gap-2 mb-2 text-info">
+                            <i class="bi bi-newspaper fs-4"></i>
+                            <h5 class="fw-semibold text-light mb-0" style="font-size: 1.05rem;">Article Discovery</h5>
+                        </div>
+                        <p class="text-secondary small flex-grow-1 mb-4" style="line-height: 1.6; font-size: 0.8125rem;">
+                            Browse technical articles and documentation from GeeksforGeeks and W3Schools.
+                        </p>
+                        <a href="{% url 'resources:topic_articles' active_topic.id %}" class="btn btn-sm btn-outline-info w-100">
+                            <i class="bi bi-book"></i> Read Articles
+                        </a>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Section 3: Module Notes & Downloads Repository (Full Width & Touch-Friendly) -->
+            <div class="sh-panel p-3.5 p-md-4">
+                <div class="d-flex flex-column flex-sm-row justify-content-between align-items-sm-center gap-3 mb-3">
+                    <div>
+                        <div class="d-flex align-items-center gap-2 mb-1">
+                            <span class="badge bg-warning-subtle text-warning border border-warning-subtle" style="font-family: var(--sh-font-mono); font-size: 0.7rem;">
+                                <i class="bi bi-file-earmark-pdf-fill me-1"></i>MODULE {{ active_topic.module.module_number }} REPOSITORY
+                            </span>
+                        </div>
+                        <h5 class="fw-semibold text-light mb-0" style="font-size: 1.05rem;">Module Handouts & Notes</h5>
+                        <p class="text-secondary small mb-0">Download PDF lecture notes, question banks, and handwritten scans for Module {{ active_topic.module.module_number }}.</p>
+                    </div>
+
+                    <!-- Button to open upload modal -->
+                    <button type="button" class="btn btn-sm btn-outline-warning text-nowrap w-100 w-sm-auto" data-bs-toggle="modal" data-bs-target="#uploadNoteModal">
+                        <i class="bi bi-cloud-arrow-up-fill"></i> Upload Note
+                    </button>
+                </div>
+
+                <!-- Notes List -->
+                {% if active_topic.module.notes.all %}
+                    <div class="list-group list-group-flush border-top border-secondary-subtle pt-2">
+                        {% for note in active_topic.module.notes.all %}
+                            <div class="list-group-item d-flex flex-column flex-sm-row justify-content-between align-items-sm-center py-3 px-0 border-secondary-subtle bg-transparent">
+                                <div class="d-flex align-items-start gap-3 mb-2.5 mb-sm-0">
+                                    <div class="rounded p-2 bg-dark border border-secondary-subtle text-warning d-flex align-items-center justify-content-center" style="width: 42px; height: 42px; flex-shrink: 0;">
+                                        <i class="bi bi-file-earmark-pdf fs-4"></i>
+                                    </div>
+                                    <div>
+                                        <h6 class="text-light fw-medium mb-1" style="font-size: 0.875rem;">{{ note.title }}</h6>
+                                        <div class="d-flex align-items-center gap-2 small text-secondary flex-wrap" style="font-size: 0.75rem;">
+                                            <span class="badge bg-dark border border-secondary-subtle text-light" style="font-family: var(--sh-font-mono); font-size: 0.65rem;">{{ note.file_extension }}</span>
+                                            <span>&bull; {{ note.file_size_display }}</span>
+                                            <span>&bull; {{ note.uploaded_at|date:"M d, Y" }}</span>
+                                        </div>
+                                        {% if note.description %}
+                                            <p class="text-secondary small mb-0 mt-1" style="font-size: 0.775rem;">{{ note.description }}</p>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                                <div class="d-flex align-items-center gap-2 flex-shrink-0 w-100 w-sm-auto">
+                                    <a href="{{ note.file.url }}" target="_blank" rel="noopener noreferrer" class="btn btn-sm btn-outline-light w-100 w-sm-auto">
+                                        <i class="bi bi-box-arrow-up-right"></i> Open / Download
+                                    </a>
+                                </div>
+                            </div>
+                        {% endfor %}
+                    </div>
+                {% else %}
+                    <!-- Empty State for Notes -->
+                    <div class="p-4 border border-secondary-subtle rounded bg-dark-subtle text-center mt-2">
+                        <i class="bi bi-folder-plus text-secondary fs-2 mb-2 d-block"></i>
+                        <h6 class="text-light mb-1" style="font-size: 0.9rem;">No notes uploaded for Module {{ active_topic.module.module_number }} yet</h6>
+                        <p class="text-secondary small mb-3" style="max-width: 440px; margin: 0 auto; font-size: 0.8rem;">
+                            Upload your professor's lecture slides, VTU question banks, or handwritten scans to keep them organized with this module.
+                        </p>
+                        <button type="button" class="btn btn-sm btn-warning w-100 w-sm-auto" data-bs-toggle="modal" data-bs-target="#uploadNoteModal">
+                            <i class="bi bi-cloud-arrow-up-fill"></i> Upload First Note
+                        </button>
+                    </div>
+                {% endif %}
+            </div>
+
+            <!-- Upload Note Modal -->
+            <div class="modal fade" id="uploadNoteModal" tabindex="-1" aria-labelledby="uploadNoteModalLabel" aria-hidden="true">
+                <div class="modal-dialog modal-dialog-centered">
+                    <div class="modal-content border border-secondary-subtle">
+                        <form action="{% url 'curriculum:upload_module_note' active_topic.module.id %}" method="POST" enctype="multipart/form-data" class="mb-0">
+                            {% csrf_token %}
+                            <div class="modal-header border-bottom border-secondary-subtle py-2.5">
+                                <h6 class="modal-title text-light fw-semibold" id="uploadNoteModalLabel">
+                                    <i class="bi bi-cloud-arrow-up-fill text-warning me-1.5"></i>Upload Module {{ active_topic.module.module_number }} Note
+                                </h6>
+                                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                            </div>
+                            <div class="modal-body p-3.5 p-md-4">
+                                <div class="mb-3">
+                                    <label class="form-label text-light small fw-medium">Note Title</label>
+                                    {{ note_form.title }}
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label text-light small fw-medium">Choose File (PDF, DOCX, PPT)</label>
+                                    {{ note_form.file }}
+                                    <small class="text-secondary d-block mt-1" style="font-size: 0.72rem;">Supported formats: PDF, DOCX, PPT, TXT</small>
+                                </div>
+                                <div class="mb-1">
+                                    <label class="form-label text-light small fw-medium">Description (Optional)</label>
+                                    {{ note_form.description }}
+                                </div>
+                            </div>
+                            <div class="modal-footer border-top border-secondary-subtle py-2.5">
+                                <button type="button" class="btn btn-sm btn-outline-secondary flex-fill flex-sm-grow-0" data-bs-dismiss="modal">Cancel</button>
+                                <button type="submit" class="btn btn-sm btn-warning flex-fill flex-sm-grow-0">
+                                    <i class="bi bi-check-circle-fill"></i> Upload Note
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+
+        {% else %}
+            <!-- Empty state when no topics exist -->
+            <div class="sh-panel text-center p-4 p-md-5">
+                <i class="bi bi-journal-code text-secondary fs-1 mb-3 d-block"></i>
+                <h5 class="text-light">Select a Syllabus Topic</h5>
+                <p class="text-secondary small mb-3">Add modules and topics in the admin panel to start exploring resources.</p>
+                <a href="/admin/curriculum/topic/add/" class="btn btn-sm btn-primary w-100 w-sm-auto">
+                    <i class="bi bi-plus-lg"></i> Add Topic
+                </a>
+            </div>
+        {% endif %}
+    </div>
+
+</div>
+{% endblock %}
