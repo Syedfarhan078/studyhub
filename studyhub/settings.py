@@ -145,10 +145,10 @@ USE_TZ = True
 
 # Static files configuration (WhiteNoise)
 # Static files configuration (WhiteNoise)
-STATIC_URL = 'static/'
+STATIC_URL = '/static/'
 STATICFILES_DIRS = [BASE_DIR / 'static']
 STATIC_ROOT = BASE_DIR / 'staticfiles'
-STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
+STATICFILES_STORAGE = 'whitenoise.storage.CompressedStaticFilesStorage'
 
 # Media and Cloudinary Configuration
 MEDIA_URL = '/media/'
