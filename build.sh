@@ -14,5 +14,8 @@ python manage.py migrate
 # 4. Load syllabus seed data (idempotent)
 python manage.py loaddata curriculum_seed.json
 
-# 5. Automatically create production superuser from Render environment variables
+# 5. Clean up any orphaned dummy seed notes from the database
+python manage.py delete_orphaned_notes
+
+# 6. Automatically create production superuser from Render environment variables
 python create_superuser.py
