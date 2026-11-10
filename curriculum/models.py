@@ -207,4 +207,7 @@ class TopicProgress(models.Model):
         verbose_name_plural = "Topic Progress Records"
 
     def __str__(self):
-        return f"{self.topic.title} - {self.get_status_display()}"
+        try:
+            return f"{self.topic.title} - {self.get_status_display()}"
+        except Exception:
+            return f"Topic Progress #{self.pk}"

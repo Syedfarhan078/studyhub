@@ -24,5 +24,18 @@ def create_admin_user():
         User.objects.create_superuser(username=username, email=email, password=password)
         print(f"Superuser '{username}' successfully created!")
 
+def cleanup_orphaned_seed_notes():
+    """Removes the local development dummy note that does not exist on Cloudinary."""
+    try:
+        from curriculum.models import ModuleNote
+        orphans = ModuleNote.objects.filter(file__contains='BAI701-module-1-textbook.pdf')
+        if orphans.exists():
+            count = orphans.count()
+            orphans.delete()
+            print(f"Removed {count} orphaned test note(s) from database.")
+    except Exception as e:
+        print(f"Cleanup note warning: {e}")
+
 if __name__ == '__main__':
     create_admin_user()
+    cleanup_orphaned_seed_notes()

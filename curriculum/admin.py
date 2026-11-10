@@ -40,9 +40,23 @@ class TopicAdmin(admin.ModelAdmin):
 
 @admin.register(ModuleNote)
 class ModuleNoteAdmin(admin.ModelAdmin):
-    list_display = ('title', 'module', 'file_extension', 'file_size_display', 'uploaded_at')
+    list_display = ('title', 'module', 'get_extension', 'get_file_size', 'uploaded_at')
     list_filter = ('module__subject', 'module')
     search_fields = ('title', 'description')
+
+    def get_extension(self, obj):
+        try:
+            return obj.file_extension
+        except Exception:
+            return "FILE"
+    get_extension.short_description = "Ext"
+
+    def get_file_size(self, obj):
+        try:
+            return obj.file_size_display
+        except Exception:
+            return "Unknown"
+    get_file_size.short_description = "Size"
 
 
 @admin.register(TopicProgress)
