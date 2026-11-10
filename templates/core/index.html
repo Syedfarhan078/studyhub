@@ -21,23 +21,23 @@
 <div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-4 gy-4">
     {% for subject in subjects %}
         <div class="col">
-            <a href="{% url 'curriculum:subject_detail' subject.slug %}" class="sh-card" style="padding: 1.25rem !important;">
+            <a href="{% url 'curriculum:subject_detail' subject.slug %}" class="sh-card" style="padding: 1.25rem !important; background-color: #161b22; border: 1px solid #30363d; border-radius: 8px; text-decoration: none !important; color: inherit !important; display: flex; flex-direction: column; height: 100%;">
                 <!-- Top Row: Code badge and module counter -->
                 <div class="d-flex justify-content-between align-items-center mb-2.5">
-                    <span class="sh-badge-code">{{ subject.code }}</span>
-                    <span class="sh-meta-pill">
+                    <span class="sh-badge-code" style="background-color: rgba(47, 129, 247, 0.12); color: #58a6ff; border: 1px solid rgba(47, 129, 247, 0.28); border-radius: 6px; padding: 0.22rem 0.55rem; font-family: var(--sh-font-mono); font-size: 0.72rem; font-weight: 600;">{{ subject.code }}</span>
+                    <span class="sh-meta-pill" style="color: #8b949e; font-size: 0.775rem; display: inline-flex; align-items: center; gap: 0.35rem;">
                         <i class="bi bi-folder2-open text-secondary"></i>
                         <span>{{ subject.module_count }} Modules</span>
                     </span>
                 </div>
 
                 <!-- Subject Title (2 lines max with fixed height) -->
-                <h5 class="card-title fw-semibold text-light mb-2 sh-clamp-2" style="font-size: 0.975rem; line-height: 1.35; min-height: 26px;" title="{{ subject.name }}">
+                <h5 class="card-title fw-semibold text-light mb-2 sh-clamp-2" style="font-size: 0.975rem; line-height: 1.35; min-height: 26px; color: #e6edf3;" title="{{ subject.name }}">
                     {{ subject.name }}
                 </h5>
 
                 <!-- Description: Strictly 2 lines max with fixed height (always uniform irrespective of DB text length) -->
-                <p class="card-text text-secondary small mb-3 sh-clamp-2" style="font-size: 0.8rem; line-height: 1.5; height: 38px; overflow: hidden; margin-bottom: 0.85rem !important;">
+                <p class="card-text text-secondary small mb-3 sh-clamp-2" style="font-size: 0.8rem; line-height: 1.5; height: 38px; overflow: hidden; margin-bottom: 0.85rem !important; color: #8b949e;">
                     {% if subject.description %}
                         {{ subject.description|truncatewords:14 }}
                     {% else %}
@@ -46,11 +46,11 @@
                 </p>
 
                 <!-- Action Footer (Cleanly anchored at the bottom) -->
-                <div class="pt-2.5 border-top border-secondary-subtle d-flex justify-content-between align-items-center mt-auto">
-                    <span class="text-primary small fw-medium d-inline-flex align-items-center gap-1.5" style="font-size: 0.775rem;">
+                <div class="pt-2.5 border-top border-secondary-subtle d-flex justify-content-between align-items-center mt-auto" style="border-top: 1px solid #30363d !important;">
+                    <span class="text-primary small fw-medium d-inline-flex align-items-center gap-1.5" style="font-size: 0.775rem; color: #58a6ff !important;">
                         Explore Syllabus <i class="bi bi-arrow-right"></i>
                     </span>
-                    <span class="text-secondary" style="font-size: 0.7rem; font-family: var(--sh-font-mono);">VTU</span>
+                    <span class="text-secondary" style="font-size: 0.7rem; font-family: var(--sh-font-mono); color: #8b949e;">VTU</span>
                 </div>
             </a>
         </div>

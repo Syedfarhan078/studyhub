@@ -39,11 +39,9 @@ INSTALLED_APPS = [
     'django.contrib.contenttypes',
     'django.contrib.sessions',
     'django.contrib.messages',
-
-    'cloudinary_storage',
+    'whitenoise.runserver_nostatic',
     'django.contrib.staticfiles',
     'cloudinary',
-
 
     'curriculum',
     'core',
@@ -85,8 +83,6 @@ WSGI_APPLICATION = 'studyhub.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/5.1/ref/settings/#databases
 
-# Database: Connects to Neon DATABASE_URL if provided, else falls back to local PostgreSQL
-# Database: Uses DATABASE_URL (for Neon/Render in production), or falls back to local PostgreSQL
 DATABASE_URL = config('DATABASE_URL', default=None)
 
 if DATABASE_URL:
@@ -143,12 +139,11 @@ USE_TZ = True
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/5.1/howto/static-files/
 
-# Static files configuration (WhiteNoise)
-# Static files configuration (WhiteNoise)
 STATIC_URL = '/static/'
 STATICFILES_DIRS = [BASE_DIR / 'static']
 STATIC_ROOT = BASE_DIR / 'staticfiles'
 STATICFILES_STORAGE = 'whitenoise.storage.CompressedStaticFilesStorage'
+WHITENOISE_USE_FINDERS = True
 
 # Media and Cloudinary Configuration
 MEDIA_URL = '/media/'
@@ -163,6 +158,7 @@ if CLOUDINARY_CLOUD_NAME:
         'API_SECRET': config('CLOUDINARY_API_SECRET', default=''),
     }
     DEFAULT_FILE_STORAGE = 'cloudinary_storage.storage.MediaCloudinaryStorage'
+
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.1/ref/settings/#default-auto-field
 
