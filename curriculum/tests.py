@@ -26,6 +26,13 @@ from curriculum.services.ai_curriculum import (
     resolve_configured_models,
     sanitize_error_message,
 )
+from curriculum.worker import (
+    start_in_process_worker,
+    stop_in_process_worker,
+    notify_new_job,
+    get_worker_thread,
+    GenerationWorkerEngine,
+)
 
 
 def make_mock_gemini_json_response(data_dict, status_code=200, headers=None):
@@ -1324,8 +1331,8 @@ class PostgresWorkerConcurrencyTests(TransactionTestCase):
         with JobHeartbeat(job.id, token_a, interval_seconds=0.05, worker_id="test-worker") as hbt:
             # Change token in database to simulate lease revocation
             GenerationJob.objects.filter(id=job.id).update(claim_token=token_b)
-            time.sleep(0.15)
-            self.assertTrue(hbt.lost_event.is_set())
+            is_lost = hbt.lost_event.wait(timeout=2.0)
+            self.assertTrue(is_lost)
 
     @patch("curriculum.management.commands.run_generation_worker.generate_curriculum_from_prompt")
     def test_worker_heartbeat_survives_long_running_gemini_call(self, mock_generate):
@@ -1357,5 +1364,160 @@ class PostgresWorkerConcurrencyTests(TransactionTestCase):
         job.refresh_from_db()
         self.assertEqual(job.status, GenerationJob.Status.COMPLETED)
         self.assertEqual(job.progress, 100)
+
+
+# =====================================================================
+# In-Process Background Worker Thread Tests
+# =====================================================================
+
+class InProcessWorkerThreadTests(TransactionTestCase):
+    """
+    Tests the managed in-process background worker thread lifecycle,
+    idempotent start/stop, instant notification wake-up, fallback polling,
+    and shutdown safety.
+    """
+
+    def setUp(self):
+        super().setUp()
+        stop_in_process_worker(timeout=2.0)
+
+    def tearDown(self):
+        stop_in_process_worker(timeout=3.0)
+        from django.db import connection
+        try:
+            connection.close()
+        except Exception:
+            pass
+        super().tearDown()
+
+    def test_in_process_worker_start_and_stop_idempotent(self):
+        """Tests that starting the worker spawns a daemon thread, multiple starts are idempotent, and stop is clean."""
+        thread1 = start_in_process_worker()
+        self.assertIsNotNone(thread1)
+        self.assertTrue(thread1.is_alive())
+        self.assertTrue(thread1.daemon)
+
+        # Second call returns the exact same running thread without duplicating
+        thread2 = start_in_process_worker()
+        self.assertIs(thread1, thread2)
+
+        # Stop worker thread
+        stopped = stop_in_process_worker(timeout=5.0)
+        self.assertTrue(stopped)
+        self.assertFalse(thread1.is_alive())
+
+        # Stopping again when already stopped returns True
+        self.assertTrue(stop_in_process_worker(timeout=1.0))
+
+    @patch("curriculum.worker.generate_curriculum_from_prompt")
+    def test_in_process_worker_instant_notification_wakes_worker(self, mock_generate):
+        """Tests that notify_new_job wakes the worker immediately to process an enqueued job."""
+        import time
+        dummy_subject = Subject.objects.create(name="Instant Woken Subject", code="INST01", slug="instant-woken-subject")
+        for i in range(1, 6):
+            Module.objects.create(subject=dummy_subject, module_number=i, title=f"Module {i}")
+        mock_generate.return_value = dummy_subject
+
+        job = GenerationJob.objects.create(
+            subject_name="Instant Woken Subject",
+            subject_code="INST01",
+            status=GenerationJob.Status.PENDING
+        )
+
+        # Use an engine with a long poll_interval (10s) to prove the wake-up is instant from the event
+        engine = GenerationWorkerEngine(poll_interval=10.0, lease_duration=60, heartbeat_interval=30)
+        start_in_process_worker(engine=engine)
+
+        # Send instant notification
+        notify_new_job()
+
+        # Wait up to 3s for thread to complete the job
+        completed = False
+        for _ in range(30):
+            job.refresh_from_db()
+            if job.status == GenerationJob.Status.COMPLETED:
+                completed = True
+                break
+            time.sleep(0.1)
+
+        self.assertTrue(completed, "Worker did not process job promptly via notify_new_job event.")
+        self.assertEqual(job.progress, 100)
+        self.assertEqual(job.step, 4)
+
+    @patch("curriculum.worker.generate_curriculum_from_prompt")
+    def test_in_process_worker_fallback_polling_without_notification(self, mock_generate):
+        """Tests that if no notification event is received, periodic polling still discovers and processes pending jobs."""
+        import time
+        dummy_subject = Subject.objects.create(name="Polling Subject", code="POLL01", slug="polling-subject")
+        for i in range(1, 6):
+            Module.objects.create(subject=dummy_subject, module_number=i, title=f"Module {i}")
+        mock_generate.return_value = dummy_subject
+
+        job = GenerationJob.objects.create(
+            subject_name="Polling Subject",
+            subject_code="POLL01",
+            status=GenerationJob.Status.PENDING
+        )
+
+        # Short 0.2s poll interval, DO NOT call notify_new_job()
+        engine = GenerationWorkerEngine(poll_interval=0.2, lease_duration=60, heartbeat_interval=30)
+        start_in_process_worker(engine=engine)
+
+        completed = False
+        for _ in range(30):
+            job.refresh_from_db()
+            if job.status == GenerationJob.Status.COMPLETED:
+                completed = True
+                break
+            time.sleep(0.1)
+
+        self.assertTrue(completed, "Worker fallback polling failed to pick up pending job.")
+
+    def test_in_process_worker_shutdown_stops_claiming_new_jobs(self):
+        """Tests that stopping the worker prevents it from claiming subsequent jobs."""
+        import time
+        engine = GenerationWorkerEngine(poll_interval=0.1)
+        start_in_process_worker(engine=engine)
+
+        stopped = stop_in_process_worker(timeout=3.0)
+        self.assertTrue(stopped)
+
+        # Create a pending job after shutdown
+        job = GenerationJob.objects.create(
+            subject_name="After Shutdown",
+            subject_code="AFT01",
+            status=GenerationJob.Status.PENDING
+        )
+        notify_new_job()
+        time.sleep(0.3)
+
+        job.refresh_from_db()
+        self.assertEqual(job.status, GenerationJob.Status.PENDING)
+
+    def test_interrupted_running_job_recovered_by_lease_expiration(self):
+        """Tests that a job left in RUNNING due to sudden process termination is recovered by lease expiration."""
+        past_time = timezone.now() - timedelta(seconds=400)
+        stale_job = GenerationJob.objects.create(
+            subject_name="Crash Recovered Job",
+            subject_code="CRASH01",
+            status=GenerationJob.Status.RUNNING,
+            attempts=1,
+            max_attempts=3,
+            claim_token=uuid.uuid4(),
+            locked_at=past_time,
+            locked_by="dead-web-dyno"
+        )
+
+        engine = GenerationWorkerEngine(lease_duration=300, max_attempts=3)
+        reaped = engine.reap_abandoned_jobs()
+        self.assertEqual(reaped, 1)
+
+        stale_job.refresh_from_db()
+        self.assertEqual(stale_job.status, GenerationJob.Status.PENDING)
+        self.assertIsNone(stale_job.claim_token)
+        self.assertIsNone(stale_job.locked_at)
+        self.assertEqual(stale_job.locked_by, "")
+        self.assertIn("requeued", stale_job.progress_message)
+
 
 

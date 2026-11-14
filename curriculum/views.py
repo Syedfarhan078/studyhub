@@ -4,6 +4,7 @@ from django.shortcuts import render, get_object_or_404, redirect
 from django.http import JsonResponse
 from django.urls import reverse
 from django.contrib import messages
+from django.db import transaction
 from .models import Subject, Module, Topic, TopicProgress, GenerationJob
 from .forms import ModuleNoteForm
 from .services.ai_curriculum import (
@@ -16,6 +17,7 @@ from .services.ai_curriculum import (
     CurriculumParseError,
     CurriculumValidationError,
 )
+from curriculum.worker import notify_new_job
 
 logger = logging.getLogger(__name__)
 
@@ -86,18 +88,21 @@ def generate_subject_ai(request):
                     request.session.save()
                 session_key = request.session.session_key or ""
 
-            job = GenerationJob.objects.create(
-                user=user,
-                session_key=session_key,
-                subject_name=subject_name,
-                subject_code=subject_code,
-                syllabus_text=syllabus_text,
-                status=GenerationJob.Status.PENDING,
-                progress=0,
-                step=1,
-                total_steps=4,
-                progress_message=f"Job queued and awaiting worker pickup for '{subject_name}'."
-            )
+            with transaction.atomic():
+                job = GenerationJob.objects.create(
+                    user=user,
+                    session_key=session_key,
+                    subject_name=subject_name,
+                    subject_code=subject_code,
+                    syllabus_text=syllabus_text,
+                    status=GenerationJob.Status.PENDING,
+                    progress=0,
+                    step=1,
+                    total_steps=4,
+                    progress_message=f"Job queued and awaiting worker pickup for '{subject_name}'."
+                )
+                transaction.on_commit(notify_new_job)
+
             if not user:
                 request.session[f"allowed_job_{job.id}"] = True
                 request.session.modified = True
