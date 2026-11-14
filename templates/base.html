@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{% block title %}StudyHub - VTU Educational Portal{% endblock %}</title>
+    <title>{% block title %}StudyHub — University Curriculum & Study Platform{% endblock %}</title>
 
     <!-- Google Fonts: Inter & JetBrains Mono -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -20,18 +20,20 @@
     <!-- External Custom Stylesheet -->
     <link rel="stylesheet" href="{% static 'css/custom.css' %}">
 
-    <!-- Production Direct Styles (Guarantees zero 404s and zero unstyled flash on any cloud host) -->
+    <!-- Production Direct Styles (Guarantees zero unstyled flash on all cloud hosts) -->
     <style>
         :root {
-            --sh-bg-main: #0d1117;
-            --sh-bg-card: #161b22;
-            --sh-bg-card-hover: #1c2128;
-            --sh-bg-surface: #21262d;
-            --sh-border: #30363d;
-            --sh-border-hover: #484f58;
-            --sh-text-primary: #e6edf3;
-            --sh-text-secondary: #8b949e;
-            --sh-accent: #2f81f7;
+            --sh-bg-main: #0b0f19;
+            --sh-bg-card: #121826;
+            --sh-bg-card-hover: #172033;
+            --sh-bg-surface: #1c263c;
+            --sh-border: #1f293d;
+            --sh-border-hover: #2e3e5c;
+            --sh-text-primary: #f1f5f9;
+            --sh-text-secondary: #94a3b8;
+            --sh-text-muted: #64748b;
+            --sh-accent: #3b82f6;
+            --sh-accent-hover: #60a5fa;
             --sh-font-sans: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
             --sh-font-mono: 'JetBrains Mono', monospace;
             --sh-radius: 8px;
@@ -47,230 +49,44 @@
             overflow-x: hidden;
         }
 
-        h1, h2, h3, h4, h5, h6 {
-            color: var(--sh-text-primary);
-            font-weight: 600;
-            letter-spacing: -0.02em;
-        }
-
-        p {
-            color: var(--sh-text-secondary);
-        }
-
-        a {
-            color: inherit;
-            text-decoration: none;
-        }
-
-        .navbar {
-            background-color: var(--sh-bg-card) !important;
-            border-bottom: 1px solid var(--sh-border) !important;
-        }
-
-        .navbar-brand {
-            font-size: 1.05rem;
-            font-weight: 600;
-            letter-spacing: -0.02em;
-            text-decoration: none !important;
-            color: var(--sh-text-primary) !important;
-        }
-
-        /* Standardized Content Cards */
-        .sh-card {
-            background-color: var(--sh-bg-card) !important;
-            border: 1px solid var(--sh-border) !important;
-            border-radius: var(--sh-radius) !important;
-            transition: transform 0.16s ease, border-color 0.16s ease, background-color 0.16s ease;
-            text-decoration: none !important;
-            color: inherit !important;
-            display: flex;
-            flex-direction: column;
-            height: 100%;
-        }
-
-        .sh-card:hover {
-            background-color: var(--sh-bg-card-hover) !important;
-            border-color: var(--sh-border-hover) !important;
-            transform: translateY(-2px);
-            color: inherit !important;
-        }
-
-        /* Section Panels */
-        .sh-panel {
-            background-color: var(--sh-bg-card) !important;
-            border: 1px solid var(--sh-border) !important;
-            border-radius: var(--sh-radius) !important;
-            padding: 1.5rem;
-        }
-
-        /* Uniform Buttons */
-        .btn {
-            font-size: 0.8125rem !important;
-            font-weight: 500 !important;
-            border-radius: var(--sh-radius-sm) !important;
-            padding: 0.38rem 0.85rem !important;
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            gap: 0.4rem;
-            min-height: 34px;
-            text-decoration: none !important;
-            transition: all 0.15s ease-in-out;
-        }
-
-        .btn-sm {
-            font-size: 0.775rem !important;
-            padding: 0.28rem 0.7rem !important;
-            min-height: 30px;
-        }
-
-        .btn-outline-secondary {
-            border-color: var(--sh-border) !important;
-            color: var(--sh-text-secondary) !important;
-            background-color: transparent !important;
-        }
-        .btn-outline-secondary:hover {
-            background-color: var(--sh-bg-surface) !important;
-            border-color: var(--sh-border-hover) !important;
-            color: var(--sh-text-primary) !important;
-        }
-
-        /* Badges */
-        .sh-badge-code {
-            font-family: var(--sh-font-mono);
-            font-size: 0.72rem;
-            font-weight: 600;
-            padding: 0.22rem 0.55rem;
+        /* Navbar active pill */
+        .navbar-nav .nav-link.active {
+            color: #ffffff !important;
+            background-color: rgba(255, 255, 255, 0.08);
             border-radius: var(--sh-radius-sm);
-            background-color: rgba(47, 129, 247, 0.12);
-            color: #58a6ff;
-            border: 1px solid rgba(47, 129, 247, 0.28);
-            letter-spacing: 0.04em;
-            display: inline-flex;
-            align-items: center;
-            text-decoration: none !important;
         }
 
-        .sh-badge-tag {
-            font-family: var(--sh-font-mono);
-            font-size: 0.72rem;
-            font-weight: 400;
-            padding: 0.25rem 0.6rem;
-            border-radius: var(--sh-radius-sm);
-            background-color: #12161c;
-            color: var(--sh-text-secondary);
-            border: 1px solid var(--sh-border);
-            display: inline-flex;
-            align-items: center;
-            gap: 0.3rem;
-            text-decoration: none !important;
-        }
-
-        .sh-meta-pill {
-            font-size: 0.775rem;
-            color: var(--sh-text-secondary);
-            display: inline-flex;
-            align-items: center;
-            gap: 0.35rem;
-            text-decoration: none !important;
-        }
-
-        /* Line Clamping */
-        .sh-clamp-2 {
-            display: -webkit-box;
-            -webkit-line-clamp: 2;
-            -webkit-box-orient: vertical;
-            overflow: hidden;
-        }
-
-        .sh-clamp-3 {
-            display: -webkit-box;
-            -webkit-line-clamp: 3;
-            -webkit-box-orient: vertical;
-            overflow: hidden;
-        }
-
-        /* Accordion */
-        .accordion-item {
+        /* Alert Styling */
+        .alert {
             background-color: var(--sh-bg-card) !important;
             border: 1px solid var(--sh-border) !important;
+            color: var(--sh-text-primary) !important;
             border-radius: var(--sh-radius) !important;
         }
 
-        .accordion-button {
-            background-color: var(--sh-bg-card) !important;
-            color: var(--sh-text-primary) !important;
-            box-shadow: none !important;
-            font-size: 0.825rem !important;
+        .alert-success {
+            border-left: 4px solid #10b981 !important;
         }
 
-        .accordion-button:not(.collapsed) {
-            border-bottom: 1px solid var(--sh-border) !important;
+        .alert-danger, .alert-error {
+            border-left: 4px solid #ef4444 !important;
         }
 
-        .accordion-button::after {
-            filter: invert(0.6);
-            background-size: 0.8rem;
+        .alert-warning {
+            border-left: 4px solid #f59e0b !important;
         }
 
-        /* Breadcrumb horizontal scrolling for mobile */
-        .breadcrumb-wrapper {
-            overflow-x: auto;
-            white-space: nowrap;
-            -webkit-overflow-scrolling: touch;
-            scrollbar-width: none;
-        }
-        .breadcrumb-wrapper::-webkit-scrollbar {
-            display: none;
-        }
-        .breadcrumb {
-            font-size: 0.8125rem;
-            flex-wrap: nowrap;
-        }
-        .breadcrumb-item a {
-            color: var(--sh-text-secondary);
-            text-decoration: none !important;
-        }
-        .breadcrumb-item a:hover {
-            color: var(--sh-accent);
-        }
-        .breadcrumb-item.active {
-            color: var(--sh-text-primary);
-        }
-        .breadcrumb-item + .breadcrumb-item::before {
-            color: var(--sh-border-hover);
+        .alert-info {
+            border-left: 4px solid #06b6d4 !important;
         }
 
-        /* Footer */
-        .footer {
-            background-color: var(--sh-bg-main) !important;
-            border-top: 1px solid var(--sh-border) !important;
-            font-size: 0.8rem;
-        }
-
+        /* Touch interaction polish */
         @media (max-width: 767.98px) {
-            .container {
-                padding-left: 1rem !important;
-                padding-right: 1rem !important;
-            }
-            .sh-panel {
-                padding: 1.15rem !important;
-            }
-            h1, .h2 {
-                font-size: 1.35rem !important;
-            }
             .btn {
-                min-height: 38px;
+                min-height: 44px !important;
             }
-            .navbar-collapse {
-                background-color: var(--sh-bg-card);
-                border: 1px solid var(--sh-border);
-                border-radius: var(--sh-radius);
-                padding: 1rem;
-                margin-top: 0.75rem;
-            }
-            .modal-dialog {
-                margin: 0.5rem !important;
+            .form-control, .form-select {
+                min-height: 44px !important;
             }
         }
     </style>
@@ -279,30 +95,41 @@
 </head>
 <body class="d-flex flex-column min-vh-100">
 
-    <!-- Global Navigation Bar -->
-    <nav class="navbar navbar-expand-lg navbar-dark sticky-top py-2.5" style="background-color: #161b22 !important; border-bottom: 1px solid #30363d !important;">
+    <!-- Global Application Navigation Bar -->
+    <nav class="navbar navbar-expand-lg navbar-dark sticky-top py-2.5" style="background-color: #121826 !important; border-bottom: 1px solid #1f293d !important;">
         <div class="container">
-            <a class="navbar-brand d-flex align-items-center gap-2" href="/">
-                <i class="bi bi-mortarboard-fill text-primary fs-5"></i>
-                <span>Study<span class="text-primary">Hub</span></span>
+            <!-- Brand Logo -->
+            <a class="navbar-brand d-inline-flex align-items-center gap-2" href="/">
+                <div class="d-inline-flex align-items-center justify-content-center rounded" style="width: 28px; height: 28px; background: rgba(59, 130, 246, 0.15); border: 1px solid rgba(59, 130, 246, 0.35);">
+                    <i class="bi bi-mortarboard-fill text-primary" style="font-size: 0.95rem;"></i>
+                </div>
+                <span class="fw-semibold" style="letter-spacing: -0.02em;">Study<span class="text-primary">Hub</span></span>
             </a>
-            <button class="navbar-toggler border-0" type="button" data-bs-toggle="collapse" data-bs-target="#studyHubNavbar" aria-controls="studyHubNavbar" aria-expanded="false" aria-label="Toggle navigation">
+
+            <!-- Mobile Hamburger Toggle (44px touch target) -->
+            <button class="navbar-toggler border-0 p-2" type="button" data-bs-toggle="collapse" data-bs-target="#studyHubNavbar" aria-controls="studyHubNavbar" aria-expanded="false" aria-label="Toggle navigation" style="min-width: 44px; min-height: 44px;">
                 <span class="navbar-toggler-icon"></span>
             </button>
 
+            <!-- Navigation Links -->
             <div class="collapse navbar-collapse" id="studyHubNavbar">
-                <ul class="navbar-nav me-auto mb-2 mb-lg-0 ms-lg-3">
+                <ul class="navbar-nav me-auto mb-2 mb-lg-0 ms-lg-3 gap-1">
                     <li class="nav-item">
-                        <a class="nav-link active d-inline-flex align-items-center gap-1.5" aria-current="page" href="/" style="font-size: 0.825rem; font-weight: 500;">
-                            <i class="bi bi-grid-fill text-primary"></i> Subjects
+                        <a class="nav-link active d-inline-flex align-items-center gap-1.5 px-2.5 py-1.5" aria-current="page" href="/" style="font-size: 0.8125rem; font-weight: 500;">
+                            <i class="bi bi-grid-fill text-primary"></i> Curriculum Dashboard
                         </a>
                     </li>
                 </ul>
 
-                <ul class="navbar-nav ms-auto align-items-center">
-                    <li class="nav-item">
-                        <a class="btn btn-sm btn-outline-secondary" href="/admin/" target="_blank">
-                            <i class="bi bi-shield-lock-fill"></i> Admin
+                <ul class="navbar-nav ms-auto align-items-center gap-2">
+                    <li class="nav-item d-none d-md-block">
+                        <span class="badge bg-dark border border-secondary-subtle text-secondary py-1 px-2" style="font-family: var(--sh-font-mono); font-size: 0.68rem;">
+                            VTU 2022 Scheme
+                        </span>
+                    </li>
+                    <li class="nav-item w-100 w-lg-auto">
+                        <a class="btn btn-sm btn-outline-secondary w-100" href="/admin/" target="_blank" rel="noopener noreferrer">
+                            <i class="bi bi-shield-lock"></i> Admin Portal
                         </a>
                     </li>
                 </ul>
@@ -317,10 +144,18 @@
             {% if messages %}
                 <div class="mb-4">
                     {% for message in messages %}
-                        <div class="alert alert-{{ message.tags }} alert-dismissible fade show d-flex align-items-center gap-2" role="alert" style="font-size: 0.825rem;">
-                            <i class="bi bi-info-circle-fill"></i>
-                            <div>{{ message }}</div>
-                            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                        <div class="alert alert-{{ message.tags }} alert-dismissible fade show d-flex align-items-start gap-2.5 p-3 shadow-sm" role="alert" style="font-size: 0.825rem; line-height: 1.5;">
+                            {% if message.tags == 'success' %}
+                                <i class="bi bi-check-circle-fill text-success fs-6 mt-0.5 flex-shrink-0"></i>
+                            {% elif message.tags == 'error' or message.tags == 'danger' %}
+                                <i class="bi bi-exclamation-triangle-fill text-danger fs-6 mt-0.5 flex-shrink-0"></i>
+                            {% elif message.tags == 'warning' %}
+                                <i class="bi bi-exclamation-circle-fill text-warning fs-6 mt-0.5 flex-shrink-0"></i>
+                            {% else %}
+                                <i class="bi bi-info-circle-fill text-info fs-6 mt-0.5 flex-shrink-0"></i>
+                            {% endif %}
+                            <div class="flex-grow-1">{{ message }}</div>
+                            <button type="button" class="btn-close btn-close-white ms-auto" data-bs-dismiss="alert" aria-label="Close"></button>
                         </div>
                     {% endfor %}
                 </div>
@@ -333,10 +168,15 @@
     </main>
 
     <!-- Global Minimal Footer -->
-    <footer class="footer mt-auto py-3 text-secondary">
-        <div class="container text-center text-md-between d-md-flex justify-content-between align-items-center">
-            <span class="small">&copy; StudyHub &bull; VTU Syllabus Learning Platform</span>
-            <span class="small text-secondary" style="font-family: var(--sh-font-mono); font-size: 0.72rem;">ML &bull; DL &bull; DSP &bull; BA &bull; NTM</span>
+    <footer class="footer mt-auto py-3.5" style="background-color: #0b0f19; border-top: 1px solid #1f293d;">
+        <div class="container text-center text-md-between d-md-flex justify-content-between align-items-center gap-3">
+            <div class="d-flex align-items-center justify-content-center gap-2 mb-2 mb-md-0">
+                <span class="d-inline-block rounded-circle bg-success" style="width: 7px; height: 7px;"></span>
+                <span class="small text-secondary" style="font-size: 0.775rem;">StudyHub Academic Platform &bull; Visvesvaraya Technological University</span>
+            </div>
+            <div class="small text-secondary" style="font-family: var(--sh-font-mono); font-size: 0.72rem;">
+                AI-Grounded Curriculum &bull; Cloud Storage &bull; YouTube & Articles
+            </div>
         </div>
     </footer>
 

@@ -1,6 +1,6 @@
 {% extends 'base.html' %}
 
-{% block title %}Videos: {{ topic.title }} | StudyHub{% endblock %}
+{% block title %}Videos: {{ topic.title }} — StudyHub{% endblock %}
 
 {% block content %}
 <!-- Standardized Horizontal Scrollable Breadcrumb for Mobile -->
@@ -17,10 +17,10 @@
 
 <!-- Page Header Banner -->
 <div class="sh-panel mb-4 p-3.5 p-md-4">
-    <div class="d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center gap-3">
+    <div class="d-flex flex-column flex-lg-row justify-content-between align-items-start align-items-lg-center gap-3">
         <div>
             <div class="d-flex align-items-center gap-2 mb-2 flex-wrap">
-                <span class="badge bg-danger-subtle text-danger border border-danger-subtle d-inline-flex align-items-center gap-1.5" style="font-size: 0.72rem; font-weight: 600;">
+                <span class="badge bg-danger-subtle text-danger border border-danger-subtle d-inline-flex align-items-center gap-1.5 py-1 px-2.5" style="font-size: 0.72rem; font-weight: 600;">
                     <i class="bi bi-youtube"></i> Video Learning Platform
                 </span>
                 <span class="text-secondary small">&bull; Module {{ module.module_number }}: {{ topic.title }}</span>
@@ -32,14 +32,14 @@
         </div>
 
         <!-- Symmetrical Header Action Buttons (Thumb-Friendly on Mobile) -->
-        <div class="d-flex align-items-center gap-2 flex-wrap w-100 w-md-auto">
-            <a href="{% url 'resources:topic_articles' topic.id %}" class="btn btn-sm btn-outline-info flex-fill flex-md-grow-0">
+        <div class="d-flex align-items-center gap-2 flex-wrap w-100 w-lg-auto mt-2 mt-lg-0">
+            <a href="{% url 'resources:topic_articles' topic.id %}" class="btn btn-sm btn-outline-info flex-fill flex-lg-grow-0">
                 <i class="bi bi-newspaper"></i> Switch to Articles
             </a>
-            <a href="{% url 'curriculum:subject_detail' subject.slug %}?topic={{ topic.slug }}" class="btn btn-sm btn-outline-secondary flex-fill flex-md-grow-0">
+            <a href="{% url 'curriculum:subject_detail' subject.slug %}?topic={{ topic.slug }}" class="btn btn-sm btn-outline-secondary flex-fill flex-lg-grow-0">
                 <i class="bi bi-arrow-left"></i> Syllabus
             </a>
-            <a href="?refresh=1" class="btn btn-sm btn-outline-danger flex-fill flex-md-grow-0" title="Bypasses cache and queries YouTube API">
+            <a href="?refresh=1" class="btn btn-sm btn-outline-danger flex-fill flex-lg-grow-0" title="Bypasses cache and queries YouTube API">
                 <i class="bi bi-arrow-clockwise"></i> Refresh
             </a>
         </div>
@@ -47,11 +47,11 @@
 </div>
 
 <!-- Standardized Keywords Pill Bar -->
-<div class="p-3 mb-4 rounded border border-secondary-subtle bg-dark-subtle d-flex flex-wrap align-items-center gap-2">
+<div class="p-3 mb-4 rounded border border-secondary-subtle d-flex flex-wrap align-items-center gap-2" style="background-color: #0e1422; border-color: var(--sh-border) !important;">
     <span class="small text-secondary fw-semibold me-1" style="font-size: 0.75rem;"><i class="bi bi-tag-fill me-1"></i>Search Keywords:</span>
     {% for kw in topic.keywords.all %}
         <span class="sh-badge-tag">
-            {{ kw.keyword }}
+            <i class="bi bi-search text-secondary" style="font-size: 0.65rem;"></i>{{ kw.keyword }}
         </span>
     {% empty %}
         <span class="small text-secondary fst-italic">{{ topic.title }}</span>
@@ -63,15 +63,15 @@
     <div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-4 gy-4">
         {% for video in videos %}
             <div class="col">
-                <div class="sh-card overflow-hidden">
+                <div class="sh-card overflow-hidden p-0 d-flex flex-column h-100">
                     <!-- Thumbnail with 16:9 Aspect Ratio & Play Overlay Button -->
-                    <div class="position-relative ratio ratio-16x9 bg-black">
+                    <div class="position-relative ratio ratio-16x9 bg-black rounded-top">
                         <img src="{{ video.thumbnail_url }}" alt="{{ video.title }}" class="object-fit-cover w-100 h-100" style="opacity: 0.92;" loading="lazy">
                         
-                        <!-- Center Play Overlay Button -->
+                        <!-- Center Play Overlay Button (min 48px touch target) -->
                         <button type="button" 
                                 class="btn btn-danger position-absolute top-50 start-50 translate-middle rounded-circle shadow d-flex align-items-center justify-content-center play-video-btn" 
-                                style="width: 48px; height: 48px; padding: 0 !important; opacity: 0.92;"
+                                style="width: 48px; height: 48px; padding: 0 !important; opacity: 0.95;"
                                 data-bs-toggle="modal" 
                                 data-bs-target="#videoPlayerModal" 
                                 data-video-id="{{ video.youtube_video_id }}"
@@ -83,7 +83,7 @@
                     </div>
 
                     <!-- Card Body -->
-                    <div class="p-3 d-flex flex-column flex-grow-1">
+                    <div class="p-3.5 d-flex flex-column flex-grow-1">
                         <!-- Channel and Date Row -->
                         <div class="d-flex justify-content-between align-items-center mb-2">
                             <span class="text-light small fw-medium text-truncate" style="max-width: 170px; font-size: 0.775rem;">
@@ -105,7 +105,7 @@
                         </p>
 
                         <!-- Action Bar -->
-                        <div class="pt-2 border-top border-secondary-subtle d-flex justify-content-between align-items-center">
+                        <div class="pt-2.5 border-top border-secondary-subtle d-flex justify-content-between align-items-center mt-auto" style="border-top-color: var(--sh-border) !important;">
                             <button type="button" 
                                     class="btn btn-sm btn-outline-light play-video-btn"
                                     data-bs-toggle="modal" 
@@ -141,8 +141,8 @@
 <!-- Embedded Responsive YouTube Player Modal -->
 <div class="modal fade" id="videoPlayerModal" tabindex="-1" aria-labelledby="videoPlayerModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-lg modal-dialog-centered">
-        <div class="modal-content border border-secondary-subtle">
-            <div class="modal-header border-bottom border-secondary-subtle py-2.5">
+        <div class="modal-content">
+            <div class="modal-header py-2.5 px-3.5">
                 <div>
                     <h6 class="modal-title text-light fw-semibold mb-0" id="videoPlayerModalLabel">Video Player</h6>
                     <small class="text-secondary" id="modalChannelName"></small>
@@ -173,20 +173,23 @@
         const titleEl = document.getElementById('videoPlayerModalLabel');
         const channelEl = document.getElementById('modalChannelName');
 
-        modal.addEventListener('show.bs.modal', function (event) {
-            const button = event.relatedTarget;
-            const videoId = button.getAttribute('data-video-id');
-            const videoTitle = button.getAttribute('data-video-title');
-            const videoChannel = button.getAttribute('data-video-channel');
+        if (modal && iframe) {
+            modal.addEventListener('show.bs.modal', function (event) {
+                const button = event.relatedTarget;
+                if (!button) return;
+                const videoId = button.getAttribute('data-video-id');
+                const videoTitle = button.getAttribute('data-video-title');
+                const videoChannel = button.getAttribute('data-video-channel');
 
-            titleEl.textContent = videoTitle;
-            channelEl.textContent = 'Channel: ' + videoChannel;
-            iframe.src = `https://www.youtube.com/embed/${videoId}?autoplay=1`;
-        });
+                if (titleEl) titleEl.textContent = videoTitle || 'Video Player';
+                if (channelEl) channelEl.textContent = videoChannel ? ('Channel: ' + videoChannel) : '';
+                iframe.src = `https://www.youtube.com/embed/${videoId}?autoplay=1`;
+            });
 
-        modal.addEventListener('hidden.bs.modal', function () {
-            iframe.src = '';
-        });
+            modal.addEventListener('hidden.bs.modal', function () {
+                iframe.src = '';
+            });
+        }
     });
 </script>
 {% endblock %}

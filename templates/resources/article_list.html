@@ -1,6 +1,6 @@
 {% extends 'base.html' %}
 
-{% block title %}Articles: {{ topic.title }} | StudyHub{% endblock %}
+{% block title %}Articles: {{ topic.title }} — StudyHub{% endblock %}
 
 {% block content %}
 <!-- Standardized Horizontal Scrollable Breadcrumb for Mobile -->
@@ -17,29 +17,29 @@
 
 <!-- Page Header Banner -->
 <div class="sh-panel mb-4 p-3.5 p-md-4">
-    <div class="d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center gap-3">
+    <div class="d-flex flex-column flex-lg-row justify-content-between align-items-start align-items-lg-center gap-3">
         <div>
             <div class="d-flex align-items-center gap-2 mb-2 flex-wrap">
-                <span class="badge bg-info-subtle text-info border border-info-subtle d-inline-flex align-items-center gap-1.5" style="font-size: 0.72rem; font-weight: 600;">
+                <span class="badge bg-info-subtle text-info border border-info-subtle d-inline-flex align-items-center gap-1.5 py-1 px-2.5" style="font-size: 0.72rem; font-weight: 600;">
                     <i class="bi bi-newspaper"></i> Article Discovery Platform
                 </span>
                 <span class="text-secondary small">&bull; Module {{ module.module_number }}: {{ topic.title }}</span>
             </div>
             <h1 class="h2 fw-bold text-light mb-1">{{ topic.title }}</h1>
             <p class="text-secondary small mb-0" style="max-width: 650px; line-height: 1.6;">
-                Curated articles, engineering blogs, and documentation from reputable sources.
+                Curated articles, engineering blogs, and documentation from reputable academic and developer sources.
             </p>
         </div>
 
         <!-- Symmetrical Header Action Buttons (Thumb-Friendly on Mobile) -->
-        <div class="d-flex align-items-center gap-2 flex-wrap w-100 w-md-auto">
-            <a href="{% url 'resources:topic_videos' topic.id %}" class="btn btn-sm btn-outline-danger flex-fill flex-md-grow-0">
+        <div class="d-flex align-items-center gap-2 flex-wrap w-100 w-lg-auto mt-2 mt-lg-0">
+            <a href="{% url 'resources:topic_videos' topic.id %}" class="btn btn-sm btn-outline-danger flex-fill flex-lg-grow-0">
                 <i class="bi bi-youtube"></i> Switch to Videos
             </a>
-            <a href="{% url 'curriculum:subject_detail' subject.slug %}?topic={{ topic.slug }}" class="btn btn-sm btn-outline-secondary flex-fill flex-md-grow-0">
+            <a href="{% url 'curriculum:subject_detail' subject.slug %}?topic={{ topic.slug }}" class="btn btn-sm btn-outline-secondary flex-fill flex-lg-grow-0">
                 <i class="bi bi-arrow-left"></i> Syllabus
             </a>
-            <a href="?refresh=1" class="btn btn-sm btn-outline-info flex-fill flex-md-grow-0" title="Fetches fresh articles">
+            <a href="?refresh=1" class="btn btn-sm btn-outline-info flex-fill flex-lg-grow-0" title="Fetches fresh articles">
                 <i class="bi bi-arrow-clockwise"></i> Refresh
             </a>
         </div>
@@ -47,11 +47,11 @@
 </div>
 
 <!-- Standardized Keywords Pill Bar -->
-<div class="p-3 mb-4 rounded border border-secondary-subtle bg-dark-subtle d-flex flex-wrap align-items-center gap-2">
+<div class="p-3 mb-4 rounded border border-secondary-subtle d-flex flex-wrap align-items-center gap-2" style="background-color: #0e1422; border-color: var(--sh-border) !important;">
     <span class="small text-secondary fw-semibold me-1" style="font-size: 0.75rem;"><i class="bi bi-tag-fill me-1"></i>Search Keywords:</span>
     {% for kw in topic.keywords.all %}
         <span class="sh-badge-tag">
-            {{ kw.keyword }}
+            <i class="bi bi-search text-secondary" style="font-size: 0.65rem;"></i>{{ kw.keyword }}
         </span>
     {% empty %}
         <span class="small text-secondary fst-italic">{{ topic.title }}</span>
@@ -98,7 +98,7 @@
                     </p>
 
                     <!-- Footer Action (Full-width on small phones) -->
-                    <div class="pt-3 border-top border-secondary-subtle d-flex flex-column flex-sm-row justify-content-between align-items-sm-center gap-2 mt-auto">
+                    <div class="pt-3 border-top border-secondary-subtle d-flex flex-column flex-sm-row justify-content-between align-items-sm-center gap-2 mt-auto" style="border-top-color: var(--sh-border) !important;">
                         <a href="{{ article.url }}" target="_blank" rel="noopener noreferrer" class="btn btn-sm btn-outline-info w-100 w-sm-auto">
                             Read Full Article <i class="bi bi-box-arrow-up-right" style="font-size: 0.7rem;"></i>
                         </a>

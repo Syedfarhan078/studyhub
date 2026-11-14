@@ -1,24 +1,77 @@
 /* ==========================================================================
-   StudyHub - Clean Engineering Dark Design System
-   Mobile-First, Human-crafted, Slate Palette
+   StudyHub Design System
+   Academic Engineering SaaS Platform — Slate & Obsidian Theme
+   Linear/Notion-inspired minimalism, human-crafted visual hierarchy
    ========================================================================== */
 
 :root {
-    --sh-bg-main: #0d1117;
-    --sh-bg-card: #161b22;
-    --sh-bg-card-hover: #1c2128;
-    --sh-bg-surface: #21262d;
-    --sh-border: #30363d;
-    --sh-border-hover: #484f58;
-    --sh-text-primary: #e6edf3;
-    --sh-text-secondary: #8b949e;
-    --sh-text-muted: #6e7681;
-    --sh-accent: #2f81f7;
-    --sh-accent-hover: #388bfd;
-    --sh-font-sans: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-    --sh-font-mono: 'JetBrains Mono', "SFMono-Regular", Consolas, monospace;
-    --sh-radius: 8px;
+    /* Color Palette - Deep Obsidian & Slate */
+    --sh-bg-main: #0b0f19;
+    --sh-bg-card: #121826;
+    --sh-bg-card-hover: #172033;
+    --sh-bg-surface: #1c263c;
+    --sh-bg-elevated: #222f4b;
+    --sh-border: #1f293d;
+    --sh-border-subtle: #172033;
+    --sh-border-hover: #2e3e5c;
+    --sh-border-focus: #3b82f6;
+
+    /* Text Colors */
+    --sh-text-primary: #f1f5f9;
+    --sh-text-secondary: #94a3b8;
+    --sh-text-muted: #64748b;
+    --sh-text-subtle: #475569;
+
+    /* Accents & Status Indicators */
+    --sh-accent: #3b82f6;
+    --sh-accent-hover: #60a5fa;
+    --sh-accent-subtle: rgba(59, 130, 246, 0.12);
+    --sh-accent-border: rgba(59, 130, 246, 0.28);
+
+    --sh-success: #10b981;
+    --sh-success-subtle: rgba(16, 185, 129, 0.12);
+    --sh-success-border: rgba(16, 185, 129, 0.28);
+
+    --sh-warning: #f59e0b;
+    --sh-warning-subtle: rgba(245, 158, 11, 0.12);
+    --sh-warning-border: rgba(245, 158, 11, 0.28);
+
+    --sh-danger: #ef4444;
+    --sh-danger-subtle: rgba(239, 68, 68, 0.12);
+    --sh-danger-border: rgba(239, 68, 68, 0.28);
+
+    --sh-info: #06b6d4;
+    --sh-info-subtle: rgba(6, 182, 212, 0.12);
+    --sh-info-border: rgba(6, 182, 212, 0.28);
+
+    /* Typography */
+    --sh-font-sans: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+    --sh-font-mono: 'JetBrains Mono', "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+
+    /* Shape & Depth */
     --sh-radius-sm: 6px;
+    --sh-radius: 8px;
+    --sh-radius-lg: 12px;
+    --sh-shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.35);
+    --sh-shadow: 0 4px 12px -1px rgba(0, 0, 0, 0.45);
+    --sh-shadow-lg: 0 10px 25px -3px rgba(0, 0, 0, 0.55);
+
+    /* Transitions */
+    --sh-transition: all 0.15s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* ==========================================================================
+   Base Styles & Reset
+   ========================================================================== */
+
+*, *::before, *::after {
+    box-sizing: border-box;
+}
+
+html {
+    font-size: 16px;
+    scroll-behavior: smooth;
+    -webkit-text-size-adjust: 100%;
 }
 
 body {
@@ -28,106 +81,90 @@ body {
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     line-height: 1.5;
+    margin: 0;
+    padding: 0;
     overflow-x: hidden;
 }
 
-/* Typography Uniformity */
-h1, h2, h3, h4, h5, h6 {
+/* Accessibility: Visible Keyboard Focus */
+:focus-visible {
+    outline: 2px solid var(--sh-accent);
+    outline-offset: 2px;
+}
+
+/* Typography Hierarchy */
+h1, h2, h3, h4, h5, h6,
+.h1, .h2, .h3, .h4, .h5, .h6 {
     color: var(--sh-text-primary);
     font-weight: 600;
-    letter-spacing: -0.02em;
+    letter-spacing: -0.025em;
+    line-height: 1.25;
+    margin-top: 0;
 }
 
 p {
     color: var(--sh-text-secondary);
+    line-height: 1.6;
+    margin-top: 0;
 }
 
-/* Navbar */
-.navbar {
-    background-color: var(--sh-bg-card) !important;
-    border-bottom: 1px solid var(--sh-border) !important;
+a {
+    color: var(--sh-accent);
+    text-decoration: none;
+    transition: var(--sh-transition);
 }
 
-.navbar-brand {
-    font-size: 1.05rem;
-    font-weight: 600;
-    letter-spacing: -0.02em;
+a:hover {
+    color: var(--sh-accent-hover);
 }
 
-/* Standardized Content Cards */
+/* ==========================================================================
+   Components: Cards, Panels & Badges
+   ========================================================================== */
+
 .sh-card {
     background-color: var(--sh-bg-card);
     border: 1px solid var(--sh-border);
     border-radius: var(--sh-radius);
-    transition: transform 0.16s ease, border-color 0.16s ease, background-color 0.16s ease;
-    text-decoration: none;
-    color: inherit;
+    padding: 1.25rem;
+    transition: var(--sh-transition);
+    color: inherit !important;
+    text-decoration: none !important;
     display: flex;
     flex-direction: column;
     height: 100%;
+    box-shadow: var(--sh-shadow-sm);
 }
 
 .sh-card:hover {
     background-color: var(--sh-bg-card-hover);
     border-color: var(--sh-border-hover);
     transform: translateY(-2px);
-    color: inherit;
+    box-shadow: var(--sh-shadow);
 }
 
-/* Standardized Section Panels */
 .sh-panel {
     background-color: var(--sh-bg-card);
     border: 1px solid var(--sh-border);
     border-radius: var(--sh-radius);
     padding: 1.5rem;
+    box-shadow: var(--sh-shadow-sm);
 }
 
-/* Uniform Buttons */
-.btn {
-    font-size: 0.8125rem !important;
-    font-weight: 500 !important;
-    border-radius: var(--sh-radius-sm) !important;
-    padding: 0.38rem 0.85rem !important;
-    letter-spacing: -0.01em;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    gap: 0.4rem;
-    min-height: 34px;
-    transition: all 0.15s ease-in-out;
-}
-
-.btn-sm {
-    font-size: 0.775rem !important;
-    padding: 0.28rem 0.7rem !important;
-    min-height: 30px;
-}
-
-/* Outline button subtle states */
-.btn-outline-secondary {
-    border-color: var(--sh-border) !important;
-    color: var(--sh-text-secondary) !important;
-    background-color: transparent !important;
-}
-.btn-outline-secondary:hover {
-    background-color: var(--sh-bg-surface) !important;
-    border-color: var(--sh-border-hover) !important;
-    color: var(--sh-text-primary) !important;
-}
-
-/* Uniform Badges & Pills */
+/* Academic Badges & Code Tags */
 .sh-badge-code {
     font-family: var(--sh-font-mono);
     font-size: 0.72rem;
     font-weight: 600;
     padding: 0.22rem 0.55rem;
     border-radius: var(--sh-radius-sm);
-    background-color: rgba(47, 129, 247, 0.12);
-    color: #58a6ff;
-    border: 1px solid rgba(47, 129, 247, 0.28);
+    background-color: var(--sh-accent-subtle);
+    color: #60a5fa;
+    border: 1px solid var(--sh-accent-border);
     letter-spacing: 0.04em;
     display: inline-flex;
     align-items: center;
+    line-height: 1;
 }
 
 .sh-badge-tag {
@@ -136,17 +173,20 @@ p {
     font-weight: 400;
     padding: 0.25rem 0.6rem;
     border-radius: var(--sh-radius-sm);
-    background-color: #12161c;
+    background-color: #0e1422;
     color: var(--sh-text-secondary);
     border: 1px solid var(--sh-border);
     display: inline-flex;
     align-items: center;
-    gap: 0.3rem;
+    gap: 0.35rem;
+    text-decoration: none !important;
+    transition: var(--sh-transition);
 }
 
 .sh-badge-tag:hover {
     color: var(--sh-text-primary);
     border-color: var(--sh-border-hover);
+    background-color: var(--sh-bg-surface);
 }
 
 .sh-meta-pill {
@@ -157,36 +197,209 @@ p {
     gap: 0.35rem;
 }
 
-/* Standardized Breadcrumbs (Horizontal Scrollable on Mobile) */
+/* ==========================================================================
+   Buttons & Touch Targets
+   ========================================================================== */
+
+.btn {
+    font-family: var(--sh-font-sans);
+    font-size: 0.8125rem !important;
+    font-weight: 500 !important;
+    border-radius: var(--sh-radius-sm) !important;
+    padding: 0.42rem 0.9rem !important;
+    letter-spacing: -0.01em;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.45rem;
+    min-height: 36px;
+    text-decoration: none !important;
+    transition: var(--sh-transition);
+    white-space: nowrap;
+}
+
+.btn-sm {
+    font-size: 0.775rem !important;
+    padding: 0.32rem 0.75rem !important;
+    min-height: 32px;
+}
+
+.btn-primary {
+    background-color: var(--sh-accent) !important;
+    border-color: var(--sh-accent) !important;
+    color: #ffffff !important;
+}
+
+.btn-primary:hover, .btn-primary:focus {
+    background-color: #2563eb !important;
+    border-color: #2563eb !important;
+}
+
+.btn-outline-secondary {
+    border-color: var(--sh-border) !important;
+    color: var(--sh-text-secondary) !important;
+    background-color: transparent !important;
+}
+
+.btn-outline-secondary:hover, .btn-outline-secondary:focus {
+    background-color: var(--sh-bg-surface) !important;
+    border-color: var(--sh-border-hover) !important;
+    color: var(--sh-text-primary) !important;
+}
+
+.btn-outline-primary {
+    border-color: var(--sh-accent-border) !important;
+    color: #60a5fa !important;
+    background-color: var(--sh-accent-subtle) !important;
+}
+
+.btn-outline-primary:hover {
+    background-color: rgba(59, 130, 246, 0.22) !important;
+    color: #ffffff !important;
+    border-color: var(--sh-accent) !important;
+}
+
+/* ==========================================================================
+   Navigation Bar
+   ========================================================================== */
+
+.navbar {
+    background-color: var(--sh-bg-card) !important;
+    border-bottom: 1px solid var(--sh-border) !important;
+    backdrop-filter: blur(8px);
+}
+
+.navbar-brand {
+    font-size: 1.05rem;
+    font-weight: 600;
+    letter-spacing: -0.025em;
+    color: var(--sh-text-primary) !important;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.nav-link {
+    font-size: 0.8125rem !important;
+    font-weight: 500 !important;
+    color: var(--sh-text-secondary) !important;
+    padding: 0.4rem 0.75rem !important;
+    border-radius: var(--sh-radius-sm);
+    transition: var(--sh-transition);
+}
+
+.nav-link:hover, .nav-link.active {
+    color: var(--sh-text-primary) !important;
+    background-color: var(--sh-bg-surface);
+}
+
+/* ==========================================================================
+   Form Controls
+   ========================================================================== */
+
+.form-control, .form-select {
+    background-color: #0e1422 !important;
+    border: 1px solid var(--sh-border) !important;
+    color: var(--sh-text-primary) !important;
+    border-radius: var(--sh-radius-sm) !important;
+    font-size: 0.8125rem !important;
+    padding: 0.5rem 0.8rem !important;
+    transition: var(--sh-transition);
+}
+
+.form-control:focus, .form-select:focus {
+    border-color: var(--sh-accent) !important;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2) !important;
+    outline: none;
+}
+
+.form-control::placeholder {
+    color: var(--sh-text-muted) !important;
+    font-size: 0.8125rem;
+}
+
+/* ==========================================================================
+   Breadcrumbs & Accordions
+   ========================================================================== */
+
 .breadcrumb-wrapper {
     overflow-x: auto;
     white-space: nowrap;
     -webkit-overflow-scrolling: touch;
     scrollbar-width: none;
 }
+
 .breadcrumb-wrapper::-webkit-scrollbar {
     display: none;
 }
+
 .breadcrumb {
     font-size: 0.8125rem;
     flex-wrap: nowrap;
+    margin-bottom: 0;
 }
+
 .breadcrumb-item a {
     color: var(--sh-text-secondary);
     text-decoration: none;
-    transition: color 0.15s ease;
 }
+
 .breadcrumb-item a:hover {
     color: var(--sh-accent);
 }
+
 .breadcrumb-item.active {
     color: var(--sh-text-primary);
 }
+
 .breadcrumb-item + .breadcrumb-item::before {
     color: var(--sh-border-hover);
 }
 
-/* Text Truncation Utilities */
+.accordion-item {
+    background-color: var(--sh-bg-card) !important;
+    border: 1px solid var(--sh-border) !important;
+    border-radius: var(--sh-radius) !important;
+    overflow: hidden;
+}
+
+.accordion-button {
+    background-color: var(--sh-bg-card) !important;
+    color: var(--sh-text-primary) !important;
+    box-shadow: none !important;
+    font-size: 0.825rem !important;
+    font-weight: 500;
+    padding: 0.75rem 1rem !important;
+}
+
+.accordion-button:not(.collapsed) {
+    border-bottom: 1px solid var(--sh-border) !important;
+    background-color: var(--sh-bg-surface) !important;
+}
+
+.accordion-button::after {
+    filter: invert(0.65);
+    background-size: 0.75rem;
+}
+
+/* Modal & Offcanvas Customization */
+.modal-content, .offcanvas, .offcanvas-lg {
+    background-color: var(--sh-bg-card) !important;
+    border: 1px solid var(--sh-border) !important;
+    border-radius: var(--sh-radius-lg) !important;
+    box-shadow: var(--sh-shadow-lg);
+    color: var(--sh-text-primary) !important;
+}
+
+.modal-header, .offcanvas-header {
+    border-bottom: 1px solid var(--sh-border) !important;
+}
+
+.modal-footer {
+    border-top: 1px solid var(--sh-border) !important;
+}
+
+/* Text Truncation */
 .sh-clamp-2 {
     display: -webkit-box;
     -webkit-line-clamp: 2;
@@ -201,44 +414,7 @@ p {
     overflow: hidden;
 }
 
-/* Accordion Customization */
-.accordion-item {
-    background-color: var(--sh-bg-card) !important;
-    border: 1px solid var(--sh-border) !important;
-    border-radius: var(--sh-radius) !important;
-}
-
-.accordion-button {
-    background-color: var(--sh-bg-card) !important;
-    color: var(--sh-text-primary) !important;
-    box-shadow: none !important;
-    font-size: 0.825rem !important;
-}
-
-.accordion-button:not(.collapsed) {
-    border-bottom: 1px solid var(--sh-border) !important;
-}
-
-.accordion-button::after {
-    filter: invert(0.6);
-    background-size: 0.8rem;
-}
-
-/* Modal Polish */
-.modal-content {
-    background-color: var(--sh-bg-card) !important;
-    border: 1px solid var(--sh-border) !important;
-    border-radius: var(--sh-radius) !important;
-}
-
-/* Footer */
-.footer {
-    background-color: var(--sh-bg-main) !important;
-    border-top: 1px solid var(--sh-border) !important;
-    font-size: 0.8rem;
-}
-
-/* Clean Custom Scrollbar */
+/* Custom Scrollbar */
 ::-webkit-scrollbar {
     width: 6px;
     height: 6px;
@@ -247,16 +423,34 @@ p {
     background: var(--sh-bg-main);
 }
 ::-webkit-scrollbar-thumb {
-    background: #21262d;
+    background: var(--sh-border);
     border-radius: 4px;
 }
 ::-webkit-scrollbar-thumb:hover {
-    background: #30363d;
+    background: var(--sh-border-hover);
 }
 
 /* ==========================================================================
-   Mobile-Specific Polish (Phones < 768px)
+   Mobile-First Responsiveness & Viewport Adaptations
+   Tested across 320px, 360px, 375px, 390px, 414px, 768px, 1024px, 1440px
    ========================================================================== */
+
+@media (max-width: 991.98px) {
+    /* Mobile Drawer */
+    .navbar-collapse {
+        background-color: var(--sh-bg-card);
+        border: 1px solid var(--sh-border);
+        border-radius: var(--sh-radius);
+        padding: 1rem;
+        margin-top: 0.75rem;
+    }
+
+    /* Mobile syllabus navigator toggle */
+    .sh-mobile-nav-toggle {
+        display: block !important;
+    }
+}
+
 @media (max-width: 767.98px) {
     .container {
         padding-left: 1rem !important;
@@ -271,21 +465,38 @@ p {
         font-size: 1.35rem !important;
     }
 
+    /* Touch target guarantee: 44px min for mobile thumb tapping */
     .btn {
-        min-height: 38px; /* Larger touch targets for mobile thumbs */
+        min-height: 44px !important;
     }
 
-    /* Mobile Drawer in Navbar */
-    .navbar-collapse {
-        background-color: var(--sh-bg-card);
-        border: 1px solid var(--sh-border);
-        border-radius: var(--sh-radius);
-        padding: 1rem;
-        margin-top: 0.75rem;
+    .btn-sm {
+        min-height: 38px !important;
     }
 
-    /* Make video player modal edge-to-edge on small phones */
+    .form-control, .form-select {
+        min-height: 44px !important;
+        font-size: 0.875rem !important; /* Prevents auto-zoom on iOS */
+    }
+
     .modal-dialog {
         margin: 0.5rem !important;
+    }
+}
+
+/* Small phones (<= 360px) */
+@media (max-width: 360px) {
+    .container {
+        padding-left: 0.75rem !important;
+        padding-right: 0.75rem !important;
+    }
+
+    .sh-badge-code {
+        font-size: 0.65rem;
+    }
+
+    .btn {
+        font-size: 0.75rem !important;
+        padding: 0.35rem 0.65rem !important;
     }
 }

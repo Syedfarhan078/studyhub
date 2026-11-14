@@ -1,48 +1,135 @@
 {% extends 'base.html' %}
 
-{% block title %}StudyHub - VTU Syllabus Learning Platform{% endblock %}
+{% block title %}StudyHub — University Curriculum & Academic Learning Platform{% endblock %}
 
 {% block content %}
-<!-- Minimal Header Section with Action -->
-<div class="row mb-4 pt-1 align-items-end">
-    <div class="col-lg-8">
-        <div class="d-inline-flex align-items-center gap-2 mb-2">
-            <span class="badge bg-primary-subtle text-primary border border-primary-subtle py-1 px-2" style="font-family: var(--sh-font-mono); font-size: 0.7rem; font-weight: 600;">VTU CSE/AIML/ISE</span>
-            <span class="text-secondary small">&bull; Syllabus-Aligned Learning Portal</span>
+<!-- Academic Dashboard Header & Quick Stats -->
+<div class="sh-panel mb-4 p-3.5 p-md-4">
+    <div class="d-flex flex-column flex-lg-row justify-content-between align-items-start align-items-lg-center gap-3">
+        <div>
+            <div class="d-flex align-items-center gap-2 mb-2 flex-wrap">
+                <span class="badge bg-primary-subtle text-primary border border-primary-subtle py-1 px-2.5" style="font-family: var(--sh-font-mono); font-size: 0.72rem; font-weight: 600;">
+                    VTU 2022 SCHEME
+                </span>
+                <span class="text-secondary small">&bull; Engineering Curriculum Portal</span>
+            </div>
+            <h1 class="h2 fw-bold text-light mb-1.5">Academic Curriculum Dashboard</h1>
+            <p class="text-secondary small mb-0" style="max-width: 650px; line-height: 1.6;">
+                Select a university subject to navigate module-wise syllabi, track your learning progress, discover curated lecture videos, and access verified technical articles.
+            </p>
         </div>
-        <h1 class="h2 fw-bold text-light mb-1.5">Curriculum Dashboard</h1>
-        <p class="text-secondary small mb-0" style="max-width: 600px; line-height: 1.6;">
-            Select a subject to explore its syllabus modules, browse curated educational videos, and discover technical articles.
-        </p>
+
+        <!-- Primary Call to Action -->
+        <div class="d-flex align-items-center gap-2 flex-wrap w-100 w-lg-auto mt-2 mt-lg-0">
+            <button type="button" class="btn btn-primary w-100 w-lg-auto d-inline-flex align-items-center justify-content-center gap-2 shadow-sm" data-bs-toggle="modal" data-bs-target="#generateSubjectModal">
+                <i class="bi bi-sparkles"></i> Auto-Generate Subject
+            </button>
+        </div>
     </div>
-    <div class="col-lg-4 text-lg-end mt-3 mt-lg-0">
-        <button type="button" class="btn btn-primary d-inline-flex align-items-center gap-2 shadow-sm" data-bs-toggle="modal" data-bs-target="#generateSubjectModal">
-            <i class="bi bi-sparkles"></i> Auto-Generate Subject
-        </button>
+
+    <!-- Quick Stats Metric Pills -->
+    <div class="pt-3.5 mt-3.5 border-top border-secondary-subtle d-flex flex-wrap align-items-center justify-content-between gap-3">
+        <div class="d-flex flex-wrap align-items-center gap-3 gap-md-4">
+            <div class="d-flex align-items-center gap-2">
+                <div class="rounded-circle d-flex align-items-center justify-content-center" style="width: 28px; height: 28px; background-color: var(--sh-accent-subtle); border: 1px solid var(--sh-accent-border);">
+                    <i class="bi bi-mortarboard text-primary" style="font-size: 0.85rem;"></i>
+                </div>
+                <div>
+                    <span class="text-light fw-semibold" style="font-size: 0.875rem; font-family: var(--sh-font-mono);">{{ subjects|length }}</span>
+                    <span class="text-secondary small ms-1" style="font-size: 0.75rem;">Total Subjects</span>
+                </div>
+            </div>
+
+            <div class="d-flex align-items-center gap-2">
+                <div class="rounded-circle d-flex align-items-center justify-content-center" style="width: 28px; height: 28px; background-color: rgba(16, 185, 129, 0.12); border: 1px solid rgba(16, 185, 129, 0.28);">
+                    <i class="bi bi-folder2-open text-success" style="font-size: 0.85rem;"></i>
+                </div>
+                <div>
+                    <span class="text-light fw-semibold" style="font-size: 0.875rem; font-family: var(--sh-font-mono);">5 Modules / Course</span>
+                    <span class="text-secondary small ms-1" style="font-size: 0.75rem;">Prescribed Structure</span>
+                </div>
+            </div>
+
+            <div class="d-flex align-items-center gap-2">
+                <div class="rounded-circle d-flex align-items-center justify-content-center" style="width: 28px; height: 28px; background-color: rgba(6, 182, 212, 0.12); border: 1px solid rgba(6, 182, 212, 0.28);">
+                    <i class="bi bi-shield-check text-info" style="font-size: 0.85rem;"></i>
+                </div>
+                <div>
+                    <span class="text-light fw-semibold" style="font-size: 0.875rem; font-family: var(--sh-font-mono);">Source Grounded</span>
+                    <span class="text-secondary small ms-1" style="font-size: 0.75rem;">AI Syllabus Fidelity</span>
+                </div>
+            </div>
+        </div>
+
+        <span class="text-secondary small d-none d-md-inline" style="font-size: 0.75rem;">
+            Updated for 2026 Academic Term
+        </span>
     </div>
 </div>
 
-<!-- Subjects Grid (Generous Vertical & Horizontal Card Spacing) -->
-<div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-4 gy-4">
+<!-- Instant Search & Filter Bar -->
+<div class="mb-4">
+    <div class="row align-items-center g-2">
+        <div class="col-md-6 col-lg-5">
+            <div class="input-group">
+                <span class="input-group-text bg-dark border-secondary-subtle text-secondary" style="border-color: var(--sh-border) !important; background-color: #0e1422 !important;">
+                    <i class="bi bi-search"></i>
+                </span>
+                <input type="text" 
+                       id="subjectSearchInput" 
+                       class="form-control" 
+                       placeholder="Filter by subject code or name (e.g. BAD703, Data, AI)..." 
+                       aria-label="Filter subjects">
+                <button class="btn btn-outline-secondary d-none" type="button" id="clearSearchBtn" title="Clear filter">
+                    <i class="bi bi-x-lg"></i>
+                </button>
+            </div>
+        </div>
+        <div class="col-md-6 col-lg-7 text-md-end">
+            <span class="text-secondary small" id="searchFilterStats" style="font-size: 0.775rem;">
+                Showing all {{ subjects|length }} subjects
+            </span>
+        </div>
+    </div>
+</div>
+
+<!-- Subjects Grid -->
+<div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-4 gy-4" id="subjectGrid">
     {% for subject in subjects %}
-        <div class="col">
-            <a href="{% url 'curriculum:subject_detail' subject.slug %}" class="sh-card" style="padding: 1.25rem !important; background-color: #161b22; border: 1px solid #30363d; border-radius: 8px; text-decoration: none !important; color: inherit !important; display: flex; flex-direction: column; height: 100%;">
-                <!-- Top Row: Code badge and module counter -->
+        <div class="col subject-card-item" 
+             data-code="{{ subject.code|lower }}" 
+             data-name="{{ subject.name|lower }}"
+             data-desc="{{ subject.description|default:''|lower }}">
+            <a href="{% url 'curriculum:subject_detail' subject.slug %}" class="sh-card">
+                <!-- Top Meta Row: Subject Code Badge & Module Pill -->
                 <div class="d-flex justify-content-between align-items-center mb-2.5">
-                    <span class="sh-badge-code" style="background-color: rgba(47, 129, 247, 0.12); color: #58a6ff; border: 1px solid rgba(47, 129, 247, 0.28); border-radius: 6px; padding: 0.22rem 0.55rem; font-family: var(--sh-font-mono); font-size: 0.72rem; font-weight: 600;">{{ subject.code }}</span>
-                    <span class="sh-meta-pill" style="color: #8b949e; font-size: 0.775rem; display: inline-flex; align-items: center; gap: 0.35rem;">
+                    <span class="sh-badge-code">{{ subject.code }}</span>
+                    <span class="sh-meta-pill">
                         <i class="bi bi-folder2-open text-secondary"></i>
                         <span>{{ subject.module_count }} Modules</span>
                     </span>
                 </div>
 
-                <!-- Subject Title (2 lines max with fixed height) -->
-                <h5 class="card-title fw-semibold text-light mb-2 sh-clamp-2" style="font-size: 0.975rem; line-height: 1.35; min-height: 26px; color: #e6edf3;" title="{{ subject.name }}">
+                <!-- Subject Title (Uniform 2-line clamp) -->
+                <h5 class="card-title fw-semibold text-light mb-2 sh-clamp-2" style="font-size: 0.975rem; line-height: 1.35; min-height: 26px;" title="{{ subject.name }}">
                     {{ subject.name }}
                 </h5>
 
-                <!-- Description: Strictly 2 lines max with fixed height (always uniform irrespective of DB text length) -->
-                <p class="card-text text-secondary small mb-3 sh-clamp-2" style="font-size: 0.8rem; line-height: 1.5; height: 38px; overflow: hidden; margin-bottom: 0.85rem !important; color: #8b949e;">
+                <!-- Syllabus Source Verification Pill -->
+                <div class="mb-2">
+                    {% if "Unverified" in subject.description %}
+                        <span class="badge bg-warning-subtle text-warning border border-warning-subtle" style="font-size: 0.65rem; font-family: var(--sh-font-mono);">
+                            <i class="bi bi-exclamation-triangle-fill me-1"></i>AI Reference &bull; Unverified
+                        </span>
+                    {% else %}
+                        <span class="badge bg-success-subtle text-success border border-success-subtle" style="font-size: 0.65rem; font-family: var(--sh-font-mono);">
+                            <i class="bi bi-patch-check-fill me-1"></i>Source Grounded Syllabus
+                        </span>
+                    {% endif %}
+                </div>
+
+                <!-- Description: Clamped strictly to 2 lines for uniform grid geometry -->
+                <p class="card-text text-secondary small mb-3 sh-clamp-2" style="font-size: 0.8rem; line-height: 1.5; height: 38px; overflow: hidden; margin-bottom: 0.85rem !important;">
                     {% if subject.description %}
                         {{ subject.description|truncatewords:14 }}
                     {% else %}
@@ -50,12 +137,12 @@
                     {% endif %}
                 </p>
 
-                <!-- Action Footer (Cleanly anchored at the bottom) -->
-                <div class="pt-2.5 border-top border-secondary-subtle d-flex justify-content-between align-items-center mt-auto" style="border-top: 1px solid #30363d !important;">
-                    <span class="text-primary small fw-medium d-inline-flex align-items-center gap-1.5" style="font-size: 0.775rem; color: #58a6ff !important;">
+                <!-- Card Action Footer -->
+                <div class="pt-2.5 border-top border-secondary-subtle d-flex justify-content-between align-items-center mt-auto" style="border-top: 1px solid var(--sh-border) !important;">
+                    <span class="text-primary small fw-medium d-inline-flex align-items-center gap-1.5" style="font-size: 0.775rem;">
                         Explore Syllabus <i class="bi bi-arrow-right"></i>
                     </span>
-                    <span class="text-secondary" style="font-size: 0.7rem; font-family: var(--sh-font-mono); color: #8b949e;">VTU</span>
+                    <span class="text-secondary" style="font-size: 0.7rem; font-family: var(--sh-font-mono);">VTU</span>
                 </div>
             </a>
         </div>
@@ -78,23 +165,33 @@
     {% endfor %}
 </div>
 
+<!-- Client-side No Search Results State (hidden by default) -->
+<div id="noSearchResults" class="sh-panel p-5 text-center d-none mt-2">
+    <i class="bi bi-search fs-2 text-secondary mb-2 d-block"></i>
+    <h6 class="text-light mb-1">No matching subjects found</h6>
+    <p class="text-secondary small mb-3" id="noSearchQueryText">No course matched your search filter.</p>
+    <button type="button" class="btn btn-sm btn-outline-secondary" id="resetSearchBtn">
+        <i class="bi bi-arrow-counterclockwise"></i> Clear Search Filter
+    </button>
+</div>
+
 <!-- Modal: AI Subject & Curriculum Generator -->
 <div class="modal fade" id="generateSubjectModal" tabindex="-1" aria-labelledby="generateSubjectModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered modal-lg">
-        <div class="modal-content" style="background-color: #161b22; border: 1px solid #30363d; border-radius: 8px;">
+        <div class="modal-content">
             <form id="aiGenerateForm" action="{% url 'curriculum:generate_subject_ai' %}" method="POST" class="mb-0">
                 {% csrf_token %}
-                <div class="modal-header border-bottom border-secondary-subtle py-3 px-4" style="border-bottom: 1px solid #30363d !important;">
-                    <div class="d-flex align-items-center gap-2">
-                        <span class="badge bg-primary-subtle text-primary border border-primary-subtle p-1.5">
-                            <i class="bi bi-sparkles"></i>
-                        </span>
+                <div class="modal-header py-3 px-4">
+                    <div class="d-flex align-items-center gap-2.5">
+                        <div class="rounded p-2 d-flex align-items-center justify-content-center" style="background-color: var(--sh-accent-subtle); border: 1px solid var(--sh-accent-border);">
+                            <i class="bi bi-sparkles text-primary fs-5"></i>
+                        </div>
                         <div>
                             <h5 class="modal-title text-light fw-semibold fs-6 mb-0" id="generateSubjectModalLabel">
                                 Auto-Generate Subject & Syllabus
                             </h5>
                             <span class="text-secondary small" style="font-size: 0.75rem;">
-                                Structured 5-module university curriculum with topics and educational search resources.
+                                AI-assisted 5-module university curriculum with educational resource queries.
                             </span>
                         </div>
                     </div>
@@ -107,18 +204,18 @@
                             <label class="form-label text-light small fw-medium">
                                 Subject Name <span class="text-danger">*</span>
                             </label>
-                            <input type="text" name="subject_name" required class="form-control bg-dark border-secondary-subtle text-light small" placeholder="e.g. Natural Language Processing, Cloud Computing" style="border-color: #30363d !important;">
+                            <input type="text" name="subject_name" required class="form-control" placeholder="e.g. Natural Language Processing, Cloud Computing">
                         </div>
                         <div class="col-md-4">
                             <label class="form-label text-light small fw-medium">
                                 Course Code <span class="text-secondary">(Optional)</span>
                             </label>
-                            <input type="text" name="subject_code" class="form-control bg-dark border-secondary-subtle text-light small" placeholder="e.g. BAD703, BCS701, 21CS71" style="border-color: #30363d !important;">
+                            <input type="text" name="subject_code" class="form-control" placeholder="e.g. BAD703, BCS701, 21CS71">
                         </div>
                     </div>
 
                     <div class="mb-3">
-                        <div class="d-flex justify-content-between align-items-center mb-1">
+                        <div class="d-flex justify-content-between align-items-center mb-1 flex-wrap gap-1">
                             <label class="form-label text-light small fw-medium mb-0">
                                 Prescribed Syllabus Text <span class="text-info" style="font-size: 0.72rem;">(Recommended for exact match)</span>
                             </label>
@@ -126,19 +223,19 @@
                                 Authoritative Source Grounding
                             </span>
                         </div>
-                        <textarea name="syllabus_text" rows="5" class="form-control bg-dark border-secondary-subtle text-light small" placeholder="Paste your official 5-module syllabus here to ensure 100% fidelity.&#10;&#10;Example:&#10;Module 1: Classical Encryption & Block Ciphers&#10;Module 2: Public-Key Cryptography & Key Exchange&#10;Module 3: Key Management & Public-Key Infrastructure&#10;Module 4: Web & IP Security&#10;Module 5: Data Security & Data Hiding / Privacy" style="border-color: #30363d !important; font-size: 0.8rem; line-height: 1.5;"></textarea>
+                        <textarea name="syllabus_text" rows="5" class="form-control" placeholder="Paste your official 5-module syllabus here to ensure 100% fidelity.&#10;&#10;Example:&#10;Module 1: Classical Encryption & Block Ciphers&#10;Module 2: Public-Key Cryptography & Key Exchange&#10;Module 3: Key Management & Public-Key Infrastructure&#10;Module 4: Web & IP Security&#10;Module 5: Data Security & Data Hiding / Privacy" style="font-size: 0.8rem; line-height: 1.5;"></textarea>
                         
                         <!-- Unverified generation warning notice -->
-                        <div class="d-flex align-items-start gap-2 mt-2 p-2 rounded" style="background-color: rgba(210, 153, 34, 0.1); border: 1px solid rgba(210, 153, 34, 0.3);">
-                            <i class="bi bi-exclamation-triangle-fill text-warning mt-0.5" style="font-size: 0.8rem;"></i>
-                            <span class="text-warning small mb-0" style="font-size: 0.72rem; line-height: 1.45;">
+                        <div class="d-flex align-items-start gap-2 mt-2 p-2.5 rounded" style="background-color: var(--sh-warning-subtle); border: 1px solid var(--sh-warning-border);">
+                            <i class="bi bi-exclamation-triangle-fill text-warning mt-0.5" style="font-size: 0.85rem;"></i>
+                            <span class="text-warning small mb-0" style="font-size: 0.75rem; line-height: 1.45;">
                                 <strong>Notice:</strong> When syllabus text is omitted, the AI synthesizes reference content that is marked as <em>unverified</em> and may not match your college or VTU scheme. Paste your module outline above for an exact match.
                             </span>
                         </div>
                     </div>
 
                     <!-- Informational Callout -->
-                    <div class="p-2.5 rounded d-flex align-items-start gap-2.5" style="background-color: #0d1117; border: 1px solid #30363d;">
+                    <div class="p-2.5 rounded d-flex align-items-start gap-2.5" style="background-color: #0e1422; border: 1px solid var(--sh-border);">
                         <i class="bi bi-info-circle text-primary mt-0.5"></i>
                         <p class="text-secondary mb-0" style="font-size: 0.775rem; line-height: 1.5;">
                             Powered by Google Gemini. The generated subject automatically links to curated YouTube lecture searches and technical articles from GeeksforGeeks and W3Schools.
@@ -146,7 +243,7 @@
                     </div>
                 </div>
 
-                <div class="modal-footer border-top border-secondary-subtle py-2.5 px-4 d-flex justify-content-between align-items-center" style="border-top: 1px solid #30363d !important;">
+                <div class="modal-footer py-2.5 px-4 d-flex justify-content-between align-items-center">
                     <span id="aiStatusText" class="text-secondary small fst-italic" style="font-size: 0.775rem;"></span>
                     <div class="d-flex gap-2">
                         <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
@@ -161,8 +258,12 @@
     </div>
 </div>
 
+{% endblock %}
+
+{% block extra_js %}
 <script>
 document.addEventListener('DOMContentLoaded', function() {
+    // 1. Form Submission Loading State
     const form = document.getElementById('aiGenerateForm');
     const submitBtn = document.getElementById('btnSubmitGenerate');
     const btnText = document.getElementById('btnText');
@@ -175,6 +276,80 @@ document.addEventListener('DOMContentLoaded', function() {
             if (statusText) {
                 statusText.innerHTML = '<i class="bi bi-hourglass-split text-warning me-1"></i> Constructing modules and search keywords (~4s)...';
             }
+        });
+    }
+
+    // 2. Instant Client-Side Search / Filter
+    const searchInput = document.getElementById('subjectSearchInput');
+    const clearBtn = document.getElementById('clearSearchBtn');
+    const resetBtn = document.getElementById('resetSearchBtn');
+    const statsEl = document.getElementById('searchFilterStats');
+    const noResultsEl = document.getElementById('noSearchResults');
+    const noQueryText = document.getElementById('noSearchQueryText');
+    const cards = document.querySelectorAll('.subject-card-item');
+    const totalCount = cards.length;
+
+    function filterSubjects() {
+        if (!searchInput) return;
+        const query = searchInput.value.trim().toLowerCase();
+        let visibleCount = 0;
+
+        if (query.length > 0) {
+            clearBtn.classList.remove('d-none');
+        } else {
+            clearBtn.classList.add('d-none');
+        }
+
+        cards.forEach(card => {
+            const code = card.getAttribute('data-code') || '';
+            const name = card.getAttribute('data-name') || '';
+            const desc = card.getAttribute('data-desc') || '';
+
+            if (code.includes(query) || name.includes(query) || desc.includes(query)) {
+                card.classList.remove('d-none');
+                visibleCount++;
+            } else {
+                card.classList.add('d-none');
+            }
+        });
+
+        if (statsEl) {
+            if (query.length > 0) {
+                statsEl.textContent = `Showing ${visibleCount} of ${totalCount} subjects`;
+            } else {
+                statsEl.textContent = `Showing all ${totalCount} subjects`;
+            }
+        }
+
+        if (noResultsEl) {
+            if (visibleCount === 0 && totalCount > 0) {
+                noResultsEl.classList.remove('d-none');
+                if (noQueryText) {
+                    noQueryText.textContent = `No subjects matched "${searchInput.value.trim()}". Try searching by course code or subject keyword.`;
+                }
+            } else {
+                noResultsEl.classList.add('d-none');
+            }
+        }
+    }
+
+    if (searchInput) {
+        searchInput.addEventListener('input', filterSubjects);
+    }
+
+    if (clearBtn) {
+        clearBtn.addEventListener('click', function() {
+            searchInput.value = '';
+            filterSubjects();
+            searchInput.focus();
+        });
+    }
+
+    if (resetBtn) {
+        resetBtn.addEventListener('click', function() {
+            searchInput.value = '';
+            filterSubjects();
+            searchInput.focus();
         });
     }
 });
