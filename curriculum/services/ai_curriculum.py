@@ -100,12 +100,11 @@ def generate_curriculum_from_prompt(subject_name, subject_code="", syllabus_text
         "Your task is to produce a complete, highly structured, 5-module curriculum in strict JSON format.\n\n"
         "Requirements:\n"
         "1. Structure must have exactly 5 Modules (Module 1 through Module 5).\n"
-        "2. Each Module must contain 3 to 4 clear, focused Topics.\n"
+        "2. Each Module must contain exactly 3 clear, focused Topics (15 topics total).\n"
         "3. Each Topic must include:\n"
         "   - 'title': concise topic title (under 80 characters)\n"
         "   - 'description': 1 sentence explaining key conceptual objective\n"
-        "   - 'keywords': a list of 3 to 5 specific, high-intent search phrases optimized for finding video lectures "
-        "and technical documentation (e.g., 'backpropagation algorithm derivation neural networks', 'gradient descent vs adam optimizer tutorial').\n"
+        "   - 'keywords': exactly 3 specific, high-intent search phrases for video lectures and technical articles (e.g. 'backpropagation algorithm derivation', 'gradient descent vs adam optimizer').\n"
         "4. Output MUST strictly be valid JSON matching this schema:\n"
         "{\n"
         '  "code": "string",\n'
@@ -151,7 +150,8 @@ def generate_curriculum_from_prompt(subject_name, subject_code="", syllabus_text
         ],
         "generationConfig": {
             "response_mime_type": "application/json",
-            "temperature": 0.2
+            "temperature": 0.2,
+            "maxOutputTokens": 2048
         }
     }
 
