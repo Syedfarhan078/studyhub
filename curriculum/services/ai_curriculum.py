@@ -75,6 +75,28 @@ def resolve_active_gemini_endpoint(api_key):
     return "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent"
 
 
+def _find_modules_dict(obj, depth=0):
+    """
+    Recursively searches a parsed JSON object for a dict containing a 'modules' list.
+    Handles cases where Gemini wraps the curriculum in an outer key like {"curriculum": {...}}.
+    """
+    if depth > 4:
+        return None
+    if isinstance(obj, dict):
+        if "modules" in obj and isinstance(obj["modules"], list) and len(obj["modules"]) > 0:
+            return obj
+        for v in obj.values():
+            result = _find_modules_dict(v, depth + 1)
+            if result:
+                return result
+    elif isinstance(obj, list):
+        for item in obj:
+            result = _find_modules_dict(item, depth + 1)
+            if result:
+                return result
+    return None
+
+
 def extract_curriculum_data_from_json(raw_text):
     """
     Robustly extracts and decodes the curriculum dictionary from Gemini output.
@@ -82,19 +104,25 @@ def extract_curriculum_data_from_json(raw_text):
     - Markdown code fences (```json ... ```)
     - Preamble or thought tokens (e.g. empty '{}' before the actual object)
     - Multiple JSON objects in the stream (finds the one with 'modules')
+    - Nested wrapper objects (e.g. {"curriculum": {"modules": [...]}})
     - Trailing commas
     """
-    cleaned = raw_text.strip()
-    if "```" in cleaned:
-        cleaned = re.sub(r"^```(?:json)?\s*", "", cleaned, flags=re.IGNORECASE)
-        cleaned = re.sub(r"\s*```$", "", cleaned)
-        cleaned = cleaned.strip()
+    logger.info(f"extract_curriculum_data_from_json: raw_text preview (first 500): {raw_text[:500]!r}")
 
-    # 1. Try standard JSON load directly
+    cleaned = raw_text.strip()
+
+    # Strip all markdown code fences (handle mid-text fences too)
+    cleaned = re.sub(r"```(?:json)?\s*", "", cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(r"```", "", cleaned)
+    cleaned = cleaned.strip()
+
+    # 1. Try standard JSON load directly (handles response_mime_type=application/json clean output)
     try:
         data = json.loads(cleaned)
-        if isinstance(data, dict) and "modules" in data:
-            return data
+        result = _find_modules_dict(data)
+        if result:
+            logger.info("extract_curriculum_data_from_json: found via direct json.loads + recursive search")
+            return result
     except Exception:
         pass
 
@@ -110,27 +138,31 @@ def extract_curriculum_data_from_json(raw_text):
             obj, end = decoder.raw_decode(cleaned, brace_pos)
             if isinstance(obj, dict):
                 candidate_dicts.append(obj)
-                if "modules" in obj and isinstance(obj["modules"], list) and len(obj["modules"]) > 0:
-                    return obj
+                result = _find_modules_dict(obj)
+                if result:
+                    logger.info(f"extract_curriculum_data_from_json: found via raw_decode at pos {brace_pos}")
+                    return result
             idx = max(end, brace_pos + 1)
         except json.JSONDecodeError:
             idx = brace_pos + 1
 
-    # 3. Check any decoded candidate dict for 'modules'
-    for d in candidate_dicts:
-        if "modules" in d:
-            return d
+    logger.warning(f"extract_curriculum_data_from_json: candidate_dicts keys: {[list(d.keys())[:6] for d in candidate_dicts]}")
 
-    # 4. Fallback: clean trailing commas and retry
+    # 3. Fallback: clean trailing commas and retry
     cleaned_no_commas = re.sub(r",\s*([\]}])", r"\1", cleaned)
     try:
         data = json.loads(cleaned_no_commas)
+        result = _find_modules_dict(data)
+        if result:
+            logger.info("extract_curriculum_data_from_json: found via trailing-comma-cleaned parse")
+            return result
         if isinstance(data, dict):
             return data
     except Exception:
         pass
 
     if candidate_dicts:
+        logger.warning("extract_curriculum_data_from_json: returning last candidate dict as final fallback")
         return candidate_dicts[-1]
 
     raise ValueError("Could not find a valid curriculum JSON object with 'modules' in the AI response.")
@@ -279,6 +311,7 @@ def generate_curriculum_from_prompt(subject_name, subject_code="", syllabus_text
         if not full_text.strip():
             raise ValueError("Gemini returned empty text in candidate parts.")
 
+        logger.info(f"Gemini full_text (first 800 chars): {full_text[:800]!r}")
         data = extract_curriculum_data_from_json(full_text)
 
     except (KeyError, IndexError, json.JSONDecodeError, ValueError) as e:
@@ -287,6 +320,7 @@ def generate_curriculum_from_prompt(subject_name, subject_code="", syllabus_text
 
     # Validate essential keys
     if "modules" not in data or not isinstance(data["modules"], list):
+        logger.error(f"modules key missing. data keys: {list(data.keys()) if isinstance(data, dict) else type(data)}")
         raise ValueError("Invalid curriculum structure: 'modules' key missing or invalid.")
 
     # Save to database in an atomic transaction
