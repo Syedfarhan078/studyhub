@@ -245,7 +245,7 @@ def generate_curriculum_from_prompt(subject_name, subject_code="", syllabus_text
         "generationConfig": {
             "response_mime_type": "application/json",
             "temperature": 0.2,
-            "maxOutputTokens": 2048
+            "maxOutputTokens": 8192
         }
     }
 
