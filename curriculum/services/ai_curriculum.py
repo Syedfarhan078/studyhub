@@ -13,7 +13,7 @@ def resolve_active_gemini_endpoint(api_key):
     """
     Dynamically asks Google's ModelService.ListModels which models are enabled
     and active for this API key with generateContent support.
-    Eliminates hardcoded 404 version mismatches.
+    Eliminates hardcoded 404 version mismatches and surfaces actionable diagnostics.
     """
     list_url = f"https://generativelanguage.googleapis.com/v1beta/models?key={api_key}"
     try:
@@ -26,17 +26,15 @@ def resolve_active_gemini_endpoint(api_key):
                 if "generateContent" in m.get("supportedGenerationMethods", [])
             ]
             if supported:
-                # Prioritize flash models, then pro, then any supported
+                # Prioritize: 1.5-flash, 2.0-flash, 2.5-flash, flash, pro
                 chosen = None
-                for m in supported:
-                    if "flash" in m.lower():
-                        chosen = m
-                        break
-                if not chosen:
+                for pref in ("3.5-flash", "3.5-flash-lite","3.8-flash","1.5-flash", "2.0-flash", "2.5-flash", "flash", "pro"):
                     for m in supported:
-                        if "pro" in m.lower():
+                        if pref in m.lower():
                             chosen = m
                             break
+                    if chosen:
+                        break
                 if not chosen:
                     chosen = supported[0]
 
@@ -44,15 +42,30 @@ def resolve_active_gemini_endpoint(api_key):
                 logger.info(f"Discovered active Gemini model for this key: {clean_model}")
                 return f"https://generativelanguage.googleapis.com/v1beta/models/{clean_model}:generateContent"
             else:
-                logger.warning(f"No models supporting generateContent found in ListModels.")
-        elif res.status_code in (400, 403):
+                total_models = len(models_data)
+                raise RuntimeError(
+                    f"Google API key authenticated, but reports 0 models supporting 'generateContent' "
+                    f"(Total models found: {total_models}). This typically occurs when the key has API restrictions "
+                    f"or was created in Google Cloud Console without Generative Language API enabled. "
+                    f"Please generate a fresh key directly at https://aistudio.google.com/apikey"
+                )
+        elif res.status_code in (400, 401, 403):
             try:
                 err_msg = res.json().get("error", {}).get("message", res.text)
             except Exception:
                 err_msg = res.text
-            raise RuntimeError(f"Google API Key verification error ({res.status_code}): {err_msg}")
+            raise RuntimeError(
+                f"Google API Key verification error ({res.status_code}): {err_msg}. "
+                f"Please verify GEMINI_API_KEY at https://aistudio.google.com/apikey"
+            )
+        else:
+            try:
+                err_msg = res.json().get("error", {}).get("message", res.text)
+            except Exception:
+                err_msg = res.text
+            raise RuntimeError(f"Google Generative Language API error ({res.status_code}): {err_msg}")
     except requests.RequestException as e:
-        logger.warning(f"ListModels check failed ({e}). Proceeding with standard endpoint.")
+        logger.warning(f"ListModels check failed ({e}). Proceeding with standard endpoint fallback.")
 
     return "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent"
 
@@ -145,7 +158,6 @@ def generate_curriculum_from_prompt(subject_name, subject_code="", syllabus_text
         "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent",
         "https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent",
         "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent",
-        "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent",
     ]
     unique_endpoints = list(dict.fromkeys(candidate_endpoints))
 
@@ -161,7 +173,11 @@ def generate_curriculum_from_prompt(subject_name, subject_code="", syllabus_text
                 break
             elif res.status_code == 404:
                 logger.info(f"Endpoint '{endpoint}' 404. Attempting next candidate...")
-                last_error_msg = f"Gemini API error (Status 404): {res.text}"
+                last_error_msg = (
+                    f"Gemini API error (Status 404): {res.text}. "
+                    "This usually indicates your Google Cloud project does not have Generative Language API enabled. "
+                    "Fix: Generate a fresh key at https://aistudio.google.com/apikey (select 'Create key in new project')."
+                )
                 continue
             else:
                 last_error_msg = f"Gemini API error (Status {res.status_code}): {res.text}"

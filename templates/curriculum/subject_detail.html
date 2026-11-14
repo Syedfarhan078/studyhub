@@ -262,13 +262,13 @@
                 {% if active_topic.module.notes.all %}
                     <div class="d-flex flex-column gap-2.5 border-top border-secondary-subtle pt-3" style="border-top: 1px solid #30363d !important;">
                         {% for note in active_topic.module.notes.all %}
-                            <div class="p-3 rounded d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3" style="background-color: #0d1117; border: 1px solid #30363d;">
-                                <div class="d-flex align-items-start gap-3">
+                            <div class="p-3 rounded d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3 transition-colors" style="background-color: #0d1117; border: 1px solid #30363d;">
+                                <div class="d-flex align-items-start gap-3 flex-grow-1 min-w-0">
                                     <div class="rounded p-2 bg-dark border border-secondary-subtle text-warning d-flex align-items-center justify-content-center" style="width: 42px; height: 42px; flex-shrink: 0; border-color: #30363d !important;">
                                         <i class="bi bi-file-earmark-pdf fs-4"></i>
                                     </div>
-                                    <div>
-                                        <h6 class="text-light fw-medium mb-1" style="font-size: 0.875rem;">{{ note.title }}</h6>
+                                    <div class="flex-grow-1 min-w-0">
+                                        <h6 class="text-light fw-medium mb-1 text-break" style="font-size: 0.9rem;">{{ note.title }}</h6>
                                         <div class="d-flex align-items-center gap-2 small text-secondary flex-wrap" style="font-size: 0.75rem;">
                                             <span class="badge bg-dark border border-secondary-subtle text-light" style="font-family: var(--sh-font-mono); font-size: 0.65rem; border-color: #30363d !important;">{{ note.file_extension }}</span>
                                             <span>&bull; {{ note.file_size_display }}</span>
@@ -279,8 +279,8 @@
                                         {% endif %}
                                     </div>
                                 </div>
-                                <div class="d-flex align-items-center flex-shrink-0">
-                                    <a href="{{ note.file.url }}" target="_blank" rel="noopener noreferrer" class="btn btn-sm btn-outline-light d-inline-flex align-items-center gap-1.5 px-3">
+                                <div class="d-flex align-items-center flex-shrink-0 w-100 w-md-auto">
+                                    <a href="{{ note.file.url }}" target="_blank" rel="noopener noreferrer" class="btn btn-sm btn-outline-light d-inline-flex align-items-center justify-content-center gap-1.5 px-3 py-1.5 w-100 w-md-auto text-nowrap">
                                         <i class="bi bi-box-arrow-up-right"></i> Open / Download
                                     </a>
                                 </div>
