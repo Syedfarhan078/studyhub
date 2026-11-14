@@ -16,8 +16,12 @@ def resolve_active_gemini_endpoint(api_key):
     Eliminates hardcoded 404 version mismatches and surfaces actionable diagnostics.
     """
     list_url = f"https://generativelanguage.googleapis.com/v1beta/models?key={api_key}"
+    headers = {
+        "Content-Type": "application/json",
+        "x-goog-api-key": api_key,
+    }
     try:
-        res = requests.get(list_url, timeout=15)
+        res = requests.get(list_url, headers=headers, timeout=15)
         if res.status_code == 200:
             models_data = res.json().get("models", [])
             # Filter models that support generateContent
@@ -96,11 +100,11 @@ def generate_curriculum_from_prompt(subject_name, subject_code="", syllabus_text
         "Your task is to produce a complete, highly structured, 5-module curriculum in strict JSON format.\n\n"
         "Requirements:\n"
         "1. Structure must have exactly 5 Modules (Module 1 through Module 5).\n"
-        "2. Each Module must contain 4 to 8 clear, distinct Topics.\n"
+        "2. Each Module must contain 3 to 4 clear, focused Topics.\n"
         "3. Each Topic must include:\n"
-        "   - 'title': concise topic title (under 100 characters)\n"
-        "   - 'description': 1 to 2 sentences explaining key conceptual objectives\n"
-        "   - 'keywords': a list of 6 to 10 specific, realistic search phrases optimized for finding video lectures "
+        "   - 'title': concise topic title (under 80 characters)\n"
+        "   - 'description': 1 sentence explaining key conceptual objective\n"
+        "   - 'keywords': a list of 3 to 5 specific, high-intent search phrases optimized for finding video lectures "
         "and technical documentation (e.g., 'backpropagation algorithm derivation neural networks', 'gradient descent vs adam optimizer tutorial').\n"
         "4. Output MUST strictly be valid JSON matching this schema:\n"
         "{\n"
@@ -155,19 +159,26 @@ def generate_curriculum_from_prompt(subject_name, subject_code="", syllabus_text
     active_endpoint = resolve_active_gemini_endpoint(api_key)
     candidate_endpoints = [
         active_endpoint,
+        "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent",
+        "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent",
+        "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent",
+        "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent",
         "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent",
         "https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent",
-        "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent",
     ]
     unique_endpoints = list(dict.fromkeys(candidate_endpoints))
 
     response = None
     last_error_msg = ""
+    post_headers = {
+        "Content-Type": "application/json",
+        "x-goog-api-key": api_key,
+    }
 
     for endpoint in unique_endpoints:
         url = f"{endpoint}?key={api_key}"
         try:
-            res = requests.post(url, json=payload, headers={"Content-Type": "application/json"}, timeout=45)
+            res = requests.post(url, json=payload, headers=post_headers, timeout=45)
             if res.status_code == 200:
                 response = res
                 break
