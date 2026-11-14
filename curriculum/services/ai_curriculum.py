@@ -75,6 +75,67 @@ def resolve_active_gemini_endpoint(api_key):
     return "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent"
 
 
+def extract_curriculum_data_from_json(raw_text):
+    """
+    Robustly extracts and decodes the curriculum dictionary from Gemini output.
+    Handles:
+    - Markdown code fences (```json ... ```)
+    - Preamble or thought tokens (e.g. empty '{}' before the actual object)
+    - Multiple JSON objects in the stream (finds the one with 'modules')
+    - Trailing commas
+    """
+    cleaned = raw_text.strip()
+    if "```" in cleaned:
+        cleaned = re.sub(r"^```(?:json)?\s*", "", cleaned, flags=re.IGNORECASE)
+        cleaned = re.sub(r"\s*```$", "", cleaned)
+        cleaned = cleaned.strip()
+
+    # 1. Try standard JSON load directly
+    try:
+        data = json.loads(cleaned)
+        if isinstance(data, dict) and "modules" in data:
+            return data
+    except Exception:
+        pass
+
+    # 2. Iteratively decode objects using raw_decode to skip preambles (e.g. '{}{"name": ...}')
+    decoder = json.JSONDecoder()
+    idx = 0
+    candidate_dicts = []
+    while idx < len(cleaned):
+        brace_pos = cleaned.find("{", idx)
+        if brace_pos == -1:
+            break
+        try:
+            obj, end = decoder.raw_decode(cleaned, brace_pos)
+            if isinstance(obj, dict):
+                candidate_dicts.append(obj)
+                if "modules" in obj and isinstance(obj["modules"], list) and len(obj["modules"]) > 0:
+                    return obj
+            idx = max(end, brace_pos + 1)
+        except json.JSONDecodeError:
+            idx = brace_pos + 1
+
+    # 3. Check any decoded candidate dict for 'modules'
+    for d in candidate_dicts:
+        if "modules" in d:
+            return d
+
+    # 4. Fallback: clean trailing commas and retry
+    cleaned_no_commas = re.sub(r",\s*([\]}])", r"\1", cleaned)
+    try:
+        data = json.loads(cleaned_no_commas)
+        if isinstance(data, dict):
+            return data
+    except Exception:
+        pass
+
+    if candidate_dicts:
+        return candidate_dicts[-1]
+
+    raise ValueError("Could not find a valid curriculum JSON object with 'modules' in the AI response.")
+
+
 def generate_curriculum_from_prompt(subject_name, subject_code="", syllabus_text=""):
     """
     Calls the Gemini API to generate a complete 5-module university curriculum
@@ -213,40 +274,12 @@ def generate_curriculum_from_prompt(subject_name, subject_code="", syllabus_text
         if not parts:
             raise ValueError("Gemini candidate contains no content parts.")
 
-        # Search all parts for the one containing JSON brackets '{' and '}'
-        raw_text = ""
-        for part in parts:
-            text = part.get("text", "")
-            if "{" in text and "}" in text:
-                raw_text = text
-                break
-
-        if not raw_text:
-            # Fallback to the last part
-            raw_text = parts[-1].get("text", "")
-
-        if not raw_text:
+        # Assemble full text across all parts
+        full_text = "".join(part.get("text", "") for part in parts if isinstance(part, dict))
+        if not full_text.strip():
             raise ValueError("Gemini returned empty text in candidate parts.")
 
-        # Strip markdown fences (e.g. ```json ... ``` or ``` ... ```)
-        cleaned = raw_text.strip()
-        if cleaned.startswith("```"):
-            cleaned = re.sub(r"^```(?:json)?\s*", "", cleaned, flags=re.IGNORECASE)
-            cleaned = re.sub(r"\s*```$", "", cleaned)
-            cleaned = cleaned.strip()
-
-        # Extract only the outermost JSON object bounds
-        first_brace = cleaned.find("{")
-        last_brace = cleaned.rfind("}")
-        if first_brace != -1 and last_brace != -1 and last_brace > first_brace:
-            cleaned = cleaned[first_brace:last_brace + 1]
-
-        # Parse JSON with fallback for trailing commas
-        try:
-            data = json.loads(cleaned)
-        except json.JSONDecodeError:
-            cleaned_no_trailing = re.sub(r",\s*([\]}])", r"\1", cleaned)
-            data = json.loads(cleaned_no_trailing)
+        data = extract_curriculum_data_from_json(full_text)
 
     except (KeyError, IndexError, json.JSONDecodeError, ValueError) as e:
         logger.error(f"Failed to parse Gemini response: {e}. Raw response: {response.text[:500]}")
