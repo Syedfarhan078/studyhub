@@ -278,6 +278,19 @@ class GenerationJob(models.Model):
         blank=True,
         help_text="Worker identifier currently executing this job"
     )
+    claim_token = models.UUIDField(
+        null=True,
+        blank=True,
+        editable=False,
+        db_index=True,
+        help_text="Unique fencing token for active execution attempt"
+    )
+    session_key = models.CharField(
+        max_length=40,
+        blank=True,
+        db_index=True,
+        help_text="Session key of anonymous creator for secure ownership binding"
+    )
 
     class Meta:
         ordering = ['-created_at']
@@ -285,6 +298,8 @@ class GenerationJob(models.Model):
             models.Index(fields=['status', 'created_at']),
             models.Index(fields=['locked_at']),
             models.Index(fields=['user', 'created_at']),
+            models.Index(fields=['claim_token']),
+            models.Index(fields=['session_key']),
         ]
         verbose_name = "Generation Job"
         verbose_name_plural = "Generation Jobs"

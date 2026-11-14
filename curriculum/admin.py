@@ -70,4 +70,4 @@ class GenerationJobAdmin(admin.ModelAdmin):
     list_display = ('id', 'subject_name', 'subject_code', 'status', 'progress', 'attempts', 'created_at', 'finished_at')
     list_filter = ('status', 'created_at')
     search_fields = ('subject_name', 'subject_code', 'id')
-    readonly_fields = ('id', 'created_at', 'started_at', 'finished_at', 'locked_at', 'locked_by')
+    readonly_fields = ('id', 'created_at', 'started_at', 'finished_at', 'locked_at', 'locked_by', 'claim_token', 'session_key')

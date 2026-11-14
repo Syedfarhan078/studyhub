@@ -3,8 +3,9 @@ from unittest.mock import MagicMock, call, patch
 
 import requests
 from django.contrib.messages import get_messages
-from django.test import Client, TestCase, override_settings
+from django.test import Client, TestCase, TransactionTestCase, override_settings
 from django.urls import reverse
+from django.core.management.base import CommandError
 
 import uuid
 from datetime import timedelta
@@ -689,9 +690,11 @@ class PostgresBackgroundTaskWorkerTests(TestCase):
     def test_status_endpoint_pending_job(self):
         """Tests status endpoint reports PENDING for an unprocessed job."""
         job = GenerationJob.objects.create(
+            user=self.user_a,
             subject_name="Compiler Design",
             subject_code="BCS707"
         )
+        self.client.force_login(self.user_a)
         status_resp = self.client.get(
             reverse("curriculum:generation_status", kwargs={"task_id": str(job.id)}),
             HTTP_ACCEPT="application/json"
@@ -717,35 +720,55 @@ class PostgresBackgroundTaskWorkerTests(TestCase):
         self.assertEqual(resp_404.status_code, 404)
         self.assertFalse(resp_404.json()["success"])
 
-    # 7. Status endpoint ownership isolation
+    # 7. Status endpoint ownership isolation (SEC-01)
     def test_status_endpoint_ownership_isolation(self):
-        """Tests that authenticated users cannot inspect another user's generation job."""
+        """Tests strict ownership isolation: authenticated users, anonymous creators, and unauthorized visitors."""
         job = GenerationJob.objects.create(
             user=self.user_a,
             subject_name="Confidential Computing",
             subject_code="CC901"
         )
 
-        # User B cannot access User A's job
+        # 1. User B cannot access User A's job -> 403
         self.client.force_login(self.user_b)
-        resp_forbidden = self.client.get(reverse("curriculum:generation_status", kwargs={"task_id": str(job.id)}))
-        self.assertEqual(resp_forbidden.status_code, 403)
+        resp_user_b = self.client.get(reverse("curriculum:generation_status", kwargs={"task_id": str(job.id)}))
+        self.assertEqual(resp_user_b.status_code, 403)
+        self.assertFalse(resp_user_b.json()["success"])
 
-        # User A can access their own job
-        self.client.force_login(self.user_a)
-        resp_allowed = self.client.get(reverse("curriculum:generation_status", kwargs={"task_id": str(job.id)}))
-        self.assertEqual(resp_allowed.status_code, 200)
-        self.assertEqual(resp_allowed.json()["task_id"], str(job.id))
-
-        # Anonymous job can be polled by anyone
-        anon_job = GenerationJob.objects.create(
-            user=None,
-            subject_name="Open Computing",
-            subject_code="OC901"
-        )
+        # 2. Anonymous visitor cannot access User A's job -> 403
         self.client.logout()
-        resp_anon = self.client.get(reverse("curriculum:generation_status", kwargs={"task_id": str(anon_job.id)}))
-        self.assertEqual(resp_anon.status_code, 200)
+        resp_anon = self.client.get(reverse("curriculum:generation_status", kwargs={"task_id": str(job.id)}))
+        self.assertEqual(resp_anon.status_code, 403)
+        self.assertFalse(resp_anon.json()["success"])
+
+        # 3. User A can access their own job -> 200
+        self.client.force_login(self.user_a)
+        resp_user_a = self.client.get(reverse("curriculum:generation_status", kwargs={"task_id": str(job.id)}))
+        self.assertEqual(resp_user_a.status_code, 200)
+        self.assertEqual(resp_user_a.json()["task_id"], str(job.id))
+
+        # 4. Anonymous creator generates a job in their session -> creator can access it (200)
+        client_guest = Client()
+        submit_resp = client_guest.post(
+            reverse("curriculum:generate_subject_ai"),
+            {"subject_name": "Guest Subject", "subject_code": "GST101"},
+            HTTP_X_REQUESTED_WITH="XMLHttpRequest"
+        )
+        self.assertEqual(submit_resp.status_code, 200)
+        guest_task_id = submit_resp.json()["task_id"]
+
+        # Same guest session can query status -> 200
+        poll_resp_same = client_guest.get(reverse("curriculum:generation_status", kwargs={"task_id": guest_task_id}))
+        self.assertEqual(poll_resp_same.status_code, 200)
+
+        # Different guest session cannot access that job -> 403
+        client_other_guest = Client()
+        poll_resp_diff = client_other_guest.get(reverse("curriculum:generation_status", kwargs={"task_id": guest_task_id}))
+        self.assertEqual(poll_resp_diff.status_code, 403)
+
+        # Authenticated user cannot access another session's anonymous job -> 403
+        poll_resp_auth = self.client.get(reverse("curriculum:generation_status", kwargs={"task_id": guest_task_id}))
+        self.assertEqual(poll_resp_auth.status_code, 403)
 
     # 8. Standalone worker successful job execution
     @patch("curriculum.services.ai_curriculum.requests.post")
@@ -761,6 +784,7 @@ class PostgresBackgroundTaskWorkerTests(TestCase):
         mock_post.return_value = make_mock_gemini_json_response(SAMPLE_CURRICULUM_DATA)
 
         job = GenerationJob.objects.create(
+            user=self.user_a,
             subject_name="Software Engineering",
             subject_code="BCS701",
             syllabus_text=""
@@ -778,6 +802,7 @@ class PostgresBackgroundTaskWorkerTests(TestCase):
         self.assertEqual(job.attempts, 1)
 
         # Polling status endpoint returns COMPLETED with redirect_url
+        self.client.force_login(self.user_a)
         status_resp = self.client.get(reverse("curriculum:generation_status", kwargs={"task_id": str(job.id)}))
         self.assertEqual(status_resp.status_code, 200)
         data = status_resp.json()
@@ -848,7 +873,7 @@ class PostgresBackgroundTaskWorkerTests(TestCase):
         resp_503 = make_mock_error_response(503, "High server demand.")
         mock_post.return_value = resp_503
 
-        job = GenerationJob.objects.create(subject_name="Deep Learning", subject_code="BCS706")
+        job = GenerationJob.objects.create(user=self.user_a, subject_name="Deep Learning", subject_code="BCS706")
         call_command("run_generation_worker", once=True)
 
         job.refresh_from_db()
@@ -856,6 +881,7 @@ class PostgresBackgroundTaskWorkerTests(TestCase):
         self.assertIn("temporarily experiencing high server demand", job.error_message)
         self.assertIsNone(job.subject)
 
+        self.client.force_login(self.user_a)
         status_resp = self.client.get(reverse("curriculum:generation_status", kwargs={"task_id": str(job.id)}))
         self.assertEqual(status_resp.status_code, 200)
         data = status_resp.json()
@@ -1008,5 +1034,328 @@ class PostgresBackgroundTaskWorkerTests(TestCase):
         self.assertIn('id="aiProgressBar"', content)
         self.assertIn('id="aiModalErrorAlert"', content)
         self.assertIn('id="aiStepBadge"', content)
+
+    # 18. Worker claiming assigns unique claim_token (CONC-01)
+    def test_worker_claim_generates_unique_claim_token(self):
+        """Tests that claiming a pending job generates a fresh UUID claim token."""
+        from curriculum.management.commands.run_generation_worker import Command as WorkerCommand
+
+        job = GenerationJob.objects.create(
+            subject_name="Operating Systems",
+            subject_code="BCS401",
+            status=GenerationJob.Status.PENDING
+        )
+        self.assertIsNone(job.claim_token)
+
+        worker = WorkerCommand()
+        claimed = worker.claim_next_job()
+        self.assertIsNotNone(claimed)
+        self.assertEqual(claimed.id, job.id)
+        self.assertIsInstance(claimed.claim_token, uuid.UUID)
+        self.assertEqual(claimed.status, GenerationJob.Status.RUNNING)
+
+    # 19. Optimistic fencing prevents stale worker from finalizing (CONC-01)
+    @patch("curriculum.management.commands.run_generation_worker.generate_curriculum_from_prompt")
+    def test_fencing_stale_worker_cannot_finalize_completed_job(self, mock_generate):
+        """Tests that a worker whose claim token was revoked cannot overwrite job state or finalize."""
+        from curriculum.management.commands.run_generation_worker import Command as WorkerCommand
+
+        token_a = uuid.uuid4()
+        token_b = uuid.uuid4()
+
+        job = GenerationJob.objects.create(
+            subject_name="Stale Worker Test",
+            subject_code="STALE01",
+            status=GenerationJob.Status.RUNNING,
+            claim_token=token_a,
+            locked_at=timezone.now(),
+            locked_by="worker-a"
+        )
+
+        dummy_subject = Subject.objects.create(name="Stale Subject", code="STALE01", slug="stale-subject")
+        mock_generate.return_value = dummy_subject
+
+        worker_a = WorkerCommand()
+        worker_a.worker_id = "worker-a"
+
+        # Simulate Worker B reclaiming the job while Worker A is in-flight
+        def fake_generate(*args, **kwargs):
+            # Token changed by worker B in database
+            GenerationJob.objects.filter(id=job.id).update(
+                claim_token=token_b,
+                locked_by="worker-b"
+            )
+            return dummy_subject
+
+        mock_generate.side_effect = fake_generate
+
+        # Worker A attempts to execute and finalize with token_a
+        worker_a.execute_job(job, heartbeat_interval=0)
+
+        job.refresh_from_db()
+        # Job must NOT be marked COMPLETED by Worker A; token_b must remain untouched
+        self.assertEqual(job.claim_token, token_b)
+        self.assertEqual(job.locked_by, "worker-b")
+        self.assertEqual(job.status, GenerationJob.Status.RUNNING)
+
+    # 20. Optimistic fencing prevents stale worker from marking job FAILED (CONC-01)
+    def test_fencing_stale_worker_cannot_mark_job_failed(self):
+        """Tests that a stale worker cannot record FAILED status after its claim token has been revoked."""
+        from curriculum.management.commands.run_generation_worker import Command as WorkerCommand
+
+        token_a = uuid.uuid4()
+        token_b = uuid.uuid4()
+
+        job = GenerationJob.objects.create(
+            subject_name="Stale Fail Test",
+            subject_code="FAIL01",
+            status=GenerationJob.Status.RUNNING,
+            claim_token=token_b,  # Database already has token_b
+            locked_at=timezone.now(),
+            locked_by="worker-b"
+        )
+
+        worker_a = WorkerCommand()
+        worker_a.worker_id = "worker-a"
+
+        # Worker A attempts to record failure with old token_a
+        worker_a._mark_job_failed(job.id, token_a, "Old failure message")
+
+        job.refresh_from_db()
+        self.assertEqual(job.status, GenerationJob.Status.RUNNING)
+        self.assertEqual(job.claim_token, token_b)
+        self.assertNotEqual(job.error_message, "Old failure message")
+
+    # 21. Lease reaper clears claim_token on requeue and fail (SHUT-01)
+    def test_lease_reaper_clears_claim_token_on_requeue_and_fail(self):
+        """Tests that reap_abandoned_jobs clears claim_token both when requeueing and when failing a job."""
+        from curriculum.management.commands.run_generation_worker import Command as WorkerCommand
+
+        stale_time = timezone.now() - timedelta(seconds=400)
+
+        # Job 1: Requeued
+        job_requeue = GenerationJob.objects.create(
+            subject_name="Requeue Job",
+            status=GenerationJob.Status.RUNNING,
+            attempts=1,
+            max_attempts=3,
+            claim_token=uuid.uuid4(),
+            locked_at=stale_time,
+            locked_by="worker-stale"
+        )
+
+        # Job 2: Failed
+        job_fail = GenerationJob.objects.create(
+            subject_name="Fail Job",
+            status=GenerationJob.Status.RUNNING,
+            attempts=3,
+            max_attempts=3,
+            claim_token=uuid.uuid4(),
+            locked_at=stale_time,
+            locked_by="worker-stale"
+        )
+
+        worker = WorkerCommand()
+        worker.reap_abandoned_jobs(lease_duration_seconds=300)
+
+        job_requeue.refresh_from_db()
+        self.assertEqual(job_requeue.status, GenerationJob.Status.PENDING)
+        self.assertIsNone(job_requeue.claim_token)
+        self.assertIsNone(job_requeue.locked_at)
+
+        job_fail.refresh_from_db()
+        self.assertEqual(job_fail.status, GenerationJob.Status.FAILED)
+        self.assertIsNone(job_fail.claim_token)
+        self.assertIsNone(job_fail.locked_at)
+
+    # 22. Worker invalid configuration rejection (PHASE 6)
+    def test_worker_invalid_configuration_rejected(self):
+        """Tests that invalid parameter combinations (e.g. lease_duration < heartbeat_interval * 2) raise CommandError."""
+        with self.assertRaises(CommandError):
+            call_command("run_generation_worker", lease_duration=20, heartbeat_interval=30, once=True)
+
+        with self.assertRaises(CommandError):
+            call_command("run_generation_worker", poll_interval=0, once=True)
+
+    # 23. Cleanup old generation jobs management command (PHASE 7)
+    def test_cleanup_old_generation_jobs_command(self):
+        """Tests that cleanup_old_generation_jobs safely purges only eligible finished records."""
+        old_time = timezone.now() - timedelta(days=40)
+        recent_time = timezone.now() - timedelta(days=5)
+
+        # Old COMPLETED and FAILED (should be deleted)
+        old_comp = GenerationJob.objects.create(
+            subject_name="Old Completed",
+            status=GenerationJob.Status.COMPLETED,
+            finished_at=old_time
+        )
+        old_fail = GenerationJob.objects.create(
+            subject_name="Old Failed",
+            status=GenerationJob.Status.FAILED,
+            finished_at=old_time
+        )
+
+        # Recent COMPLETED (should be kept)
+        recent_comp = GenerationJob.objects.create(
+            subject_name="Recent Completed",
+            status=GenerationJob.Status.COMPLETED,
+            finished_at=recent_time
+        )
+
+        # PENDING and RUNNING (must NEVER be deleted)
+        pending_job = GenerationJob.objects.create(
+            subject_name="Pending Job",
+            status=GenerationJob.Status.PENDING,
+            created_at=old_time
+        )
+        running_job = GenerationJob.objects.create(
+            subject_name="Running Job",
+            status=GenerationJob.Status.RUNNING,
+            locked_at=old_time
+        )
+
+        # 1. Test Dry-Run: reports 2 found, deletes 0
+        call_command("cleanup_old_generation_jobs", days=30, dry_run=True)
+        self.assertTrue(GenerationJob.objects.filter(id=old_comp.id).exists())
+        self.assertTrue(GenerationJob.objects.filter(id=old_fail.id).exists())
+
+        # 2. Test Execution: deletes old_comp and old_fail only
+        call_command("cleanup_old_generation_jobs", days=30)
+        self.assertFalse(GenerationJob.objects.filter(id=old_comp.id).exists())
+        self.assertFalse(GenerationJob.objects.filter(id=old_fail.id).exists())
+        self.assertTrue(GenerationJob.objects.filter(id=recent_comp.id).exists())
+        self.assertTrue(GenerationJob.objects.filter(id=pending_job.id).exists())
+        self.assertTrue(GenerationJob.objects.filter(id=running_job.id).exists())
+
+
+# =====================================================================
+# Concurrent PostgreSQL Worker Testing (SKIP LOCKED)
+# =====================================================================
+
+class PostgresWorkerConcurrencyTests(TransactionTestCase):
+    """
+    Concurrency test suite using TransactionTestCase to test multi-connection
+    PostgreSQL SELECT ... FOR UPDATE SKIP LOCKED claiming and heartbeat thread semantics.
+    """
+    def test_concurrent_worker_claiming_skip_locked(self):
+        """Tests that two concurrent workers competing for one job resolve atomically without race conditions."""
+        from curriculum.management.commands.run_generation_worker import Command as WorkerCommand
+        import threading
+
+        job = GenerationJob.objects.create(
+            subject_name="Concurrency Subject",
+            subject_code="CONC101",
+            status=GenerationJob.Status.PENDING
+        )
+
+        claimed_results = []
+        barrier = threading.Barrier(2)
+
+        def worker_claim_target(worker_id):
+            try:
+                worker = WorkerCommand()
+                worker.worker_id = worker_id
+                barrier.wait()  # Synchronize threads to claim at the exact same instant
+                res = worker.claim_next_job()
+                if res:
+                    claimed_results.append((worker_id, res.id, res.claim_token))
+            finally:
+                from django.db import connection
+                connection.close()
+
+        t1 = threading.Thread(target=worker_claim_target, args=("worker-thread-1",))
+        t2 = threading.Thread(target=worker_claim_target, args=("worker-thread-2",))
+
+        t1.start()
+        t2.start()
+        t1.join()
+        t2.join()
+
+        # Exactly ONE worker must have successfully claimed the job
+        self.assertEqual(len(claimed_results), 1)
+        winner_worker, claimed_id, claimed_token = claimed_results[0]
+        self.assertEqual(claimed_id, job.id)
+        self.assertIsNotNone(claimed_token)
+
+        job.refresh_from_db()
+        self.assertEqual(job.status, GenerationJob.Status.RUNNING)
+        self.assertEqual(job.locked_by, winner_worker)
+        self.assertEqual(job.claim_token, claimed_token)
+
+    def test_heartbeat_refreshes_active_job_lease(self):
+        """Tests that JobHeartbeat actively advances locked_at during execution."""
+        from curriculum.management.commands.run_generation_worker import JobHeartbeat
+        import time
+
+        claim_token = uuid.uuid4()
+        past_time = timezone.now() - timedelta(seconds=20)
+        job = GenerationJob.objects.create(
+            subject_name="Heartbeat Test",
+            subject_code="HBT01",
+            status=GenerationJob.Status.RUNNING,
+            claim_token=claim_token,
+            locked_at=past_time
+        )
+
+        # Run heartbeat with short 0.05s interval
+        with JobHeartbeat(job.id, claim_token, interval_seconds=0.05, worker_id="test-worker") as hbt:
+            time.sleep(0.15)
+            self.assertFalse(hbt.lost_event.is_set())
+
+        job.refresh_from_db()
+        self.assertGreater(job.locked_at, past_time)
+
+    def test_heartbeat_flags_lost_event_when_token_revoked(self):
+        """Tests that JobHeartbeat detects when a claim token is revoked in database and sets lost_event."""
+        from curriculum.management.commands.run_generation_worker import JobHeartbeat
+        import time
+
+        token_a = uuid.uuid4()
+        token_b = uuid.uuid4()
+
+        job = GenerationJob.objects.create(
+            subject_name="Heartbeat Revocation Test",
+            subject_code="HBT02",
+            status=GenerationJob.Status.RUNNING,
+            claim_token=token_a,
+            locked_at=timezone.now()
+        )
+
+        with JobHeartbeat(job.id, token_a, interval_seconds=0.05, worker_id="test-worker") as hbt:
+            # Change token in database to simulate lease revocation
+            GenerationJob.objects.filter(id=job.id).update(claim_token=token_b)
+            time.sleep(0.15)
+            self.assertTrue(hbt.lost_event.is_set())
+
+    @patch("curriculum.management.commands.run_generation_worker.generate_curriculum_from_prompt")
+    def test_worker_heartbeat_survives_long_running_gemini_call(self, mock_generate):
+        """Tests that an active heartbeat keeps the job lease alive during a long simulated Gemini call."""
+        from curriculum.management.commands.run_generation_worker import Command as WorkerCommand
+        import time
+
+        dummy_subject = Subject.objects.create(name="Long Subject", code="LNG01", slug="long-subject")
+        for i in range(1, 6):
+            Module.objects.create(subject=dummy_subject, module_number=i, title=f"Module {i}")
+
+        def slow_generate(*args, **kwargs):
+            time.sleep(0.15)
+            return dummy_subject
+
+        mock_generate.side_effect = slow_generate
+
+        job = GenerationJob.objects.create(
+            subject_name="Long Running AI Call",
+            subject_code="LNG01",
+            status=GenerationJob.Status.RUNNING,
+            claim_token=uuid.uuid4(),
+            locked_at=timezone.now()
+        )
+
+        worker = WorkerCommand()
+        worker.execute_job(job, heartbeat_interval=1)
+
+        job.refresh_from_db()
+        self.assertEqual(job.status, GenerationJob.Status.COMPLETED)
+        self.assertEqual(job.progress, 100)
 
 

@@ -80,8 +80,15 @@ def generate_subject_ai(request):
         # Background generation via PostgreSQL GenerationJob for interactive web client
         if is_ajax:
             user = request.user if request.user.is_authenticated else None
+            session_key = ""
+            if not user:
+                if not request.session.session_key:
+                    request.session.save()
+                session_key = request.session.session_key or ""
+
             job = GenerationJob.objects.create(
                 user=user,
+                session_key=session_key,
                 subject_name=subject_name,
                 subject_code=subject_code,
                 syllabus_text=syllabus_text,
@@ -91,6 +98,10 @@ def generate_subject_ai(request):
                 total_steps=4,
                 progress_message=f"Job queued and awaiting worker pickup for '{subject_name}'."
             )
+            if not user:
+                request.session[f"allowed_job_{job.id}"] = True
+                request.session.modified = True
+
             check_url = reverse('curriculum:generation_status', kwargs={'task_id': str(job.id)})
             return JsonResponse({
                 'success': True,
@@ -194,13 +205,26 @@ def generation_status(request, task_id):
             'error': 'Generation job not found.'
         }, status=404)
 
-    # Ownership check: If job was initiated by an authenticated user, ensure requesting user matches
-    if job.user_id and request.user.is_authenticated and job.user_id != request.user.id:
-        return JsonResponse({
-            'success': False,
-            'status': 'FAILED',
-            'error': 'Permission denied.'
-        }, status=403)
+    # Ownership authorization check:
+    # 1. Authenticated job: only the authenticated owner can access it
+    if job.user_id:
+        if not request.user.is_authenticated or job.user_id != request.user.id:
+            return JsonResponse({
+                'success': False,
+                'status': 'FAILED',
+                'error': 'Permission denied.'
+            }, status=403)
+    # 2. Anonymous job: only the original anonymous creator's session can access it
+    else:
+        current_session_key = request.session.session_key or ""
+        session_has_job = request.session.get(f"allowed_job_{job.id}", False)
+        is_session_owner = (job.session_key and current_session_key == job.session_key) or session_has_job
+        if not is_session_owner:
+            return JsonResponse({
+                'success': False,
+                'status': 'FAILED',
+                'error': 'Permission denied.'
+            }, status=403)
 
     redirect_url = None
     if job.subject:

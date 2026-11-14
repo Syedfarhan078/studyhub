@@ -173,6 +173,13 @@ if CLOUDINARY_CLOUD_NAME:
 # Google Gemini API Configuration (for AI curriculum generation)
 GEMINI_API_KEY = config('GEMINI_API_KEY', default=None)
 
+# PostgreSQL Background Worker Configuration
+GENERATION_WORKER_POLL_INTERVAL = config('GENERATION_WORKER_POLL_INTERVAL', default=2.0, cast=float)
+GENERATION_WORKER_LEASE_DURATION = config('GENERATION_WORKER_LEASE_DURATION', default=300, cast=int)
+GENERATION_WORKER_HEARTBEAT_INTERVAL = config('GENERATION_WORKER_HEARTBEAT_INTERVAL', default=30, cast=int)
+GENERATION_WORKER_MAX_ATTEMPTS = config('GENERATION_WORKER_MAX_ATTEMPTS', default=3, cast=int)
+GENERATION_JOB_RETENTION_DAYS = config('GENERATION_JOB_RETENTION_DAYS', default=30, cast=int)
+
 
 
 # Django 5.1 Native Storage Configuration (WhiteNoise for Static + Cloudinary for PDF/DOCX Notes)
