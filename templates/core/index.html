@@ -351,7 +351,8 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         }
         if (form) {
-            const inputs = form.querySelectorAll('input, textarea');
+            // Only disable visible interactive inputs, never touch hidden CSRF tokens
+            const inputs = form.querySelectorAll('input:not([type="hidden"]), textarea');
             inputs.forEach(input => input.disabled = disabled);
         }
     }
@@ -405,20 +406,53 @@ document.addEventListener('DOMContentLoaded', function() {
                 return;
             }
 
+            // Capture FormData and CSRF token BEFORE disabling any UI controls
+            const formData = new FormData(form);
+            const csrfInput = form.querySelector('[name="csrfmiddlewaretoken"]');
+            const csrfToken = csrfInput ? csrfInput.value : '';
+
+            // Ensure CSRF token is explicitly present in FormData
+            if (csrfToken && !formData.has('csrfmiddlewaretoken')) {
+                formData.append('csrfmiddlewaretoken', csrfToken);
+            }
+
             setFormDisabled(true);
             showProgress("Queuing generation task in background worker...", 1, 10);
 
-            const formData = new FormData(form);
+            const headers = {
+                'X-Requested-With': 'XMLHttpRequest',
+                'Accept': 'application/json'
+            };
+            if (csrfToken) {
+                headers['X-CSRFToken'] = csrfToken;
+            }
 
             fetch(form.action, {
                 method: 'POST',
                 body: formData,
-                headers: {
-                    'X-Requested-With': 'XMLHttpRequest',
-                    'Accept': 'application/json'
+                headers: headers
+            })
+            .then(async res => {
+                const contentType = res.headers.get('content-type') || '';
+                if (!res.ok) {
+                    let errMsg = `Server returned status ${res.status}`;
+                    if (res.status === 403) {
+                        errMsg = "CSRF verification failed or session expired. Please refresh the page and try again.";
+                    }
+                    if (contentType.includes('application/json')) {
+                        try {
+                            const errData = await res.json();
+                            if (errData.error) errMsg = errData.error;
+                        } catch (e) {}
+                    }
+                    throw new Error(errMsg);
+                }
+                if (contentType.includes('application/json')) {
+                    return await res.json();
+                } else {
+                    throw new Error("Unexpected server response format. Please refresh the page and try again.");
                 }
             })
-            .then(res => res.json())
             .then(data => {
                 if ((data.status === 'SUCCESS' || data.status === 'COMPLETED') && data.redirect_url) {
                     showProgress("Subject ready! Redirecting...", 4, 100);
@@ -438,7 +472,7 @@ document.addEventListener('DOMContentLoaded', function() {
             .catch(err => {
                 setFormDisabled(false);
                 hideProgress();
-                showError("Network connection error. Please verify your connection and try again.");
+                showError(err.message || "Network connection error. Please verify your connection and try again.");
             });
         });
     }

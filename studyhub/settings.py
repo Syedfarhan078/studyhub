@@ -28,12 +28,14 @@ SECRET_KEY = config('SECRET_KEY')
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = config('DEBUG', default=False, cast=bool)
 
-ALLOWED_HOSTS = config('ALLOWED_HOSTS', default='localhost,127.0.0.1,.onrender.com').split(',')
+raw_hosts = config('ALLOWED_HOSTS', default='localhost,127.0.0.1,.onrender.com')
+ALLOWED_HOSTS = [h.strip() for h in raw_hosts.split(',') if h.strip()]
 
-CSRF_TRUSTED_ORIGINS = config(
+raw_origins = config(
     'CSRF_TRUSTED_ORIGINS',
     default='https://*.onrender.com,http://localhost:8000,http://127.0.0.1:8000'
-).split(',')
+)
+CSRF_TRUSTED_ORIGINS = [o.strip() for o in raw_origins.split(',') if o.strip()]
 
 SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
 
