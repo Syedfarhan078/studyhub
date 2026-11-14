@@ -1,0 +1,1 @@
+# StudyHub Django project initialization

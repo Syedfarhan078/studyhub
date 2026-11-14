@@ -60,6 +60,20 @@ class CurriculumValidationError(CurriculumGenerationError):
 # Helper Functions: Sanitization, Timing, and Model Resolution
 # =====================================================================
 
+DISALLOWED_MODEL_CAPABILITIES = ("tts", "embedding", "audio", "imagen", "robotics", "whisper")
+
+
+def is_valid_text_generation_model(model_name: str) -> bool:
+    """
+    Verifies that a model identifier is intended for text and structured JSON generation,
+    strictly excluding TTS, embedding, or audio models.
+    """
+    if not model_name or not isinstance(model_name, str):
+        return False
+    lower = model_name.strip().lower()
+    return not any(disallowed in lower for disallowed in DISALLOWED_MODEL_CAPABILITIES)
+
+
 def sanitize_error_message(response_or_text) -> str:
     """
     Sanitizes error text to ensure API keys or credentials are never exposed in logs or user messages.
@@ -113,8 +127,9 @@ def calculate_backoff_delay(
 def resolve_configured_models(api_key: str) -> tuple:
     """
     Determines primary and fallback Gemini models.
-    Prioritizes explicit environment configuration (GEMINI_PRIMARY_MODEL / GEMINI_FALLBACK_MODEL).
-    If not specified, queries Google's ModelService.ListModels to detect active models
+    Prioritizes explicit environment configuration (GEMINI_PRIMARY_MODEL / GEMINI_FALLBACK_MODEL),
+    strictly filtering out TTS, embedding, or audio models.
+    If not specified or invalid, queries Google's ModelService.ListModels to detect active text models
     supporting generateContent for this key, ensuring valid model IDs.
     Returns (primary_model, fallback_model).
     """
@@ -124,7 +139,22 @@ def resolve_configured_models(api_key: str) -> tuple:
     primary_model = raw_primary.replace('models/', '') if raw_primary else None
     fallback_model = raw_fallback.replace('models/', '') if raw_fallback else None
 
-    if primary_model and fallback_model:
+    # Validate that models are text-capable and not TTS/audio
+    if primary_model and not is_valid_text_generation_model(primary_model):
+        logger.warning(
+            "Configured primary model '%s' is unsuitable for text/JSON curriculum generation (contains TTS/audio capability). Ignoring.",
+            primary_model
+        )
+        primary_model = None
+
+    if fallback_model and not is_valid_text_generation_model(fallback_model):
+        logger.warning(
+            "Configured fallback model '%s' is unsuitable for text/JSON curriculum generation (contains TTS/audio capability). Ignoring.",
+            fallback_model
+        )
+        fallback_model = None
+
+    if primary_model and fallback_model and primary_model != fallback_model:
         logger.info(
             "Using environment-configured Gemini models - Primary: '%s', Fallback: '%s'",
             primary_model, fallback_model
@@ -146,6 +176,7 @@ def resolve_configured_models(api_key: str) -> tuple:
                     m["name"].replace("models/", "")
                     for m in models_data
                     if "generateContent" in m.get("supportedGenerationMethods", [])
+                    and is_valid_text_generation_model(m.get("name", ""))
                 ]
                 discovered = supported
             elif res.status_code in (401, 403):
@@ -159,7 +190,7 @@ def resolve_configured_models(api_key: str) -> tuple:
         except requests.RequestException as e:
             logger.warning("ListModels request failed (%s). Using verified model defaults.", type(e).__name__)
 
-    priority_order = ("3.8-flash", "3.5-flash", "3.5-flash-lite", "2.0-flash", "2.5-flash", "1.5-flash", "flash")
+    priority_order = ("3.5-flash", "3.5-flash-lite", "2.5-flash", "2.0-flash", "1.5-flash", "flash")
 
     if not primary_model:
         if discovered:
@@ -173,14 +204,14 @@ def resolve_configured_models(api_key: str) -> tuple:
         else:
             primary_model = "gemini-3.5-flash"
 
-    if not fallback_model:
+    if not fallback_model or fallback_model == primary_model:
         if discovered:
             for pref in priority_order:
                 match = next((m for m in discovered if pref in m.lower() and m != primary_model), None)
                 if match:
                     fallback_model = match
                     break
-        if not fallback_model:
+        if not fallback_model or fallback_model == primary_model:
             if primary_model == "gemini-3.5-flash-lite":
                 fallback_model = "gemini-3.5-flash"
             else:
@@ -592,6 +623,30 @@ def _send_model_request_with_retries(
 
         except (GeminiAuthError, GeminiInvalidRequestError, GeminiModelNotFoundError, CurriculumGenerationError):
             raise
+        except requests.exceptions.Timeout as timeout_err:
+            last_transient_error = f"Network Timeout: {sanitize_error_message(timeout_err)}"
+            logger.warning(
+                "Timeout (%ds) calling %s model '%s' (attempt %d/%d): %s",
+                request_timeout, role_label, clean_model, attempt_num, total_attempts, last_transient_error
+            )
+            # For network timeouts (e.g. ReadTimeout), allow at most 1 retry per model
+            # so a stalled model does not exhaust worker resources or loop indefinitely.
+            if attempt < min(max_retries, 1):
+                delay = calculate_backoff_delay(
+                    attempt=attempt_num,
+                    retry_after_header=None,
+                    base_delay=base_delay,
+                    max_delay=max_delay
+                )
+                logger.info("Retrying %s model '%s' after timeout in %.2fs...", role_label, clean_model, delay)
+                time.sleep(delay)
+                continue
+            else:
+                logger.warning(
+                    "%s model '%s' exhausted timeout budget (%d timeout attempts). Switching or failing.",
+                    role_label.capitalize(), clean_model, attempt_num
+                )
+                return None, last_transient_error
         except requests.RequestException as req_err:
             last_transient_error = f"Network {type(req_err).__name__}: {sanitize_error_message(req_err)}"
             if attempt < max_retries:

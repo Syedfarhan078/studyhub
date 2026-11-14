@@ -171,6 +171,8 @@ if CLOUDINARY_CLOUD_NAME:
 # Google Gemini API Configuration (for AI curriculum generation)
 GEMINI_API_KEY = config('GEMINI_API_KEY', default=None)
 
+
+
 # Django 5.1 Native Storage Configuration (WhiteNoise for Static + Cloudinary for PDF/DOCX Notes)
 STORAGES = {
     'default': {

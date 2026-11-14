@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import Subject, Module, Topic, TopicKeyword, ModuleNote, TopicProgress
+from .models import Subject, Module, Topic, TopicKeyword, ModuleNote, TopicProgress, GenerationJob
 # Register your models here.
 
 class TopicKeywordInline(admin.TabularInline):
@@ -63,3 +63,11 @@ class ModuleNoteAdmin(admin.ModelAdmin):
 class TopicProgressAdmin(admin.ModelAdmin):
     list_display = ('topic', 'status', 'updated_at')
     list_filter = ('status', 'topic__module__subject')
+
+
+@admin.register(GenerationJob)
+class GenerationJobAdmin(admin.ModelAdmin):
+    list_display = ('id', 'subject_name', 'subject_code', 'status', 'progress', 'attempts', 'created_at', 'finished_at')
+    list_filter = ('status', 'created_at')
+    search_fields = ('subject_name', 'subject_code', 'id')
+    readonly_fields = ('id', 'created_at', 'started_at', 'finished_at', 'locked_at', 'locked_by')

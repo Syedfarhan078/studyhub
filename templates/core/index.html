@@ -199,47 +199,80 @@
                 </div>
 
                 <div class="modal-body p-4">
-                    <div class="row g-3 mb-3">
-                        <div class="col-md-8">
-                            <label class="form-label text-light small fw-medium">
-                                Subject Name <span class="text-danger">*</span>
-                            </label>
-                            <input type="text" name="subject_name" required class="form-control" placeholder="e.g. Natural Language Processing, Cloud Computing">
-                        </div>
-                        <div class="col-md-4">
-                            <label class="form-label text-light small fw-medium">
-                                Course Code <span class="text-secondary">(Optional)</span>
-                            </label>
-                            <input type="text" name="subject_code" class="form-control" placeholder="e.g. BAD703, BCS701, 21CS71">
+                    <!-- Error Alert inside Modal (hidden by default) -->
+                    <div id="aiModalErrorAlert" class="alert alert-danger d-none p-3 mb-3 d-flex align-items-start gap-2.5" role="alert">
+                        <i class="bi bi-exclamation-triangle-fill fs-5 mt-0.5 flex-shrink-0 text-danger"></i>
+                        <div class="flex-grow-1">
+                            <h6 class="alert-heading text-light fw-semibold mb-1" style="font-size: 0.85rem;">Generation Error</h6>
+                            <p id="aiModalErrorMessage" class="text-secondary small mb-2" style="font-size: 0.785rem; line-height: 1.5;"></p>
+                            <button type="button" class="btn btn-sm btn-outline-danger" id="aiModalRetryBtn">
+                                <i class="bi bi-arrow-counterclockwise"></i> Try Again
+                            </button>
                         </div>
                     </div>
 
-                    <div class="mb-3">
-                        <div class="d-flex justify-content-between align-items-center mb-1 flex-wrap gap-1">
-                            <label class="form-label text-light small fw-medium mb-0">
-                                Prescribed Syllabus Text <span class="text-info" style="font-size: 0.72rem;">(Recommended for exact match)</span>
-                            </label>
-                            <span class="badge bg-primary-subtle text-primary border border-primary-subtle" style="font-size: 0.68rem; font-family: var(--sh-font-mono);">
-                                Authoritative Source Grounding
+                    <!-- Background Progress Bar & Step Tracker (hidden by default) -->
+                    <div id="aiProgressContainer" class="d-none mb-3 p-3 rounded" style="background-color: #0e1422; border: 1px solid var(--sh-accent-border);">
+                        <div class="d-flex align-items-center justify-content-between mb-2">
+                            <span class="small fw-semibold text-light d-flex align-items-center gap-2" id="aiStepTitle">
+                                <span class="spinner-border spinner-border-sm text-primary" role="status" aria-hidden="true"></span>
+                                <span id="aiStepText">Initializing generation...</span>
+                            </span>
+                            <span class="badge bg-primary-subtle text-primary border border-primary-subtle" id="aiStepBadge" style="font-family: var(--sh-font-mono); font-size: 0.7rem;">
+                                Step 1 of 4
                             </span>
                         </div>
-                        <textarea name="syllabus_text" rows="5" class="form-control" placeholder="Paste your official 5-module syllabus here to ensure 100% fidelity.&#10;&#10;Example:&#10;Module 1: Classical Encryption & Block Ciphers&#10;Module 2: Public-Key Cryptography & Key Exchange&#10;Module 3: Key Management & Public-Key Infrastructure&#10;Module 4: Web & IP Security&#10;Module 5: Data Security & Data Hiding / Privacy" style="font-size: 0.8rem; line-height: 1.5;"></textarea>
-                        
-                        <!-- Unverified generation warning notice -->
-                        <div class="d-flex align-items-start gap-2 mt-2 p-2.5 rounded" style="background-color: var(--sh-warning-subtle); border: 1px solid var(--sh-warning-border);">
-                            <i class="bi bi-exclamation-triangle-fill text-warning mt-0.5" style="font-size: 0.85rem;"></i>
-                            <span class="text-warning small mb-0" style="font-size: 0.75rem; line-height: 1.45;">
-                                <strong>Notice:</strong> When syllabus text is omitted, the AI synthesizes reference content that is marked as <em>unverified</em> and may not match your college or VTU scheme. Paste your module outline above for an exact match.
-                            </span>
+                        <div class="progress" style="height: 6px; border-radius: 3px; background-color: var(--sh-bg-main);">
+                            <div id="aiProgressBar" class="progress-bar progress-bar-striped progress-bar-animated bg-primary" role="progressbar" style="width: 15%; border-radius: 3px;" aria-valuenow="15" aria-valuemin="0" aria-valuemax="100"></div>
                         </div>
+                        <small class="text-secondary d-block mt-2" id="aiDetailedStatus" style="font-size: 0.72rem;">
+                            Processing in Celery background worker with Gemini AI. You will be automatically redirected when complete.
+                        </small>
                     </div>
 
-                    <!-- Informational Callout -->
-                    <div class="p-2.5 rounded d-flex align-items-start gap-2.5" style="background-color: #0e1422; border: 1px solid var(--sh-border);">
-                        <i class="bi bi-info-circle text-primary mt-0.5"></i>
-                        <p class="text-secondary mb-0" style="font-size: 0.775rem; line-height: 1.5;">
-                            Powered by Google Gemini. The generated subject automatically links to curated YouTube lecture searches and technical articles from GeeksforGeeks and W3Schools.
-                        </p>
+                    <div id="aiFormFields">
+                        <div class="row g-3 mb-3">
+                            <div class="col-md-8">
+                                <label class="form-label text-light small fw-medium">
+                                    Subject Name <span class="text-danger">*</span>
+                                </label>
+                                <input type="text" name="subject_name" required class="form-control" placeholder="e.g. Natural Language Processing, Cloud Computing">
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label text-light small fw-medium">
+                                    Course Code <span class="text-secondary">(Optional)</span>
+                                </label>
+                                <input type="text" name="subject_code" class="form-control" placeholder="e.g. BAD703, BCS701, 21CS71">
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <div class="d-flex justify-content-between align-items-center mb-1 flex-wrap gap-1">
+                                <label class="form-label text-light small fw-medium mb-0">
+                                    Prescribed Syllabus Text <span class="text-info" style="font-size: 0.72rem;">(Recommended for exact match)</span>
+                                </label>
+                                <span class="badge bg-primary-subtle text-primary border border-primary-subtle" style="font-size: 0.68rem; font-family: var(--sh-font-mono);">
+                                    Authoritative Source Grounding
+                                </span>
+                            </div>
+                            <textarea name="syllabus_text" rows="5" class="form-control" placeholder="Paste your official 5-module syllabus here to ensure 100% fidelity.&#10;&#10;Example:&#10;Module 1: Classical Encryption & Block Ciphers&#10;Module 2: Public-Key Cryptography & Key Exchange&#10;Module 3: Key Management & Public-Key Infrastructure&#10;Module 4: Web & IP Security&#10;Module 5: Data Security & Data Hiding / Privacy" style="font-size: 0.8rem; line-height: 1.5;"></textarea>
+                            
+                            <!-- Unverified generation warning notice -->
+                            <div class="d-flex align-items-start gap-2 mt-2 p-2.5 rounded" style="background-color: var(--sh-warning-subtle); border: 1px solid var(--sh-warning-border);">
+                                <i class="bi bi-exclamation-triangle-fill text-warning mt-0.5" style="font-size: 0.85rem;"></i>
+                                <span class="text-warning small mb-0" style="font-size: 0.75rem; line-height: 1.45;">
+                                    <strong>Notice:</strong> When syllabus text is omitted, the AI synthesizes reference content that is marked as <em>unverified</em> and may not match your college or VTU scheme. Paste your module outline above for an exact match.
+                                </span>
+                            </div>
+                        </div>
+
+                        <!-- Informational Callout -->
+                        <div class="p-2.5 rounded d-flex align-items-start gap-2.5" style="background-color: #0e1422; border: 1px solid var(--sh-border);">
+                            <i class="bi bi-info-circle text-primary mt-0.5"></i>
+                            <p class="text-secondary mb-0" style="font-size: 0.775rem; line-height: 1.5;">
+                                Powered by Google Gemini and background task processing. The generated subject automatically links to curated YouTube lecture searches and technical articles from GeeksforGeeks and W3Schools.
+                            </p>
+                        </div>
                     </div>
                 </div>
 
@@ -263,18 +296,165 @@
 {% block extra_js %}
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    // 1. Form Submission Loading State
+    // 1. Asynchronous Celery Form Submission & Real-time Task Status Polling
     const form = document.getElementById('aiGenerateForm');
     const submitBtn = document.getElementById('btnSubmitGenerate');
     const btnText = document.getElementById('btnText');
     const statusText = document.getElementById('aiStatusText');
+    const progressContainer = document.getElementById('aiProgressContainer');
+    const stepText = document.getElementById('aiStepText');
+    const stepBadge = document.getElementById('aiStepBadge');
+    const progressBar = document.getElementById('aiProgressBar');
+    const detailedStatus = document.getElementById('aiDetailedStatus');
+    const errorAlert = document.getElementById('aiModalErrorAlert');
+    const errorMessage = document.getElementById('aiModalErrorMessage');
+    const retryBtn = document.getElementById('aiModalRetryBtn');
+    const formFields = document.getElementById('aiFormFields');
+    const generateModal = document.getElementById('generateSubjectModal');
 
-    if (form && submitBtn) {
-        form.addEventListener('submit', function() {
-            submitBtn.disabled = true;
-            submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1.5" role="status" aria-hidden="true"></span> Generating...';
-            if (statusText) {
-                statusText.innerHTML = '<i class="bi bi-hourglass-split text-warning me-1"></i> Constructing modules and search keywords (~4s)...';
+    let pollInterval = null;
+
+    function showProgress(message, stepNum, percent) {
+        if (progressContainer) progressContainer.classList.remove('d-none');
+        if (stepText) stepText.textContent = message;
+        if (stepBadge) stepBadge.textContent = `Step ${stepNum} of 4`;
+        if (progressBar) {
+            progressBar.style.width = `${percent}%`;
+            progressBar.setAttribute('aria-valuenow', percent);
+        }
+        if (statusText) statusText.textContent = message;
+    }
+
+    function hideProgress() {
+        if (progressContainer) progressContainer.classList.add('d-none');
+        if (statusText) statusText.textContent = '';
+    }
+
+    function showError(errText) {
+        if (errorAlert) {
+            errorAlert.classList.remove('d-none');
+            if (errorMessage) errorMessage.textContent = errText;
+        }
+    }
+
+    function hideError() {
+        if (errorAlert) errorAlert.classList.add('d-none');
+    }
+
+    function setFormDisabled(disabled) {
+        if (submitBtn) {
+            submitBtn.disabled = disabled;
+            if (disabled) {
+                submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1.5" role="status" aria-hidden="true"></span> Generating...';
+            } else {
+                submitBtn.innerHTML = '<i class="bi bi-magic"></i> <span id="btnText">Generate Curriculum</span>';
+            }
+        }
+        if (form) {
+            const inputs = form.querySelectorAll('input, textarea');
+            inputs.forEach(input => input.disabled = disabled);
+        }
+    }
+
+    function startPolling(taskId) {
+        if (pollInterval) clearInterval(pollInterval);
+
+        pollInterval = setInterval(function() {
+            fetch(`/subjects/generation-status/${taskId}/`, {
+                headers: { 'Accept': 'application/json' }
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.status === 'PENDING') {
+                    showProgress(data.message || "Job queued and awaiting background worker...", data.step || 1, data.progress || 10);
+                } else if (data.status === 'RUNNING' || data.status === 'STARTED') {
+                    const step = data.step || 2;
+                    let pct = data.progress;
+                    if (pct === undefined || pct === null || pct <= 0) {
+                        pct = step === 2 ? 40 : (step === 3 ? 70 : 90);
+                    }
+                    showProgress(data.message || "Generating curriculum modules with Gemini AI...", step, pct);
+                } else if (data.status === 'COMPLETED' || data.status === 'SUCCESS') {
+                    clearInterval(pollInterval);
+                    showProgress(data.message || "Curriculum generated successfully! Redirecting...", 4, 100);
+                    if (detailedStatus) detailedStatus.textContent = "Complete! Taking you to the syllabus workspace...";
+                    setTimeout(function() {
+                        window.location.href = data.redirect_url;
+                    }, 500);
+                } else if (data.status === 'FAILED' || data.status === 'FAILURE') {
+                    clearInterval(pollInterval);
+                    setFormDisabled(false);
+                    hideProgress();
+                    showError(data.error || "Curriculum generation encountered an error. Please try again.");
+                }
+            })
+            .catch(err => {
+                console.warn("Status poll network exception:", err);
+            });
+        }, 2000);
+    }
+
+    if (form) {
+        form.addEventListener('submit', function(e) {
+            e.preventDefault();
+            hideError();
+
+            const nameInput = form.querySelector('[name="subject_name"]');
+            if (!nameInput || !nameInput.value.trim()) {
+                showError("Please enter a subject name.");
+                return;
+            }
+
+            setFormDisabled(true);
+            showProgress("Queuing generation task in background worker...", 1, 10);
+
+            const formData = new FormData(form);
+
+            fetch(form.action, {
+                method: 'POST',
+                body: formData,
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'Accept': 'application/json'
+                }
+            })
+            .then(res => res.json())
+            .then(data => {
+                if ((data.status === 'SUCCESS' || data.status === 'COMPLETED') && data.redirect_url) {
+                    showProgress("Subject ready! Redirecting...", 4, 100);
+                    window.location.href = data.redirect_url;
+                } else if (data.status === 'PENDING' && data.task_id) {
+                    startPolling(data.task_id);
+                } else if (data.status === 'FAILED' || data.status === 'FAILURE') {
+                    setFormDisabled(false);
+                    hideProgress();
+                    showError(data.error || "Unable to queue generation task.");
+                } else {
+                    setFormDisabled(false);
+                    hideProgress();
+                    showError("Unexpected server response. Please try again.");
+                }
+            })
+            .catch(err => {
+                setFormDisabled(false);
+                hideProgress();
+                showError("Network connection error. Please verify your connection and try again.");
+            });
+        });
+    }
+
+    if (retryBtn) {
+        retryBtn.addEventListener('click', function() {
+            hideError();
+            if (submitBtn) submitBtn.focus();
+        });
+    }
+
+    if (generateModal) {
+        generateModal.addEventListener('hidden.bs.modal', function() {
+            if (pollInterval) {
+                // If closed while task was finished or failed, clear interval
+                clearInterval(pollInterval);
             }
         });
     }

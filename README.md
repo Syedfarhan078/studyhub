@@ -54,14 +54,37 @@ Adding new university courses manually is tedious. StudyHub features an automate
 * Clean, low-fatigue slate/zinc design system (`#0d1117`, `#161b22`) inspired by tools like GitHub and Linear.
 * Built mobile-first with touch-friendly navigation, horizontal scrollable breadcrumbs, and zero distracting animations.
 
----
+
 
 ## 🛠️ Built With
 
-* **Backend**: Django 5 (Python), PostgreSQL, Gunicorn
+* **Backend**: Django 5 (Python), PostgreSQL (Relational Database & Task Queue), Gunicorn
+* **Background Worker**: Standalone PostgreSQL-backed Django Management Command (`run_generation_worker`)
 * **Frontend**: Bootstrap 5.3 (Native Dark Theme), Bootstrap Icons
 * **Asset & Media Delivery**: WhiteNoise, Cloudinary
 * **APIs & AI**: Google Gemini API, YouTube Data API v3, Feedparser
+
+---
+
+## ⚙️ Architecture: PostgreSQL-Backed Background Task Queue
+
+StudyHub uses a **zero-cost, Fire-and-Poll background processing architecture** backed entirely by PostgreSQL. It eliminates the need for external, paid message brokers like Redis:
+
+1. **Fire (`POST /subjects/generate-ai/`)**:
+   - The web client submits a syllabus generation request via AJAX.
+   - Django validates the input, creates a `GenerationJob` record in PostgreSQL with status `PENDING`, and immediately responds with a UUID `task_id` in $<1\text{s}$.
+   - No slow AI API calls are ever executed inside synchronous HTTP request threads.
+
+2. **Process (`python manage.py run_generation_worker`)**:
+   - A standalone Django background worker continuously polls PostgreSQL for pending jobs.
+   - It claims jobs atomically using `SELECT ... FOR UPDATE SKIP LOCKED` and immediately releases the lock before initiating the external API call.
+   - The worker executes source-grounded syllabus parsing, invokes the configured Google Gemini model with exponential backoff and fallback, validates output against the official syllabus, and saves the curriculum inside an atomic transaction.
+   - Includes automatic lease tracking and reaper functionality to recover or fail abandoned jobs.
+
+3. **Poll (`GET /subjects/generation-status/<task_id>/`)**:
+   - The frontend periodically polls the status endpoint every 2 seconds.
+   - Displays real-time progress percentages and step messages (`Step 1 of 4` through `Step 4 of 4`).
+   - Automatically redirects to the generated syllabus workspace upon completion or surfaces user-friendly error diagnostics upon failure.
 
 ---
 

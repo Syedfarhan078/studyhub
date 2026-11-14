@@ -1,7 +1,10 @@
 import logging
+import uuid
 from django.shortcuts import render, get_object_or_404, redirect
+from django.http import JsonResponse
+from django.urls import reverse
 from django.contrib import messages
-from .models import Subject, Module, Topic, TopicProgress
+from .models import Subject, Module, Topic, TopicProgress, GenerationJob
 from .forms import ModuleNoteForm
 from .services.ai_curriculum import (
     generate_curriculum_from_prompt,
@@ -21,19 +24,86 @@ logger = logging.getLogger(__name__)
 def generate_subject_ai(request):
     """
     Handles AI curriculum generation.
-    Accepts subject name, course code, and optional syllabus text.
-    Calls Gemini API with exponential backoff and fallback model support,
-    then redirects directly to the new subject's interactive detail page.
+    For AJAX/interactive requests: creates a PostgreSQL-backed GenerationJob and immediately
+    returns a JSON response with the task identifier for progress polling (<1s).
+    For traditional form submissions: processes generation synchronously and redirects gracefully.
+    Protects against duplicate submissions and ensures idempotent creation.
     """
     if request.method == 'POST':
         subject_name = request.POST.get('subject_name', '').strip()
         subject_code = request.POST.get('subject_code', '').strip()
         syllabus_text = request.POST.get('syllabus_text', '').strip()
 
+        is_ajax = (
+            request.headers.get('x-requested-with') == 'XMLHttpRequest'
+            or 'application/json' in request.headers.get('accept', '')
+            or request.content_type == 'application/json'
+            or request.POST.get('async') == '1'
+        )
+
         if not subject_name:
+            if is_ajax:
+                return JsonResponse({
+                    'success': False,
+                    'status': 'FAILED',
+                    'error': 'Please enter a subject name to generate the syllabus.'
+                }, status=400)
             messages.error(request, "Please enter a subject name to generate the syllabus.")
             return redirect('/')
 
+        # Duplicate protection: If subject already exists with 5 modules, redirect immediately
+        existing_subject = None
+        if subject_code:
+            existing_subject = Subject.objects.filter(code__iexact=subject_code, name__iexact=subject_name).first()
+        if not existing_subject:
+            existing_subject = Subject.objects.filter(name__iexact=subject_name).first()
+
+        if existing_subject and existing_subject.modules.exists():
+            redirect_url = reverse('curriculum:subject_detail', kwargs={'slug': existing_subject.slug})
+            logger.info("Subject '%s' already exists with %d modules. Returning existing record.", existing_subject.name, existing_subject.modules.count())
+            if is_ajax:
+                return JsonResponse({
+                    'success': True,
+                    'task_id': None,
+                    'status': 'COMPLETED',
+                    'progress': 100,
+                    'step': 4,
+                    'total_steps': 4,
+                    'redirect_url': redirect_url,
+                    'subject_name': existing_subject.name,
+                    'subject_code': existing_subject.code,
+                    'message': f"Subject '{existing_subject.name}' ({existing_subject.code}) is already available with {existing_subject.modules.count()} modules."
+                })
+            messages.info(request, f"Subject '{existing_subject.name}' already exists.")
+            return redirect(redirect_url)
+
+        # Background generation via PostgreSQL GenerationJob for interactive web client
+        if is_ajax:
+            user = request.user if request.user.is_authenticated else None
+            job = GenerationJob.objects.create(
+                user=user,
+                subject_name=subject_name,
+                subject_code=subject_code,
+                syllabus_text=syllabus_text,
+                status=GenerationJob.Status.PENDING,
+                progress=0,
+                step=1,
+                total_steps=4,
+                progress_message=f"Job queued and awaiting worker pickup for '{subject_name}'."
+            )
+            check_url = reverse('curriculum:generation_status', kwargs={'task_id': str(job.id)})
+            return JsonResponse({
+                'success': True,
+                'task_id': str(job.id),
+                'status': 'PENDING',
+                'progress': 0,
+                'step': 1,
+                'total_steps': 4,
+                'message': f"Curriculum generation initiated for '{subject_name}'.",
+                'check_url': check_url,
+            })
+
+        # Synchronous fallback for legacy non-AJAX POST (preserves test suite and backwards compatibility)
         try:
             subject = generate_curriculum_from_prompt(
                 subject_name=subject_name,
@@ -92,6 +162,64 @@ def generate_subject_ai(request):
             )
 
     return redirect('/')
+
+
+def generation_status(request, task_id):
+    """
+    Returns current execution status of a background curriculum generation task.
+    States: PENDING, RUNNING, COMPLETED, FAILED.
+    """
+    if not task_id:
+        return JsonResponse({
+            'success': False,
+            'status': 'FAILED',
+            'error': 'No task identifier provided.'
+        }, status=400)
+
+    try:
+        job_uuid = uuid.UUID(str(task_id))
+    except (ValueError, TypeError, AttributeError):
+        return JsonResponse({
+            'success': False,
+            'status': 'FAILED',
+            'error': 'Invalid task identifier format. Expected UUID.'
+        }, status=400)
+
+    try:
+        job = GenerationJob.objects.select_related('subject').get(id=job_uuid)
+    except GenerationJob.DoesNotExist:
+        return JsonResponse({
+            'success': False,
+            'status': 'FAILED',
+            'error': 'Generation job not found.'
+        }, status=404)
+
+    # Ownership check: If job was initiated by an authenticated user, ensure requesting user matches
+    if job.user_id and request.user.is_authenticated and job.user_id != request.user.id:
+        return JsonResponse({
+            'success': False,
+            'status': 'FAILED',
+            'error': 'Permission denied.'
+        }, status=403)
+
+    redirect_url = None
+    if job.subject:
+        redirect_url = reverse('curriculum:subject_detail', kwargs={'slug': job.subject.slug})
+
+    is_success = (job.status != GenerationJob.Status.FAILED)
+
+    return JsonResponse({
+        'success': is_success,
+        'task_id': str(job.id),
+        'status': job.status,
+        'progress': job.progress,
+        'step': job.step,
+        'total_steps': job.total_steps,
+        'message': job.progress_message,
+        'redirect_url': redirect_url,
+        'error': job.error_message or None,
+    })
+
 
 def subject_detail(request, slug):
     """
