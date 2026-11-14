@@ -2,8 +2,43 @@ from django.shortcuts import render, get_object_or_404, redirect
 from django.contrib import messages
 from .models import Subject, Module, Topic, TopicProgress
 from .forms import ModuleNoteForm
+from .services.ai_curriculum import generate_curriculum_from_prompt
 
 # Create your views here.
+
+def generate_subject_ai(request):
+    """
+    Handles AI curriculum generation.
+    Accepts subject name, course code, and optional syllabus text.
+    Calls Gemini API to generate the 5 modules, topics, and search keywords,
+    then redirects directly to the new subject's interactive detail page.
+    """
+    if request.method == 'POST':
+        subject_name = request.POST.get('subject_name', '').strip()
+        subject_code = request.POST.get('subject_code', '').strip()
+        syllabus_text = request.POST.get('syllabus_text', '').strip()
+
+        if not subject_name:
+            messages.error(request, "Please enter a subject name to generate the syllabus.")
+            return redirect('/')
+
+        try:
+            subject = generate_curriculum_from_prompt(
+                subject_name=subject_name,
+                subject_code=subject_code,
+                syllabus_text=syllabus_text
+            )
+            messages.success(
+                request,
+                f"Syllabus for '{subject.name}' ({subject.code}) generated successfully with {subject.modules.count()} modules!"
+            )
+            return redirect('curriculum:subject_detail', slug=subject.slug)
+        except ValueError as ve:
+            messages.error(request, str(ve))
+        except Exception as e:
+            messages.error(request, f"AI generation error: {e}")
+
+    return redirect('/')
 
 def subject_detail(request, slug):
     """

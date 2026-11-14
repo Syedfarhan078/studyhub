@@ -3,8 +3,8 @@
 {% block title %}StudyHub - VTU Syllabus Learning Platform{% endblock %}
 
 {% block content %}
-<!-- Minimal Header Section -->
-<div class="row mb-4 pt-1">
+<!-- Minimal Header Section with Action -->
+<div class="row mb-4 pt-1 align-items-end">
     <div class="col-lg-8">
         <div class="d-inline-flex align-items-center gap-2 mb-2">
             <span class="badge bg-primary-subtle text-primary border border-primary-subtle py-1 px-2" style="font-family: var(--sh-font-mono); font-size: 0.7rem; font-weight: 600;">VTU CSE/AIML/ISE</span>
@@ -14,6 +14,11 @@
         <p class="text-secondary small mb-0" style="max-width: 600px; line-height: 1.6;">
             Select a subject to explore its syllabus modules, browse curated educational videos, and discover technical articles.
         </p>
+    </div>
+    <div class="col-lg-4 text-lg-end mt-3 mt-lg-0">
+        <button type="button" class="btn btn-primary d-inline-flex align-items-center gap-2 shadow-sm" data-bs-toggle="modal" data-bs-target="#generateSubjectModal">
+            <i class="bi bi-sparkles"></i> Auto-Generate Subject
+        </button>
     </div>
 </div>
 
@@ -58,13 +63,112 @@
         <div class="col-12">
             <div class="sh-panel p-5 text-center">
                 <i class="bi bi-journal-x fs-1 text-secondary mb-3 d-block"></i>
-                <h5 class="text-light">No subjects found</h5>
-                <p class="text-secondary small mb-3">You haven't added any subjects yet. Open the admin panel to add your VTU subjects.</p>
-                <a href="/admin/curriculum/subject/add/" class="btn btn-primary btn-sm">
-                    <i class="bi bi-plus-lg"></i> Add First Subject
+                <h5 class="text-light">No subjects added yet</h5>
+                <p class="text-secondary small mb-3" style="max-width: 460px; margin: 0 auto;">
+                    Generate your first university course in 5 seconds using AI, or manually create one in the admin panel.
+                </p>
+                <button type="button" class="btn btn-primary btn-sm me-2" data-bs-toggle="modal" data-bs-target="#generateSubjectModal">
+                    <i class="bi bi-sparkles"></i> Auto-Generate Subject
+                </button>
+                <a href="/admin/curriculum/subject/add/" class="btn btn-outline-secondary btn-sm">
+                    <i class="bi bi-plus-lg"></i> Manual Admin Add
                 </a>
             </div>
         </div>
     {% endfor %}
 </div>
+
+<!-- Modal: AI Subject & Curriculum Generator -->
+<div class="modal fade" id="generateSubjectModal" tabindex="-1" aria-labelledby="generateSubjectModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content" style="background-color: #161b22; border: 1px solid #30363d; border-radius: 8px;">
+            <form id="aiGenerateForm" action="{% url 'curriculum:generate_subject_ai' %}" method="POST" class="mb-0">
+                {% csrf_token %}
+                <div class="modal-header border-bottom border-secondary-subtle py-3 px-4" style="border-bottom: 1px solid #30363d !important;">
+                    <div class="d-flex align-items-center gap-2">
+                        <span class="badge bg-primary-subtle text-primary border border-primary-subtle p-1.5">
+                            <i class="bi bi-sparkles"></i>
+                        </span>
+                        <div>
+                            <h5 class="modal-title text-light fw-semibold fs-6 mb-0" id="generateSubjectModalLabel">
+                                Auto-Generate Subject & Syllabus
+                            </h5>
+                            <span class="text-secondary small" style="font-size: 0.75rem;">
+                                Creates 5 VTU modules, detailed topics, and 100+ resource search keywords instantly.
+                            </span>
+                        </div>
+                    </div>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+
+                <div class="modal-body p-4">
+                    <div class="row g-3 mb-3">
+                        <div class="col-md-8">
+                            <label class="form-label text-light small fw-medium">
+                                Subject Name <span class="text-danger">*</span>
+                            </label>
+                            <input type="text" name="subject_name" required class="form-control bg-dark border-secondary-subtle text-light small" placeholder="e.g. Natural Language Processing, Cloud Computing" style="border-color: #30363d !important;">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label text-light small fw-medium">
+                                Course Code <span class="text-secondary">(Optional)</span>
+                            </label>
+                            <input type="text" name="subject_code" class="form-control bg-dark border-secondary-subtle text-light small" placeholder="e.g. BCS701, 21CS71" style="border-color: #30363d !important;">
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <div class="d-flex justify-content-between align-items-center mb-1">
+                            <label class="form-label text-light small fw-medium mb-0">
+                                Syllabus Topics / Outline <span class="text-secondary">(Optional)</span>
+                            </label>
+                            <span class="badge bg-dark border border-secondary-subtle text-secondary" style="font-size: 0.68rem; font-family: var(--sh-font-mono);">
+                                Leave empty for AI Auto-Fill
+                            </span>
+                        </div>
+                        <textarea name="syllabus_text" rows="5" class="form-control bg-dark border-secondary-subtle text-light small" placeholder="Leave blank to let AI construct standard VTU university modules automatically.&#10;&#10;Or paste your syllabus text here if you want a 1:1 match with your textbook/college syllabus." style="border-color: #30363d !important; font-size: 0.8rem; line-height: 1.5;"></textarea>
+                    </div>
+
+                    <!-- Informational Callout -->
+                    <div class="p-2.5 rounded d-flex align-items-start gap-2.5" style="background-color: #0d1117; border: 1px solid #30363d;">
+                        <i class="bi bi-info-circle text-primary mt-0.5"></i>
+                        <p class="text-secondary mb-0" style="font-size: 0.775rem; line-height: 1.5;">
+                            Powered by Google Gemini. The generated subject automatically links to curated YouTube lecture searches and technical articles from GeeksforGeeks and W3Schools.
+                        </p>
+                    </div>
+                </div>
+
+                <div class="modal-footer border-top border-secondary-subtle py-2.5 px-4 d-flex justify-content-between align-items-center" style="border-top: 1px solid #30363d !important;">
+                    <span id="aiStatusText" class="text-secondary small fst-italic" style="font-size: 0.775rem;"></span>
+                    <div class="d-flex gap-2">
+                        <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                        <button type="submit" id="btnSubmitGenerate" class="btn btn-sm btn-primary d-inline-flex align-items-center gap-1.5">
+                            <i class="bi bi-magic"></i>
+                            <span id="btnText">Generate Curriculum</span>
+                        </button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const form = document.getElementById('aiGenerateForm');
+    const submitBtn = document.getElementById('btnSubmitGenerate');
+    const btnText = document.getElementById('btnText');
+    const statusText = document.getElementById('aiStatusText');
+
+    if (form && submitBtn) {
+        form.addEventListener('submit', function() {
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1.5" role="status" aria-hidden="true"></span> Generating...';
+            if (statusText) {
+                statusText.innerHTML = '<i class="bi bi-hourglass-split text-warning me-1"></i> Constructing modules and search keywords (~4s)...';
+            }
+        });
+    }
+});
+</script>
 {% endblock %}
