@@ -8,7 +8,13 @@ from curriculum.models import Subject, Module, Topic, TopicKeyword
 
 logger = logging.getLogger(__name__)
 
-GEMINI_API_ENDPOINT = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent"
+CANDIDATE_ENDPOINTS = [
+    "https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent",
+    "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent",
+    "https://generativelanguage.googleapis.com/v1/models/gemini-1.5-pro:generateContent",
+    "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent",
+    "https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent",
+]
 
 
 def generate_curriculum_from_prompt(subject_name, subject_code="", syllabus_text=""):
@@ -90,17 +96,30 @@ def generate_curriculum_from_prompt(subject_name, subject_code="", syllabus_text
         }
     }
 
-    url = f"{GEMINI_API_ENDPOINT}?key={api_key}"
+    response = None
+    last_error_msg = ""
 
-    try:
-        response = requests.post(url, json=payload, headers={"Content-Type": "application/json"}, timeout=45)
-    except requests.RequestException as e:
-        logger.error(f"Failed to connect to Gemini API: {e}")
-        raise RuntimeError(f"Connection to Gemini API failed: {e}")
+    for endpoint in CANDIDATE_ENDPOINTS:
+        url = f"{endpoint}?key={api_key}"
+        try:
+            res = requests.post(url, json=payload, headers={"Content-Type": "application/json"}, timeout=45)
+            if res.status_code == 200:
+                response = res
+                break
+            elif res.status_code == 404:
+                logger.info(f"Endpoint '{endpoint}' not found (404). Trying next fallback endpoint...")
+                last_error_msg = f"Gemini API error (Status 404): {res.text}"
+                continue
+            else:
+                last_error_msg = f"Gemini API error (Status {res.status_code}): {res.text}"
+                break
+        except requests.RequestException as e:
+            last_error_msg = f"Connection to Gemini API failed: {e}"
+            continue
 
-    if response.status_code != 200:
-        logger.error(f"Gemini API returned error {response.status_code}: {response.text}")
-        raise RuntimeError(f"Gemini API error (Status {response.status_code}): {response.text}")
+    if not response or response.status_code != 200:
+        logger.error(f"All Gemini candidate endpoints failed. Last error: {last_error_msg}")
+        raise RuntimeError(last_error_msg or "Failed to connect to any supported Gemini model endpoint.")
 
     try:
         res_json = response.json()
