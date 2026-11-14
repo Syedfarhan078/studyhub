@@ -8,13 +8,53 @@ from curriculum.models import Subject, Module, Topic, TopicKeyword
 
 logger = logging.getLogger(__name__)
 
-CANDIDATE_ENDPOINTS = [
-    "https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent",
-    "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent",
-    "https://generativelanguage.googleapis.com/v1/models/gemini-1.5-pro:generateContent",
-    "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent",
-    "https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent",
-]
+
+def resolve_active_gemini_endpoint(api_key):
+    """
+    Dynamically asks Google's ModelService.ListModels which models are enabled
+    and active for this API key with generateContent support.
+    Eliminates hardcoded 404 version mismatches.
+    """
+    list_url = f"https://generativelanguage.googleapis.com/v1beta/models?key={api_key}"
+    try:
+        res = requests.get(list_url, timeout=15)
+        if res.status_code == 200:
+            models_data = res.json().get("models", [])
+            # Filter models that support generateContent
+            supported = [
+                m["name"] for m in models_data
+                if "generateContent" in m.get("supportedGenerationMethods", [])
+            ]
+            if supported:
+                # Prioritize flash models, then pro, then any supported
+                chosen = None
+                for m in supported:
+                    if "flash" in m.lower():
+                        chosen = m
+                        break
+                if not chosen:
+                    for m in supported:
+                        if "pro" in m.lower():
+                            chosen = m
+                            break
+                if not chosen:
+                    chosen = supported[0]
+
+                clean_model = chosen.replace("models/", "")
+                logger.info(f"Discovered active Gemini model for this key: {clean_model}")
+                return f"https://generativelanguage.googleapis.com/v1beta/models/{clean_model}:generateContent"
+            else:
+                logger.warning(f"No models supporting generateContent found in ListModels.")
+        elif res.status_code in (400, 403):
+            try:
+                err_msg = res.json().get("error", {}).get("message", res.text)
+            except Exception:
+                err_msg = res.text
+            raise RuntimeError(f"Google API Key verification error ({res.status_code}): {err_msg}")
+    except requests.RequestException as e:
+        logger.warning(f"ListModels check failed ({e}). Proceeding with standard endpoint.")
+
+    return "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent"
 
 
 def generate_curriculum_from_prompt(subject_name, subject_code="", syllabus_text=""):
@@ -23,7 +63,9 @@ def generate_curriculum_from_prompt(subject_name, subject_code="", syllabus_text
     with topics, descriptions, and high-intent search keywords.
     Saves everything atomically into PostgreSQL and returns the created Subject instance.
     """
-    api_key = config('GEMINI_API_KEY', default=None)
+    raw_key = config('GEMINI_API_KEY', default='')
+    api_key = raw_key.strip().strip('\'"') if raw_key else None
+
     if not api_key:
         raise ValueError(
             "GEMINI_API_KEY is not configured in your environment. "
@@ -96,10 +138,21 @@ def generate_curriculum_from_prompt(subject_name, subject_code="", syllabus_text
         }
     }
 
+    # Discover the active endpoint for this key dynamically, with fallbacks
+    active_endpoint = resolve_active_gemini_endpoint(api_key)
+    candidate_endpoints = [
+        active_endpoint,
+        "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent",
+        "https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent",
+        "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent",
+        "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent",
+    ]
+    unique_endpoints = list(dict.fromkeys(candidate_endpoints))
+
     response = None
     last_error_msg = ""
 
-    for endpoint in CANDIDATE_ENDPOINTS:
+    for endpoint in unique_endpoints:
         url = f"{endpoint}?key={api_key}"
         try:
             res = requests.post(url, json=payload, headers={"Content-Type": "application/json"}, timeout=45)
@@ -107,7 +160,7 @@ def generate_curriculum_from_prompt(subject_name, subject_code="", syllabus_text
                 response = res
                 break
             elif res.status_code == 404:
-                logger.info(f"Endpoint '{endpoint}' not found (404). Trying next fallback endpoint...")
+                logger.info(f"Endpoint '{endpoint}' 404. Attempting next candidate...")
                 last_error_msg = f"Gemini API error (Status 404): {res.text}"
                 continue
             else:
@@ -118,8 +171,8 @@ def generate_curriculum_from_prompt(subject_name, subject_code="", syllabus_text
             continue
 
     if not response or response.status_code != 200:
-        logger.error(f"All Gemini candidate endpoints failed. Last error: {last_error_msg}")
-        raise RuntimeError(last_error_msg or "Failed to connect to any supported Gemini model endpoint.")
+        logger.error(f"All Gemini endpoints failed. Last error: {last_error_msg}")
+        raise RuntimeError(last_error_msg or "Failed to connect to any active Gemini model endpoint.")
 
     try:
         res_json = response.json()
