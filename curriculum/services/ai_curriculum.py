@@ -1,5 +1,6 @@
 import json
 import logging
+import re
 import requests
 from django.db import transaction
 from django.utils.text import slugify
@@ -206,11 +207,49 @@ def generate_curriculum_from_prompt(subject_name, subject_code="", syllabus_text
         candidates = res_json.get("candidates", [])
         if not candidates:
             raise ValueError("Gemini API returned no response candidates.")
-        
-        raw_text = candidates[0]["content"]["parts"][0]["text"]
-        data = json.loads(raw_text)
-    except (KeyError, IndexError, json.JSONDecodeError) as e:
-        logger.error(f"Failed to parse Gemini response: {e}")
+
+        candidate = candidates[0]
+        parts = candidate.get("content", {}).get("parts", [])
+        if not parts:
+            raise ValueError("Gemini candidate contains no content parts.")
+
+        # Search all parts for the one containing JSON brackets '{' and '}'
+        raw_text = ""
+        for part in parts:
+            text = part.get("text", "")
+            if "{" in text and "}" in text:
+                raw_text = text
+                break
+
+        if not raw_text:
+            # Fallback to the last part
+            raw_text = parts[-1].get("text", "")
+
+        if not raw_text:
+            raise ValueError("Gemini returned empty text in candidate parts.")
+
+        # Strip markdown fences (e.g. ```json ... ``` or ``` ... ```)
+        cleaned = raw_text.strip()
+        if cleaned.startswith("```"):
+            cleaned = re.sub(r"^```(?:json)?\s*", "", cleaned, flags=re.IGNORECASE)
+            cleaned = re.sub(r"\s*```$", "", cleaned)
+            cleaned = cleaned.strip()
+
+        # Extract only the outermost JSON object bounds
+        first_brace = cleaned.find("{")
+        last_brace = cleaned.rfind("}")
+        if first_brace != -1 and last_brace != -1 and last_brace > first_brace:
+            cleaned = cleaned[first_brace:last_brace + 1]
+
+        # Parse JSON with fallback for trailing commas
+        try:
+            data = json.loads(cleaned)
+        except json.JSONDecodeError:
+            cleaned_no_trailing = re.sub(r",\s*([\]}])", r"\1", cleaned)
+            data = json.loads(cleaned_no_trailing)
+
+    except (KeyError, IndexError, json.JSONDecodeError, ValueError) as e:
+        logger.error(f"Failed to parse Gemini response: {e}. Raw response: {response.text[:500]}")
         raise ValueError(f"Failed to parse AI generated curriculum: {e}")
 
     # Validate essential keys
