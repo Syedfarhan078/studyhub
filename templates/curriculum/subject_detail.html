@@ -22,6 +22,15 @@
                 <span class="sh-badge-code">{{ subject.code }}</span>
                 <span class="text-secondary small">&bull; {{ subject.modules.count }} Modules</span>
                 <span class="text-secondary small">&bull; {{ total_topics }} Topics Total</span>
+                {% if "Unverified" in subject.description %}
+                    <span class="badge bg-warning-subtle text-warning border border-warning-subtle py-1 px-2" style="font-size: 0.68rem; font-family: var(--sh-font-mono);">
+                        <i class="bi bi-exclamation-triangle-fill me-1"></i>AI Reference &bull; Unverified
+                    </span>
+                {% else %}
+                    <span class="badge bg-success-subtle text-success border border-success-subtle py-1 px-2" style="font-size: 0.68rem; font-family: var(--sh-font-mono);">
+                        <i class="bi bi-patch-check-fill me-1"></i>Source-Grounded Syllabus
+                    </span>
+                {% endif %}
             </div>
             <h1 class="h2 fw-bold text-light mb-1">{{ subject.name }}</h1>
             <p class="text-secondary small mb-0" style="max-width: 680px; line-height: 1.6;">

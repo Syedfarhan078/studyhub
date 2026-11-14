@@ -94,7 +94,7 @@
                                 Auto-Generate Subject & Syllabus
                             </h5>
                             <span class="text-secondary small" style="font-size: 0.75rem;">
-                                Creates 5 VTU modules, detailed topics, and 100+ resource search keywords instantly.
+                                Structured 5-module university curriculum with topics and educational search resources.
                             </span>
                         </div>
                     </div>
@@ -113,20 +113,28 @@
                             <label class="form-label text-light small fw-medium">
                                 Course Code <span class="text-secondary">(Optional)</span>
                             </label>
-                            <input type="text" name="subject_code" class="form-control bg-dark border-secondary-subtle text-light small" placeholder="e.g. BCS701, 21CS71" style="border-color: #30363d !important;">
+                            <input type="text" name="subject_code" class="form-control bg-dark border-secondary-subtle text-light small" placeholder="e.g. BAD703, BCS701, 21CS71" style="border-color: #30363d !important;">
                         </div>
                     </div>
 
                     <div class="mb-3">
                         <div class="d-flex justify-content-between align-items-center mb-1">
                             <label class="form-label text-light small fw-medium mb-0">
-                                Syllabus Topics / Outline <span class="text-secondary">(Optional)</span>
+                                Prescribed Syllabus Text <span class="text-info" style="font-size: 0.72rem;">(Recommended for exact match)</span>
                             </label>
-                            <span class="badge bg-dark border border-secondary-subtle text-secondary" style="font-size: 0.68rem; font-family: var(--sh-font-mono);">
-                                Leave empty for AI Auto-Fill
+                            <span class="badge bg-primary-subtle text-primary border border-primary-subtle" style="font-size: 0.68rem; font-family: var(--sh-font-mono);">
+                                Authoritative Source Grounding
                             </span>
                         </div>
-                        <textarea name="syllabus_text" rows="5" class="form-control bg-dark border-secondary-subtle text-light small" placeholder="Leave blank to let AI construct standard VTU university modules automatically.&#10;&#10;Or paste your syllabus text here if you want a 1:1 match with your textbook/college syllabus." style="border-color: #30363d !important; font-size: 0.8rem; line-height: 1.5;"></textarea>
+                        <textarea name="syllabus_text" rows="5" class="form-control bg-dark border-secondary-subtle text-light small" placeholder="Paste your official 5-module syllabus here to ensure 100% fidelity.&#10;&#10;Example:&#10;Module 1: Classical Encryption & Block Ciphers&#10;Module 2: Public-Key Cryptography & Key Exchange&#10;Module 3: Key Management & Public-Key Infrastructure&#10;Module 4: Web & IP Security&#10;Module 5: Data Security & Data Hiding / Privacy" style="border-color: #30363d !important; font-size: 0.8rem; line-height: 1.5;"></textarea>
+                        
+                        <!-- Unverified generation warning notice -->
+                        <div class="d-flex align-items-start gap-2 mt-2 p-2 rounded" style="background-color: rgba(210, 153, 34, 0.1); border: 1px solid rgba(210, 153, 34, 0.3);">
+                            <i class="bi bi-exclamation-triangle-fill text-warning mt-0.5" style="font-size: 0.8rem;"></i>
+                            <span class="text-warning small mb-0" style="font-size: 0.72rem; line-height: 1.45;">
+                                <strong>Notice:</strong> When syllabus text is omitted, the AI synthesizes reference content that is marked as <em>unverified</em> and may not match your college or VTU scheme. Paste your module outline above for an exact match.
+                            </span>
+                        </div>
                     </div>
 
                     <!-- Informational Callout -->

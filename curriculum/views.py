@@ -1,8 +1,20 @@
+import logging
 from django.shortcuts import render, get_object_or_404, redirect
 from django.contrib import messages
 from .models import Subject, Module, Topic, TopicProgress
 from .forms import ModuleNoteForm
-from .services.ai_curriculum import generate_curriculum_from_prompt
+from .services.ai_curriculum import (
+    generate_curriculum_from_prompt,
+    CurriculumGenerationError,
+    GeminiTransientError,
+    GeminiAuthError,
+    GeminiInvalidRequestError,
+    GeminiModelNotFoundError,
+    CurriculumParseError,
+    CurriculumValidationError,
+)
+
+logger = logging.getLogger(__name__)
 
 # Create your views here.
 
@@ -10,7 +22,7 @@ def generate_subject_ai(request):
     """
     Handles AI curriculum generation.
     Accepts subject name, course code, and optional syllabus text.
-    Calls Gemini API to generate the 5 modules, topics, and search keywords,
+    Calls Gemini API with exponential backoff and fallback model support,
     then redirects directly to the new subject's interactive detail page.
     """
     if request.method == 'POST':
@@ -33,10 +45,51 @@ def generate_subject_ai(request):
                 f"Syllabus for '{subject.name}' ({subject.code}) generated successfully with {subject.modules.count()} modules!"
             )
             return redirect('curriculum:subject_detail', slug=subject.slug)
+        except GeminiTransientError as e:
+            logger.warning("Transient error generating curriculum for '%s': %s", subject_name, e)
+            messages.error(
+                request,
+                "The AI curriculum service is temporarily experiencing high server demand. Please wait a few moments and try again."
+            )
+        except GeminiAuthError as e:
+            logger.error("Authentication error generating curriculum for '%s': %s", subject_name, e)
+            messages.error(
+                request,
+                "AI service authentication error. Please verify that your GEMINI_API_KEY is configured correctly."
+            )
+        except GeminiInvalidRequestError as e:
+            logger.error("Invalid request generating curriculum for '%s': %s", subject_name, e)
+            messages.error(request, f"Unable to process curriculum request: {e}")
+        except GeminiModelNotFoundError as e:
+            logger.error("Model not found generating curriculum for '%s': %s", subject_name, e)
+            messages.error(
+                request,
+                "The configured AI model is not available. Please verify your Gemini model configuration."
+            )
+        except CurriculumValidationError as ve:
+            logger.warning("Curriculum validation error for '%s': %s", subject_name, ve)
+            messages.error(
+                request,
+                f"Syllabus validation failed: {ve} Please verify that your syllabus contains 5 clear module headings."
+            )
+        except CurriculumParseError as e:
+            logger.warning("Parse error generating curriculum for '%s': %s", subject_name, e)
+            messages.error(
+                request,
+                "The AI generated an incomplete curriculum structure. Please try again or provide detailed syllabus text."
+            )
+        except CurriculumGenerationError as e:
+            logger.error("Curriculum generation failure for '%s': %s", subject_name, e)
+            messages.error(request, f"Curriculum generation error: {e}")
         except ValueError as ve:
+            logger.warning("Validation error for '%s': %s", subject_name, ve)
             messages.error(request, str(ve))
         except Exception as e:
-            messages.error(request, f"AI generation error: {e}")
+            logger.exception("Unexpected error in generate_subject_ai for '%s': %s", subject_name, e)
+            messages.error(
+                request,
+                "An unexpected error occurred while generating the syllabus. Please try again."
+            )
 
     return redirect('/')
 
