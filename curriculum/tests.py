@@ -2012,7 +2012,7 @@ class GroqIntegrationTests(TestCase):
         with patch('curriculum.services.ai_curriculum.config', side_effect=mock_config):
             with self.assertRaises(AIAuthError) as ctx:
                 resolve_ai_provider()
-            self.assertIn("Neither GROQ_API_KEY nor GEMINI_API_KEY", str(ctx.exception))
+            self.assertIn("GROQ_API_KEY is not configured", str(ctx.exception))
 
     @patch('curriculum.services.ai_curriculum.requests.post')
     def test_groq_successful_generation(self, mock_post):
@@ -2087,6 +2087,34 @@ class GroqIntegrationTests(TestCase):
                 return 1
             if key == 'GROQ_PRIMARY_MODEL':
                 return 'llama-3.3-70b-versatile'
+            if key == 'GROQ_FALLBACK_MODEL':
+                return 'llama-3.1-8b-instant'
+            return default
+
+        with patch('curriculum.services.ai_curriculum.config', side_effect=mock_config):
+            result = generate_curriculum_data("Machine Learning", "CS702")
+            self.assertEqual(result["active_model"], "llama-3.1-8b-instant")
+            self.assertEqual(len(result["data"]["modules"]), 5)
+
+    @patch('curriculum.services.ai_curriculum.requests.post')
+    def test_groq_model_404_falls_back_to_secondary_model(self, mock_post):
+        """Tests that if primary model returns 404, Groq automatically falls back to secondary model."""
+        res_404 = requests.Response()
+        res_404.status_code = 404
+        res_404._content = json.dumps({"error": {"message": "Model not found"}}).encode("utf-8")
+
+        res_200 = make_mock_groq_json_response(SAMPLE_CURRICULUM_DATA, status_code=200)
+
+        # Primary model returns 404, fallback model succeeds
+        mock_post.side_effect = [res_404, res_200]
+
+        def mock_config(key, default='', **kwargs):
+            if key == 'GROQ_API_KEY':
+                return 'gsk_mock_valid_key'
+            if key == 'AI_PROVIDER':
+                return 'groq'
+            if key == 'GROQ_PRIMARY_MODEL':
+                return 'non-existent-primary'
             if key == 'GROQ_FALLBACK_MODEL':
                 return 'llama-3.1-8b-instant'
             return default

@@ -371,7 +371,7 @@ class GenerationWorkerEngine:
             self._mark_job_failed(job_id, current_claim_token, err_msg)
 
         except GeminiAuthError as e:
-            err_msg = "AI service authentication error. Please verify that your GROQ_API_KEY (or GEMINI_API_KEY) is configured correctly."
+            err_msg = "AI service authentication error. Please verify that your GROQ_API_KEY is configured correctly."
             logger.error("[%s] Job %s auth error: %s", self.worker_id, job_id, e)
             self._mark_job_failed(job_id, current_claim_token, err_msg)
 
@@ -381,7 +381,7 @@ class GenerationWorkerEngine:
             self._mark_job_failed(job_id, current_claim_token, err_msg)
 
         except GeminiModelNotFoundError as e:
-            err_msg = "The configured AI model is not available. Please verify your AI model configuration."
+            err_msg = "The configured Groq AI model is not available. Please verify your model settings (default: llama-3.3-70b-versatile)."
             logger.error("[%s] Job %s model not found: %s", self.worker_id, job_id, e)
             self._mark_job_failed(job_id, current_claim_token, err_msg)
 

@@ -110,10 +110,30 @@ def sanitize_error_message(response_or_text) -> str:
     return msg.strip()[:300]
 
 
+def normalize_groq_model_name(model_name: str) -> str:
+    """
+    Normalizes common shorthand Groq model names to official production identifiers
+    to prevent HTTP 404 Model Not Found errors.
+    """
+    if not model_name:
+        return "llama-3.3-70b-versatile"
+    name = model_name.strip()
+    clean = name.lower().replace("_", "-")
+
+    if clean in ("llama-3.3-70b", "llama3.3-70b", "llama-70b", "llama3-70b", "llama-3.3-70b-instruct"):
+        return "llama-3.3-70b-versatile"
+    if clean in ("llama-3.1-8b", "llama3.1-8b", "llama-8b", "llama3-8b", "llama-3.1-8b-instruct"):
+        return "llama-3.1-8b-instant"
+    if clean in ("mixtral", "mixtral-8x7b", "mixtral-8x7b-instruct"):
+        return "mixtral-8x7b-32768"
+
+    return name
+
+
 def resolve_ai_provider() -> tuple[str, str]:
     """
     Determines active AI provider and API key.
-    Checks AI_PROVIDER ('auto', 'groq', 'gemini'), GROQ_API_KEY, and GEMINI_API_KEY.
+    Prioritizes Groq API via GROQ_API_KEY.
     Returns (provider_name, api_key), where provider_name is 'groq' or 'gemini'.
     Raises AIAuthError if no configured key is found.
     """
@@ -121,31 +141,19 @@ def resolve_ai_provider() -> tuple[str, str]:
     raw_gemini = config('GEMINI_API_KEY', default='').strip().strip('\'"')
     provider_pref = config('AI_PROVIDER', default='auto').strip().lower()
 
-    if provider_pref == 'groq':
-        if not raw_groq:
-            raise AIAuthError(
-                "GROQ_API_KEY is not configured in your environment. "
-                "Please add GROQ_API_KEY to your .env file or Render environment variables."
-            )
-        return 'groq', raw_groq
-
-    if provider_pref == 'gemini':
-        if not raw_gemini:
-            raise AIAuthError(
-                "GEMINI_API_KEY is not configured in your environment. "
-                "Please add GEMINI_API_KEY to your .env file or Render environment variables."
-            )
+    if provider_pref == 'gemini' and raw_gemini:
         return 'gemini', raw_gemini
 
-    # Auto mode: prioritize Groq if set, then Gemini
+    # Groq is our primary AI engine
     if raw_groq:
         return 'groq', raw_groq
+
     if raw_gemini:
         return 'gemini', raw_gemini
 
     raise AIAuthError(
-        "Neither GROQ_API_KEY nor GEMINI_API_KEY is configured in your environment. "
-        "Please add GROQ_API_KEY (from console.groq.com) or GEMINI_API_KEY to your .env file or Render environment variables."
+        "GROQ_API_KEY is not configured in your environment. "
+        "Please add GROQ_API_KEY to your .env file or Render environment variables."
     )
 
 
@@ -245,7 +253,7 @@ def resolve_configured_models(api_key: str) -> tuple:
         except requests.RequestException as e:
             logger.warning("ListModels request failed (%s). Using verified model defaults.", type(e).__name__)
 
-    priority_order = ("3.5-flash", "3.5-flash-lite", "2.5-flash", "2.0-flash", "1.5-flash", "flash")
+    priority_order = ("3.5-flash", "3.5-flash-lite", "2.0-flash", "1.5-flash", "1.5-flash-8b", "flash")
 
     if not primary_model:
         if discovered:
@@ -257,7 +265,7 @@ def resolve_configured_models(api_key: str) -> tuple:
             if not primary_model:
                 primary_model = discovered[0]
         else:
-            primary_model = "gemini-3.5-flash"
+            primary_model = "gemini-1.5-flash"
 
     if not fallback_model or fallback_model == primary_model:
         if discovered:
@@ -267,10 +275,10 @@ def resolve_configured_models(api_key: str) -> tuple:
                     fallback_model = match
                     break
         if not fallback_model or fallback_model == primary_model:
-            if primary_model == "gemini-3.5-flash-lite":
-                fallback_model = "gemini-3.5-flash"
+            if primary_model == "gemini-1.5-flash":
+                fallback_model = "gemini-2.0-flash"
             else:
-                fallback_model = "gemini-3.5-flash-lite"
+                fallback_model = "gemini-1.5-flash"
 
     logger.info(
         "Active Gemini models resolved - Primary: '%s', Fallback: '%s'",
@@ -838,43 +846,74 @@ def execute_gemini_generation(
 ):
     """
     Executes curriculum generation with primary model retries, switching to fallback model
-    only if primary exhausts retries for eligible transient errors.
+    if primary exhausts retries or returns model not found (404).
     """
-    res, last_err = _send_model_request_with_retries(
-        model_name=primary_model,
-        payload=payload,
-        api_key=api_key,
-        max_retries=max_retries,
-        base_delay=base_delay,
-        max_delay=max_delay,
-        request_timeout=request_timeout,
-        is_fallback=False
-    )
-    if res is not None:
-        return res, primary_model
-
-    if fallback_model and fallback_model != primary_model:
-        logger.warning(
-            "Primary model '%s' exhausted %d retries with transient errors (%s). "
-            "Switching to fallback model '%s'...",
-            primary_model, max_retries, last_err, fallback_model
-        )
-        res, fallback_err = _send_model_request_with_retries(
-            model_name=fallback_model,
+    last_err = ""
+    try:
+        res, last_err = _send_model_request_with_retries(
+            model_name=primary_model,
             payload=payload,
             api_key=api_key,
             max_retries=max_retries,
             base_delay=base_delay,
             max_delay=max_delay,
             request_timeout=request_timeout,
-            is_fallback=True
+            is_fallback=False
         )
         if res is not None:
-            logger.info("Fallback model '%s' succeeded where primary failed.", fallback_model)
-            return res, fallback_model
-        last_err = f"Primary ({primary_model}): {last_err}; Fallback ({fallback_model}): {fallback_err}"
+            return res, primary_model
+    except GeminiModelNotFoundError as mnf_err:
+        logger.warning("Primary Gemini model '%s' not found (%s). Attempting fallback model...", primary_model, mnf_err)
+        last_err = str(mnf_err)
 
-    logger.error("Curriculum generation failed: All eligible retries exhausted. %s", last_err)
+    if fallback_model and fallback_model != primary_model:
+        logger.warning(
+            "Primary model '%s' unavailable (%s). Switching to fallback model '%s'...",
+            primary_model, last_err, fallback_model
+        )
+        try:
+            res, fallback_err = _send_model_request_with_retries(
+                model_name=fallback_model,
+                payload=payload,
+                api_key=api_key,
+                max_retries=max_retries,
+                base_delay=base_delay,
+                max_delay=max_delay,
+                request_timeout=request_timeout,
+                is_fallback=True
+            )
+            if res is not None:
+                logger.info("Fallback model '%s' succeeded where primary failed.", fallback_model)
+                return res, fallback_model
+            last_err = f"Primary ({primary_model}): {last_err}; Fallback ({fallback_model}): {fallback_err}"
+        except GeminiModelNotFoundError as f_err:
+            last_err = f"Primary ({primary_model}): {last_err}; Fallback ({fallback_model}): {f_err}"
+
+    # Try universal safe Google Gemini models if both primary and fallback failed with 404
+    for safe_model in ("gemini-1.5-flash", "gemini-2.0-flash"):
+        if safe_model not in (primary_model, fallback_model):
+            try:
+                logger.info("Attempting universal safe Gemini model '%s'...", safe_model)
+                res, _ = _send_model_request_with_retries(
+                    model_name=safe_model,
+                    payload=payload,
+                    api_key=api_key,
+                    max_retries=1,
+                    base_delay=base_delay,
+                    max_delay=max_delay,
+                    request_timeout=request_timeout,
+                    is_fallback=True
+                )
+                if res is not None:
+                    return res, safe_model
+            except Exception:
+                pass
+
+    logger.error("Curriculum generation failed: All eligible models exhausted. %s", last_err)
+    if "not found" in last_err.lower():
+        raise GeminiModelNotFoundError(
+            f"The configured AI model is not available: {last_err}. Please verify your Gemini model configuration."
+        )
     raise GeminiTransientError(
         f"The AI curriculum service is temporarily unavailable due to high demand. "
         f"Retries across models were exhausted ({last_err}). Please try again in a few moments."
@@ -1054,30 +1093,12 @@ def execute_groq_generation(
 ):
     """
     Executes curriculum generation via Groq API with primary model retries,
-    switching to fallback model only if primary exhausts retries for transient errors.
+    switching to fallback model if primary exhausts retries or returns model not found (404).
     """
-    res, last_err = _send_groq_request_with_retries(
-        model_name=primary_model,
-        system_instructions=system_instructions,
-        user_prompt=user_prompt,
-        api_key=api_key,
-        max_retries=max_retries,
-        base_delay=base_delay,
-        max_delay=max_delay,
-        request_timeout=request_timeout,
-        is_fallback=False
-    )
-    if res is not None:
-        return res, primary_model
-
-    if fallback_model and fallback_model != primary_model:
-        logger.warning(
-            "Groq primary model '%s' exhausted %d retries with transient errors (%s). "
-            "Switching to fallback model '%s'...",
-            primary_model, max_retries, last_err, fallback_model
-        )
-        res, fallback_err = _send_groq_request_with_retries(
-            model_name=fallback_model,
+    last_err = ""
+    try:
+        res, last_err = _send_groq_request_with_retries(
+            model_name=primary_model,
             system_instructions=system_instructions,
             user_prompt=user_prompt,
             api_key=api_key,
@@ -1085,14 +1106,64 @@ def execute_groq_generation(
             base_delay=base_delay,
             max_delay=max_delay,
             request_timeout=request_timeout,
-            is_fallback=True
+            is_fallback=False
         )
         if res is not None:
-            logger.info("Groq fallback model '%s' succeeded where primary failed.", fallback_model)
-            return res, fallback_model
-        last_err = f"Primary ({primary_model}): {last_err}; Fallback ({fallback_model}): {fallback_err}"
+            return res, primary_model
+    except AIModelNotFoundError as mnf_err:
+        logger.warning("Primary Groq model '%s' not found (%s). Attempting fallback model...", primary_model, mnf_err)
+        last_err = str(mnf_err)
+
+    if fallback_model and fallback_model != primary_model:
+        logger.warning(
+            "Groq primary model '%s' unavailable (%s). Switching to fallback model '%s'...",
+            primary_model, last_err, fallback_model
+        )
+        try:
+            res, fallback_err = _send_groq_request_with_retries(
+                model_name=fallback_model,
+                system_instructions=system_instructions,
+                user_prompt=user_prompt,
+                api_key=api_key,
+                max_retries=max_retries,
+                base_delay=base_delay,
+                max_delay=max_delay,
+                request_timeout=request_timeout,
+                is_fallback=True
+            )
+            if res is not None:
+                logger.info("Groq fallback model '%s' succeeded where primary failed.", fallback_model)
+                return res, fallback_model
+            last_err = f"Primary ({primary_model}): {last_err}; Fallback ({fallback_model}): {fallback_err}"
+        except AIModelNotFoundError as f_err:
+            last_err = f"Primary ({primary_model}): {last_err}; Fallback ({fallback_model}): {f_err}"
+
+    # Try universal safe Groq models
+    for safe_model in ("llama-3.3-70b-versatile", "llama-3.1-8b-instant", "mixtral-8x7b-32768"):
+        if safe_model not in (primary_model, fallback_model):
+            try:
+                logger.info("Attempting safe Groq model '%s'...", safe_model)
+                res, _ = _send_groq_request_with_retries(
+                    model_name=safe_model,
+                    system_instructions=system_instructions,
+                    user_prompt=user_prompt,
+                    api_key=api_key,
+                    max_retries=1,
+                    base_delay=base_delay,
+                    max_delay=max_delay,
+                    request_timeout=request_timeout,
+                    is_fallback=True
+                )
+                if res is not None:
+                    return res, safe_model
+            except Exception:
+                pass
 
     logger.error("Curriculum generation failed: All eligible retries exhausted on Groq. %s", last_err)
+    if "not found" in last_err.lower():
+        raise AIModelNotFoundError(
+            f"The configured AI model is not available: {last_err}. Please verify your Groq model configuration."
+        )
     raise AITransientError(
         f"The AI curriculum service is temporarily unavailable due to high demand. "
         f"Retries across models were exhausted ({last_err}). Please try again in a few moments."
@@ -1300,8 +1371,10 @@ def generate_curriculum_data(subject_name, subject_code="", syllabus_text=""):
         )
 
     if provider == 'groq':
-        groq_primary = config('GROQ_PRIMARY_MODEL', default='llama-3.3-70b-versatile').strip()
-        groq_fallback = config('GROQ_FALLBACK_MODEL', default='llama-3.1-8b-instant').strip()
+        raw_primary = config('GROQ_PRIMARY_MODEL', default=config('GROQ_MODEL', default=config('AI_MODEL', default='llama-3.3-70b-versatile'))).strip()
+        groq_primary = normalize_groq_model_name(raw_primary)
+        raw_fallback = config('GROQ_FALLBACK_MODEL', default='llama-3.1-8b-instant').strip()
+        groq_fallback = normalize_groq_model_name(raw_fallback)
         max_retries = config('GROQ_MAX_RETRIES', default=config('GEMINI_MAX_RETRIES', default=3, cast=int), cast=int)
         base_delay = config('GROQ_BACKOFF_BASE', default=config('GEMINI_BACKOFF_BASE', default=1.0, cast=float), cast=float)
         max_delay = config('GROQ_BACKOFF_MAX', default=config('GEMINI_BACKOFF_MAX', default=8.0, cast=float), cast=float)

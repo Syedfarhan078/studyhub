@@ -149,7 +149,7 @@ def generate_subject_ai(request):
             logger.error("Authentication error generating curriculum for '%s': %s", subject_name, e)
             messages.error(
                 request,
-                "AI service authentication error. Please verify that your GROQ_API_KEY (or GEMINI_API_KEY) is configured correctly."
+                "AI service authentication error. Please verify that your GROQ_API_KEY is configured correctly."
             )
         except GeminiInvalidRequestError as e:
             logger.error("Invalid request generating curriculum for '%s': %s", subject_name, e)
@@ -158,7 +158,7 @@ def generate_subject_ai(request):
             logger.error("Model not found generating curriculum for '%s': %s", subject_name, e)
             messages.error(
                 request,
-                "The configured AI model is not available. Please verify your AI model configuration."
+                "The configured Groq AI model is not available. Please verify your model settings (default: llama-3.3-70b-versatile)."
             )
         except CurriculumValidationError as ve:
             logger.warning("Curriculum validation error for '%s': %s", subject_name, ve)
