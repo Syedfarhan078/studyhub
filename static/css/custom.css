@@ -663,8 +663,14 @@ textarea.form-control { border-radius: var(--radius) !important; border-left: 1p
         visibility: visible;
         background: transparent !important;
         border: 0 !important;
-        width: auto !important;
+        width: 100% !important;
         max-width: none !important;
         height: auto;
+        display: block !important;
+    }
+    .offcanvas-lg .offcanvas-body,
+    #syllabusSidebarOffcanvas .offcanvas-body {
+        display: block !important;
+        width: 100% !important;
     }
 }

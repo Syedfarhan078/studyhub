@@ -50,6 +50,60 @@ class Module(models.Model):
     def __str__(self):
         return f"{self.subject.code} - Module {self.module_number}: {self.title}"
 
+    @property
+    def has_multiple_chapters(self):
+        """Returns True if this module contains topics divided into distinct chapters or named chapters."""
+        topics = list(self.topics.all())
+        chapters = {t.chapter_number for t in topics if t.chapter_number}
+        named_chapters = any(bool(t.chapter_title and t.chapter_title.strip()) for t in topics)
+        return len(chapters) > 1 or named_chapters
+
+    def get_chapters(self):
+        """
+        Groups topics belonging to this module by chapter, preserving order and calculating progress.
+        Returns a list of dicts:
+        [
+            {
+                'chapter_number': 1,
+                'chapter_title': 'Key Management Fundamentals',
+                'has_custom_title': True,
+                'topics': [<Topic>, ...],
+                'completed_topics': 2,
+                'total_topics': 6,
+                'progress_percent': 33,
+            },
+            ...
+        ]
+        """
+        all_topics = list(self.topics.all())
+        chapters_dict = {}
+        for topic in all_topics:
+            c_num = topic.chapter_number or 1
+            if c_num not in chapters_dict:
+                chapters_dict[c_num] = {
+                    'chapter_number': c_num,
+                    'chapter_title': topic.chapter_title or f"Chapter {c_num}",
+                    'has_custom_title': bool(topic.chapter_title and topic.chapter_title.strip()),
+                    'topics': [],
+                    'completed_topics': 0,
+                    'total_topics': 0,
+                    'progress_percent': 0,
+                }
+            elif topic.chapter_title and not chapters_dict[c_num]['has_custom_title']:
+                chapters_dict[c_num]['chapter_title'] = topic.chapter_title
+                chapters_dict[c_num]['has_custom_title'] = True
+
+            chapters_dict[c_num]['topics'].append(topic)
+            chapters_dict[c_num]['total_topics'] += 1
+            if hasattr(topic, 'progress') and topic.progress and topic.progress.status == 'COMPLETED':
+                chapters_dict[c_num]['completed_topics'] += 1
+
+        for c_data in chapters_dict.values():
+            if c_data['total_topics'] > 0:
+                c_data['progress_percent'] = int((c_data['completed_topics'] / c_data['total_topics']) * 100)
+
+        return [chapters_dict[k] for k in sorted(chapters_dict.keys())]
+
 
 class Topic(models.Model):
     module = models.ForeignKey(
@@ -57,6 +111,18 @@ class Topic(models.Model):
         on_delete=models.CASCADE,
         related_name="topics",
         help_text="The module this topic belongs to"
+    )
+
+    chapter_number = models.PositiveSmallIntegerField(
+        default=1,
+        help_text="Chapter sequence number within module (e.g. 1, 2)"
+    )
+
+    chapter_title = models.CharField(
+        max_length=150,
+        blank=True,
+        default="",
+        help_text="Chapter title within module (e.g. Key Management Fundamentals)"
     )
 
     title = models.CharField(
@@ -80,7 +146,7 @@ class Topic(models.Model):
     )
 
     class Meta:
-        ordering = ['module', 'order', 'title']
+        ordering = ['module', 'chapter_number', 'order', 'title']
         unique_together = ['module', 'slug']
         verbose_name = "Topic"
         verbose_name_plural = "Topics"

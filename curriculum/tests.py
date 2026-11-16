@@ -26,6 +26,7 @@ from curriculum.services.ai_curriculum import (
     calculate_backoff_delay,
     generate_curriculum_from_prompt,
     parse_prescribed_syllabus,
+    _extract_chapters_from_text,
     resolve_configured_models,
     sanitize_error_message,
 )
@@ -1726,6 +1727,206 @@ class ProductionHardeningFencingAndHealthTests(TestCase):
             with self.assertRaises(RuntimeError) as ctx:
                 gconf.post_worker_init(mock_worker)
             self.assertIn("Gunicorn worker (pid=99999) boot failed", str(ctx.exception))
+
+
+class ChapterHierarchyTests(TestCase):
+    """
+    Test suite for Approach A (Chapter Hierarchy inside Modules):
+    - Topic model chapter fields (chapter_number, chapter_title) and defaults.
+    - Module.get_chapters() grouping and progress calculation.
+    - Extraction of chapters and topics from VTU syllabus text (matching user screenshot).
+    - Curriculum persistence with chapter fields.
+    - View rendering with chapter banners and badges.
+    """
+
+    def setUp(self):
+        self.client = Client()
+
+    def test_topic_chapter_fields_defaults_and_assignment(self):
+        """Tests that Topic chapter fields default gracefully and store custom chapter metadata."""
+        subject = Subject.objects.create(name="Computer Networks", code="CS501", slug="cs501-cn")
+        module = Module.objects.create(subject=subject, module_number=1, title="Introduction")
+
+        # Default topic has chapter_number=1 and empty chapter_title
+        t1 = Topic.objects.create(module=module, title="OSI Model", slug="osi-model", order=1)
+        self.assertEqual(t1.chapter_number, 1)
+        self.assertEqual(t1.chapter_title, "")
+
+        # Custom topic with specific chapter
+        t2 = Topic.objects.create(
+            module=module,
+            title="TCP/IP Protocol Suite",
+            slug="tcp-ip-suite",
+            order=2,
+            chapter_number=2,
+            chapter_title="Protocol Stacks"
+        )
+        self.assertEqual(t2.chapter_number, 2)
+        self.assertEqual(t2.chapter_title, "Protocol Stacks")
+
+    def test_module_get_chapters_groups_topics_correctly(self):
+        """Tests that module.get_chapters() groups topics into distinct chapter dictionaries with progress."""
+        subject = Subject.objects.create(name="Cyber Security", code="CS701", slug="cs701-sec")
+        module = Module.objects.create(subject=subject, module_number=3, title="Key Management")
+
+        # Chapter 1: 3 topics
+        for i in range(1, 4):
+            Topic.objects.create(
+                module=module,
+                title=f"Key Mgmt Topic {i}",
+                slug=f"km-topic-{i}",
+                order=i,
+                chapter_number=1,
+                chapter_title="Key Management Fundamentals"
+            )
+
+        # Chapter 2: 2 topics
+        for j in range(1, 3):
+            Topic.objects.create(
+                module=module,
+                title=f"Public Key Topic {j}",
+                slug=f"pk-topic-{j}",
+                order=j,
+                chapter_number=2,
+                chapter_title="Public-Key Management"
+            )
+
+        self.assertTrue(module.has_multiple_chapters)
+        chapters = module.get_chapters()
+        self.assertEqual(len(chapters), 2)
+
+        # Validate Chapter 1
+        chp1 = chapters[0]
+        self.assertEqual(chp1["chapter_number"], 1)
+        self.assertEqual(chp1["chapter_title"], "Key Management Fundamentals")
+        self.assertEqual(len(chp1["topics"]), 3)
+        self.assertEqual(chp1["total_topics"], 3)
+
+        # Validate Chapter 2
+        chp2 = chapters[1]
+        self.assertEqual(chp2["chapter_number"], 2)
+        self.assertEqual(chp2["chapter_title"], "Public-Key Management")
+        self.assertEqual(len(chp2["topics"]), 2)
+        self.assertEqual(chp2["total_topics"], 2)
+
+    def test_extract_chapters_from_vtu_syllabus_text(self):
+        """Tests extraction of chapters from the exact syllabus format shown in the user's screenshot."""
+        raw_syllabus_text = """CHP-1
+Key management fundamentals, Key lengths and lifetimes, Key generation, Key establishment, Key storage, Key usage, Governing key management.
+
+CHP-2
+Public-Key Management: Certification of public keys, The certificate lifecycle, Public-key management models, Alternative approaches."""
+
+        chapters = _extract_chapters_from_text(raw_syllabus_text)
+        self.assertEqual(len(chapters), 2)
+
+        chp1 = chapters[0]
+        self.assertEqual(chp1["chapter_number"], 1)
+        self.assertEqual(chp1["chapter_title"], "Key management fundamentals")
+        self.assertEqual(len(chp1["topics"]), 6)
+        self.assertIn("Key lengths and lifetimes", chp1["topics"])
+        self.assertIn("Governing key management", chp1["topics"])
+
+        chp2 = chapters[1]
+        self.assertEqual(chp2["chapter_number"], 2)
+        self.assertEqual(chp2["chapter_title"], "Public-Key Management")
+        self.assertEqual(len(chp2["topics"]), 4)
+        self.assertIn("Certification of public keys", chp2["topics"])
+        self.assertIn("Alternative approaches", chp2["topics"])
+
+    def test_persist_curriculum_records_with_chapters(self):
+        """Tests that persist_curriculum_records correctly saves chapter metadata onto Topic records."""
+        payload = {
+            "data": {
+                "name": "Data Security Test",
+                "code": "DST801",
+                "description": "Course with chapters",
+                "modules": [
+                    {
+                        "module_number": 1,
+                        "title": "Crypto Foundations",
+                        "description": "Module 1",
+                        "topics": [
+                            {
+                                "title": "Classical Ciphers",
+                                "description": "Symmetric ciphers",
+                                "chapter_number": 1,
+                                "chapter_title": "Classical Cryptography",
+                                "keywords": ["classical ciphers"]
+                            },
+                            {
+                                "title": "Block Ciphers",
+                                "description": "DES & AES",
+                                "chapter_number": 2,
+                                "chapter_title": "Modern Block Ciphers",
+                                "keywords": ["block ciphers"]
+                            }
+                        ]
+                    },
+                    {
+                        "module_number": 2, "title": "M2", "description": "",
+                        "topics": [{"title": "T2.1", "description": "D", "keywords": ["k"]}]
+                    },
+                    {
+                        "module_number": 3, "title": "M3", "description": "",
+                        "topics": [{"title": "T3.1", "description": "D", "keywords": ["k"]}]
+                    },
+                    {
+                        "module_number": 4, "title": "M4", "description": "",
+                        "topics": [{"title": "T4.1", "description": "D", "keywords": ["k"]}]
+                    },
+                    {
+                        "module_number": 5, "title": "M5", "description": "",
+                        "topics": [{"title": "T5.1", "description": "D", "keywords": ["k"]}]
+                    }
+                ]
+            },
+            "clean_name": "Data Security Test",
+            "clean_code": "DST801",
+            "is_verified_source": True,
+            "active_model": "gemini-3.5-flash",
+        }
+
+        subject = persist_curriculum_records(curriculum_payload=payload)
+        m1 = subject.modules.get(module_number=1)
+        t_classical = m1.topics.get(title="Classical Ciphers")
+        self.assertEqual(t_classical.chapter_number, 1)
+        self.assertEqual(t_classical.chapter_title, "Classical Cryptography")
+
+        t_block = m1.topics.get(title="Block Ciphers")
+        self.assertEqual(t_block.chapter_number, 2)
+        self.assertEqual(t_block.chapter_title, "Modern Block Ciphers")
+
+    def test_subject_detail_view_renders_chapters(self):
+        """Tests that subject_detail view renders chapter banners and chapter map when chapters exist."""
+        subject = Subject.objects.create(name="Network Security View Test", code="NSV901", slug="nsv901-test")
+        module = Module.objects.create(subject=subject, module_number=1, title="Key Management")
+        t1 = Topic.objects.create(
+            module=module,
+            title="Key Lengths",
+            slug="key-lengths-test",
+            order=1,
+            chapter_number=1,
+            chapter_title="Key Management Fundamentals"
+        )
+        t2 = Topic.objects.create(
+            module=module,
+            title="Public Key Certificates",
+            slug="pk-certs-test",
+            order=2,
+            chapter_number=2,
+            chapter_title="Public-Key Management"
+        )
+
+        resp = self.client.get(reverse("curriculum:subject_detail", kwargs={"slug": subject.slug}))
+        self.assertEqual(resp.status_code, 200)
+        content = resp.content.decode("utf-8")
+        self.assertIn("CHP-1", content)
+        self.assertIn("Key Management Fundamentals", content)
+        self.assertIn("CHP-2", content)
+        self.assertIn("Public-Key Management", content)
+        self.assertIn("Chapter Architecture", content)
+
 
 
 

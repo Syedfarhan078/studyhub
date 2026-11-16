@@ -29,9 +29,9 @@ class ModuleAdmin(admin.ModelAdmin):
 
 @admin.register(Topic)
 class TopicAdmin(admin.ModelAdmin):
-    list_display = ('title', 'module', 'order', 'keyword_count')
-    list_filter = ('module__subject', 'module')
-    search_fields = ('title', 'description', 'keywords__keyword')
+    list_display = ('title', 'module', 'chapter_number', 'chapter_title', 'order', 'keyword_count')
+    list_filter = ('module__subject', 'module', 'chapter_number')
+    search_fields = ('title', 'chapter_title', 'description', 'keywords__keyword')
     prepopulated_fields = {'slug': ('title',)}
     inlines = [TopicKeywordInline]
     def keyword_count(self, obj):

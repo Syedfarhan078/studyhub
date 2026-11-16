@@ -59,7 +59,7 @@
                 <h2 class="h6 mb-0" id="syllabusSidebarOffcanvasLabel">{{ subject.code }}</h2>
                 <button type="button" class="btn-close" data-bs-dismiss="offcanvas" data-bs-target="#syllabusSidebarOffcanvas" aria-label="Close"></button>
             </div>
-            <div class="offcanvas-body p-3 p-lg-0">
+            <div class="offcanvas-body p-3 p-lg-0 d-block">
                 <div class="d-none d-lg-flex justify-content-between align-items-baseline mb-2">
                     <span class="section-label">Modules</span>
                     <span class="sh-meta">{{ subject.modules.count }}</span>
@@ -88,23 +88,53 @@
                                      data-bs-parent="#syllabusAccordion">
                                     <div class="accordion-body p-2">
                                         {% if module.topics.all %}
-                                            <div class="list-group list-group-flush">
-                                                {% for topic in module.topics.all %}
-                                                    <a href="?topic={{ topic.slug }}"
-                                                       class="list-group-item list-group-item-action d-flex align-items-center justify-content-between gap-2 py-2 {% if active_topic and active_topic.id == topic.id %}topic-current{% endif %}">
-                                                        <span class="d-flex align-items-start gap-2">
-                                                            {% if topic.progress.status == 'COMPLETED' %}
-                                                                <i class="bi bi-check-circle-fill text-success mt-1" title="Completed"></i>
-                                                            {% elif topic.progress.status == 'IN_PROGRESS' %}
-                                                                <i class="bi bi-circle-half text-warning mt-1" title="In progress"></i>
-                                                            {% else %}
-                                                                <i class="bi bi-circle text-secondary mt-1" title="Not started"></i>
-                                                            {% endif %}
-                                                            <span>{{ topic.title }}</span>
-                                                        </span>
-                                                    </a>
+                                            {% if module.has_multiple_chapters %}
+                                                {% for chapter in module.get_chapters %}
+                                                    <div class="chapter-block mb-3">
+                                                        <div class="d-flex align-items-center justify-content-between px-2 py-1 mb-1 rounded text-uppercase" style="font-size: 0.72rem; font-weight: 700; letter-spacing: 0.05em; background: rgba(0,0,0,0.04); color: var(--bs-secondary, #6c757d);">
+                                                            <span class="text-truncate">
+                                                                <i class="bi bi-journal-bookmark me-1 text-primary"></i>CHP-{{ chapter.chapter_number }}{% if chapter.has_custom_title %}: {{ chapter.chapter_title }}{% endif %}
+                                                            </span>
+                                                            <span class="badge bg-secondary-subtle text-secondary ms-1">{{ chapter.completed_topics }}/{{ chapter.total_topics }}</span>
+                                                        </div>
+                                                        <div class="list-group list-group-flush ms-1">
+                                                            {% for topic in chapter.topics %}
+                                                                <a href="?topic={{ topic.slug }}"
+                                                                   class="list-group-item list-group-item-action d-flex align-items-center justify-content-between gap-2 py-1.5 px-2 rounded-1 mb-1 {% if active_topic and active_topic.id == topic.id %}topic-current{% endif %}">
+                                                                    <span class="d-flex align-items-start gap-2">
+                                                                        {% if topic.progress.status == 'COMPLETED' %}
+                                                                            <i class="bi bi-check-circle-fill text-success mt-1" title="Completed"></i>
+                                                                        {% elif topic.progress.status == 'IN_PROGRESS' %}
+                                                                            <i class="bi bi-circle-half text-warning mt-1" title="In progress"></i>
+                                                                        {% else %}
+                                                                            <i class="bi bi-circle text-secondary mt-1" title="Not started"></i>
+                                                                        {% endif %}
+                                                                        <span style="font-size: 0.88rem;">{{ topic.title }}</span>
+                                                                    </span>
+                                                                </a>
+                                                            {% endfor %}
+                                                        </div>
+                                                    </div>
                                                 {% endfor %}
-                                            </div>
+                                            {% else %}
+                                                <div class="list-group list-group-flush">
+                                                    {% for topic in module.topics.all %}
+                                                        <a href="?topic={{ topic.slug }}"
+                                                           class="list-group-item list-group-item-action d-flex align-items-center justify-content-between gap-2 py-2 {% if active_topic and active_topic.id == topic.id %}topic-current{% endif %}">
+                                                            <span class="d-flex align-items-start gap-2">
+                                                                {% if topic.progress.status == 'COMPLETED' %}
+                                                                    <i class="bi bi-check-circle-fill text-success mt-1" title="Completed"></i>
+                                                                {% elif topic.progress.status == 'IN_PROGRESS' %}
+                                                                    <i class="bi bi-circle-half text-warning mt-1" title="In progress"></i>
+                                                                {% else %}
+                                                                    <i class="bi bi-circle text-secondary mt-1" title="Not started"></i>
+                                                                {% endif %}
+                                                                <span>{{ topic.title }}</span>
+                                                            </span>
+                                                        </a>
+                                                    {% endfor %}
+                                                </div>
+                                            {% endif %}
                                         {% else %}
                                             <p class="text-secondary small mb-0 p-2">No topics in this module yet.</p>
                                         {% endif %}
@@ -126,7 +156,15 @@
     <div class="col-12 col-lg-8">
         {% if active_topic %}
             <article class="sheet p-3 p-md-4 mb-3">
-                <p class="eyebrow mb-1">Module {{ active_topic.module.module_number }} · Topic {{ active_topic.order }}</p>
+                <p class="eyebrow mb-1">
+                    Module {{ active_topic.module.module_number }}
+                    {% if active_topic.chapter_title %}
+                        · <span class="badge bg-secondary-subtle text-secondary me-1">CHP-{{ active_topic.chapter_number }}</span>{{ active_topic.chapter_title }}
+                    {% elif active_topic.module.has_multiple_chapters %}
+                        · <span class="badge bg-secondary-subtle text-secondary">CHP-{{ active_topic.chapter_number }}</span>
+                    {% endif %}
+                    · Topic {{ active_topic.order }}
+                </p>
                 <h2 class="h3 mb-2">{{ active_topic.title }}</h2>
                 <p class="text-secondary mb-4">{{ active_topic.description|default:"No description for this topic." }}</p>
 
@@ -166,6 +204,46 @@
                     {% endfor %}
                 </div>
             </article>
+
+            {% if active_topic.module.has_multiple_chapters %}
+                <div class="sheet p-3 p-md-4 mb-3">
+                    <div class="d-flex align-items-center justify-content-between mb-3">
+                        <div>
+                            <p class="eyebrow mb-1">Syllabus Breakdown</p>
+                            <h3 class="h5 mb-0 d-flex align-items-center gap-2">
+                                <i class="bi bi-diagram-3 text-primary"></i> Module {{ active_topic.module.module_number }} Chapter Architecture
+                            </h3>
+                        </div>
+                        <span class="badge bg-primary-subtle text-primary">{{ active_topic.module.get_chapters|length }} Chapters</span>
+                    </div>
+                    <div class="row g-3">
+                        {% for chp in active_topic.module.get_chapters %}
+                            <div class="col-12 col-md-6">
+                                <div class="card h-100 border {% if active_topic.chapter_number == chp.chapter_number %}border-primary shadow-sm{% else %}border-light-subtle{% endif %}" style="border-radius: 8px;">
+                                    <div class="card-header bg-body-tertiary py-2 d-flex justify-content-between align-items-center">
+                                        <span class="fw-bold" style="font-size: 0.88rem;">
+                                            <span class="badge bg-dark text-white me-1">CHP-{{ chp.chapter_number }}</span>
+                                            {{ chp.chapter_title }}
+                                        </span>
+                                        <span class="text-secondary small">{{ chp.completed_topics }}/{{ chp.total_topics }}</span>
+                                    </div>
+                                    <div class="card-body p-2">
+                                        <ol class="mb-0 ps-3 small">
+                                            {% for t in chp.topics %}
+                                                <li class="py-1">
+                                                    <a href="?topic={{ t.slug }}" class="text-decoration-none {% if t.id == active_topic.id %}fw-bold text-primary{% else %}text-secondary{% endif %}">
+                                                        {{ t.title }}
+                                                    </a>
+                                                </li>
+                                            {% endfor %}
+                                        </ol>
+                                    </div>
+                                </div>
+                            </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            {% endif %}
 
             <div class="row g-3 mb-3">
                 <div class="col-12 col-md-6">

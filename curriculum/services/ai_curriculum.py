@@ -275,6 +275,103 @@ def _extract_topics_from_text(raw: str) -> list:
     return topics[:15]
 
 
+def _extract_chapters_from_text(raw: str) -> list:
+    """
+    Parses a module's raw syllabus text into structured chapters and topics.
+    Recognizes patterns such as:
+      - 'CHP-1' or 'Chapter 1: ...'
+      - Multiple paragraphs separated by blank lines or titled headers (e.g. 'Public-Key Management:')
+    Returns a list of dicts:
+      [
+        {
+          'chapter_number': 1,
+          'chapter_title': 'Key Management Fundamentals',
+          'topics': ['Key lengths and lifetimes', 'Key generation', ...]
+        },
+        ...
+      ]
+    """
+    if not raw or not raw.strip():
+        return []
+
+    lines = [l.strip() for l in raw.strip().split("\n") if l.strip()]
+    chp_blocks = []
+    curr_num = 1
+    curr_title = ""
+    curr_lines = []
+
+    chp_header_re = re.compile(
+        r"^(?:chp|chapter|part|section)\s*[-:]?\s*(\d+|[ivx]+)\s*[:\-–—]?\s*(.*)$",
+        re.IGNORECASE
+    )
+
+    has_explicit_chp = any(chp_header_re.match(l) for l in lines)
+
+    if has_explicit_chp:
+        for line in lines:
+            m = chp_header_re.match(line)
+            if m:
+                if curr_lines or curr_title:
+                    chp_blocks.append((curr_num, curr_title, curr_lines))
+                num_str = m.group(1).lower()
+                roman = {"i": 1, "ii": 2, "iii": 3, "iv": 4, "v": 5}
+                curr_num = roman.get(num_str, int(num_str) if num_str.isdigit() else len(chp_blocks) + 1)
+                curr_title = m.group(2).strip()
+                curr_lines = []
+            else:
+                curr_lines.append(line)
+        if curr_lines or curr_title:
+            chp_blocks.append((curr_num, curr_title, curr_lines))
+    else:
+        # Check paragraphs separated by double-newlines
+        paragraphs = [p.strip() for p in raw.split("\n\n") if p.strip()]
+        if len(paragraphs) > 1:
+            for idx, p in enumerate(paragraphs, start=1):
+                p_lines = [l.strip() for l in p.split("\n") if l.strip()]
+                first_line = p_lines[0]
+                rest_lines = p_lines[1:]
+                c_title = ""
+                if ":" in first_line:
+                    parts = first_line.split(":", 1)
+                    c_title = parts[0].strip()
+                    first_line = parts[1].strip()
+                chp_blocks.append((idx, c_title, [first_line] + rest_lines))
+        else:
+            chp_blocks.append((1, "", lines))
+
+    result = []
+    for c_num, c_title, c_lines in chp_blocks:
+        body = " ".join(c_lines).strip()
+        if not c_title and body:
+            if ":" in body:
+                parts = body.split(":", 1)
+                c_title = parts[0].strip()
+                body = parts[1].strip()
+            elif "," in body:
+                parts = body.split(",", 1)
+                first_part = parts[0].strip()
+                if len(first_part.split()) <= 6:
+                    c_title = first_part
+                    body = parts[1].strip()
+
+        # Clean title
+        c_title = re.sub(r"^(?:topics?|contents?|syllabus)\s*[:\-–—]?\s*", "", c_title, flags=re.IGNORECASE).strip()
+
+        topics = []
+        for t in re.split(r"[,;]+", body):
+            clean_t = re.sub(r"^[.\s\-–—]+|[.\s\-–—]+$", "", t).strip()
+            if len(clean_t) >= 3 and not clean_t.lower().startswith("chp-"):
+                topics.append(clean_t)
+
+        result.append({
+            "chapter_number": c_num,
+            "chapter_title": c_title,
+            "topics": topics[:15]
+        })
+
+    return result
+
+
 def parse_prescribed_syllabus(raw_text: str) -> list:
     """
     Parses unstructured or semi-structured syllabus text into prescribed modules and topics.
@@ -361,6 +458,7 @@ def parse_prescribed_syllabus(raw_text: str) -> list:
     for mod in modules_found:
         raw = mod.get("raw_text", "")
         if raw:
+            mod["chapters"] = _extract_chapters_from_text(raw)
             mod["topics"] = _extract_topics_from_text(raw)
 
     modules_found.sort(key=lambda m: m["module_number"])
@@ -398,6 +496,7 @@ def get_verified_syllabus_source(course_code: str, subject_name: str) -> list | 
                                 "module_number": m["module_number"],
                                 "title": m["title"],
                                 "raw_text": m.get("description", ""),
+                                "chapters": _extract_chapters_from_text(m.get("description", "")),
                                 "topics": _extract_topics_from_text(m.get("description", ""))
                             }
                             for m in s_mods
@@ -865,8 +964,11 @@ def generate_curriculum_data(subject_name, subject_code="", syllabus_text=""):
         "Your task is to produce a complete, highly structured, 5-module curriculum in strict JSON format.\n\n"
         "Requirements:\n"
         "1. Structure must have exactly 5 Modules (Module 1 through Module 5).\n"
-        "2. Each Module must contain exactly 3 clear, focused Topics (15 topics total).\n"
+        "2. When a module syllabus is divided into chapters (e.g. Chapter 1, Chapter 2 / CHP-1, CHP-2), preserve the chapter structure:\n"
+        "   Each topic must include 'chapter_number' (integer, e.g. 1, 2) and 'chapter_title' (string, e.g. 'Key Management Fundamentals').\n"
         "3. Each Topic must include:\n"
+        "   - 'chapter_number': 1 or 2 (chapter sequence number within the module)\n"
+        "   - 'chapter_title': concise chapter title (e.g. 'Key Management Fundamentals', 'Public-Key Management')\n"
         "   - 'title': concise topic title (under 80 characters)\n"
         "   - 'description': 1 sentence explaining key conceptual objective\n"
         "   - 'keywords': exactly 3 specific, high-intent search phrases for video lectures and technical articles.\n"
@@ -882,6 +984,8 @@ def generate_curriculum_data(subject_name, subject_code="", syllabus_text=""):
         '      "description": "string",\n'
         '      "topics": [\n'
         "        {\n"
+        '          "chapter_number": 1,\n'
+        '          "chapter_title": "string",\n'
         '          "title": "string",\n'
         '          "description": "string",\n'
         '          "keywords": ["keyword 1", "keyword 2", "keyword 3"]\n'
@@ -895,10 +999,16 @@ def generate_curriculum_data(subject_name, subject_code="", syllabus_text=""):
     if prescribed_modules and len(prescribed_modules) == 5:
         module_spec_lines = []
         for m in prescribed_modules:
-            m_topics = ", ".join(m["topics"]) if m["topics"] else m.get("raw_text", "")
             spec = f"Module {m['module_number']}: {m['title']}"
-            if m_topics:
-                spec += f"\n  Prescribed Topics/Content: {m_topics}"
+            if m.get("chapters"):
+                for chp in m["chapters"]:
+                    c_title = chp.get("chapter_title") or f"Chapter {chp.get('chapter_number', 1)}"
+                    chp_topics = ", ".join(chp.get("topics", []))
+                    spec += f"\n  Chapter {chp.get('chapter_number', 1)} ({c_title}): {chp_topics}"
+            else:
+                m_topics = ", ".join(m["topics"]) if m["topics"] else m.get("raw_text", "")
+                if m_topics:
+                    spec += f"\n  Prescribed Topics/Content: {m_topics}"
             module_spec_lines.append(spec)
 
         prescribed_spec_str = "\n\n".join(module_spec_lines)
@@ -1102,10 +1212,35 @@ def persist_curriculum_records(
                         description=mod_desc
                     )
 
-                    topics_data = m_data.get("topics", [])
+                    raw_chapters = m_data.get("chapters", [])
+                    if raw_chapters and not m_data.get("topics"):
+                        unwrapped_topics = []
+                        for chp_idx, chp in enumerate(raw_chapters, start=1):
+                            c_num = chp.get("chapter_number", chp_idx)
+                            c_title = chp.get("title") or chp.get("chapter_title") or f"Chapter {c_num}"
+                            for t in chp.get("topics", []):
+                                if isinstance(t, dict):
+                                    t_dict = dict(t)
+                                    t_dict.setdefault("chapter_number", c_num)
+                                    t_dict.setdefault("chapter_title", c_title)
+                                    unwrapped_topics.append(t_dict)
+                                elif isinstance(t, str):
+                                    unwrapped_topics.append({
+                                        "title": t,
+                                        "chapter_number": c_num,
+                                        "chapter_title": c_title,
+                                        "description": f"Core concepts and study resources for {t}.",
+                                        "keywords": [t]
+                                    })
+                        topics_data = unwrapped_topics
+                    else:
+                        topics_data = m_data.get("topics", [])
+
                     for t_idx, t_data in enumerate(topics_data, start=1):
                         t_title = t_data.get("title") or f"Topic {t_idx}"
                         t_desc = t_data.get("description", "")
+                        t_chp_num = t_data.get("chapter_number") or 1
+                        t_chp_title = (t_data.get("chapter_title") or "").strip()
 
                         base_t_slug = slugify(t_title) or f"topic-{t_idx}"
                         t_slug = base_t_slug
@@ -1116,6 +1251,8 @@ def persist_curriculum_records(
 
                         topic = Topic.objects.create(
                             module=module,
+                            chapter_number=t_chp_num,
+                            chapter_title=t_chp_title[:150],
                             title=t_title[:200],
                             slug=t_slug[:220],
                             order=t_idx,
