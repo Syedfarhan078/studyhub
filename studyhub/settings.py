@@ -170,7 +170,14 @@ if CLOUDINARY_CLOUD_NAME:
         'API_SECRET': CLOUDINARY_API_SECRET,
     }
 
-# Google Gemini API Configuration (for AI curriculum generation)
+# Groq AI API Configuration (Primary Engine: openai/gpt-oss-120b)
+GROQ_API_KEY = config('GROQ_API_KEY', default=None)
+GROQ_MODEL = config('GROQ_MODEL', default=config('GROQ_PRIMARY_MODEL', default='openai/gpt-oss-120b'))
+GROQ_FALLBACK_MODEL = config('GROQ_FALLBACK_MODEL', default='openai/gpt-oss-20b')
+GROQ_REQUEST_TIMEOUT = config('GROQ_REQUEST_TIMEOUT', default=30, cast=int)
+GROQ_MAX_RETRIES = config('GROQ_MAX_RETRIES', default=3, cast=int)
+
+# Google Gemini API Configuration (Legacy/Fallback)
 GEMINI_API_KEY = config('GEMINI_API_KEY', default=None)
 
 # PostgreSQL Background Worker Configuration

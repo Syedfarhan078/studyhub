@@ -10,12 +10,20 @@ from .forms import ModuleNoteForm
 from .services.ai_curriculum import (
     generate_curriculum_from_prompt,
     CurriculumGenerationError,
+    AIAuthError,
+    AIPermissionError,
+    AIModelNotFoundError,
+    AIRateLimitError,
+    AIServerError,
+    AINetworkError,
+    AITransientError,
+    AIInvalidRequestError,
+    CurriculumParseError,
+    CurriculumValidationError,
     GeminiTransientError,
     GeminiAuthError,
     GeminiInvalidRequestError,
     GeminiModelNotFoundError,
-    CurriculumParseError,
-    CurriculumValidationError,
 )
 from curriculum.worker import notify_new_job, is_worker_accepting_jobs
 
@@ -139,27 +147,45 @@ def generate_subject_ai(request):
                 f"Syllabus for '{subject.name}' ({subject.code}) generated successfully with {subject.modules.count()} modules!"
             )
             return redirect('curriculum:subject_detail', slug=subject.slug)
-        except GeminiTransientError as e:
-            logger.warning("Transient error generating curriculum for '%s': %s", subject_name, e)
-            messages.error(
-                request,
-                "The AI curriculum service is temporarily experiencing high server demand. Please wait a few moments and try again."
-            )
-        except GeminiAuthError as e:
+        except AIAuthError as e:
             logger.error("Authentication error generating curriculum for '%s': %s", subject_name, e)
             messages.error(
                 request,
                 "AI service authentication error. Please verify that your GROQ_API_KEY is configured correctly."
             )
-        except GeminiInvalidRequestError as e:
-            logger.error("Invalid request generating curriculum for '%s': %s", subject_name, e)
-            messages.error(request, f"Unable to process curriculum request: {e}")
-        except GeminiModelNotFoundError as e:
+        except AIPermissionError as e:
+            logger.error("Permission error generating curriculum for '%s': %s", subject_name, e)
+            messages.error(
+                request,
+                "AI service permission denied. Please verify your Groq account access and permissions."
+            )
+        except AIModelNotFoundError as e:
             logger.error("Model not found generating curriculum for '%s': %s", subject_name, e)
             messages.error(
                 request,
-                "The configured Groq AI model is not available. Please verify your model settings (default: llama-3.3-70b-versatile)."
+                "The configured Groq AI model is not available. Please verify your model settings (default: openai/gpt-oss-120b)."
             )
+        except AIRateLimitError as e:
+            logger.warning("Rate limit exceeded generating curriculum for '%s': %s", subject_name, e)
+            messages.error(
+                request,
+                "Groq API rate limit reached. Please wait a moment before trying again."
+            )
+        except AINetworkError as e:
+            logger.error("Network error generating curriculum for '%s': %s", subject_name, e)
+            messages.error(
+                request,
+                "Network error communicating with Groq API. Please check your network connection and try again."
+            )
+        except (AIServerError, AITransientError) as e:
+            logger.warning("Transient error generating curriculum for '%s': %s", subject_name, e)
+            messages.error(
+                request,
+                "The AI curriculum service is temporarily experiencing high server demand. Please wait a few moments and try again."
+            )
+        except AIInvalidRequestError as e:
+            logger.error("Invalid request generating curriculum for '%s': %s", subject_name, e)
+            messages.error(request, f"Unable to process curriculum request: {e}")
         except CurriculumValidationError as ve:
             logger.warning("Curriculum validation error for '%s': %s", subject_name, ve)
             messages.error(

@@ -8,6 +8,7 @@ from email.utils import parsedate_to_datetime
 from pathlib import Path
 
 import requests
+from django.conf import settings
 from django.db import transaction
 from django.utils import timezone as dj_timezone
 from django.utils.text import slugify
@@ -34,11 +35,31 @@ class GeminiTransientError(CurriculumGenerationError):
 AITransientError = GeminiTransientError
 
 
+class AIRateLimitError(AITransientError):
+    """Raised when Groq API rate limit (HTTP 429) is exceeded after retries."""
+    pass
+
+
+class AIServerError(AITransientError):
+    """Raised when Groq returns 5xx server errors after retries."""
+    pass
+
+
+class AINetworkError(CurriculumGenerationError):
+    """Raised when network, connection reset, or timeout errors occur contacting Groq."""
+    pass
+
+
 class GeminiAuthError(CurriculumGenerationError):
     """Raised for authentication or permission errors (HTTP 401, 403)."""
     pass
 
 AIAuthError = GeminiAuthError
+
+
+class AIPermissionError(AIAuthError):
+    """Raised when Groq API returns HTTP 403 (model permission or account tier restriction)."""
+    pass
 
 
 class GeminiInvalidRequestError(CurriculumGenerationError):
@@ -49,7 +70,7 @@ AIInvalidRequestError = GeminiInvalidRequestError
 
 
 class GeminiModelNotFoundError(CurriculumGenerationError):
-    """Raised when the requested model is not found (HTTP 404)."""
+    """Raised when the requested model is not found or decommissioned (HTTP 404 / 400)."""
     pass
 
 AIModelNotFoundError = GeminiModelNotFoundError
@@ -112,19 +133,32 @@ def sanitize_error_message(response_or_text) -> str:
 
 def normalize_groq_model_name(model_name: str) -> str:
     """
-    Normalizes common shorthand Groq model names to official production identifiers
-    to prevent HTTP 404 Model Not Found errors.
+    Normalizes shorthand Groq model names to official production identifiers.
+    Automatically redirects decommissioned models (such as llama-3.3-70b-versatile)
+    to the active production model 'openai/gpt-oss-120b'.
     """
     if not model_name:
-        return "llama-3.3-70b-versatile"
+        return "openai/gpt-oss-120b"
     name = model_name.strip()
     clean = name.lower().replace("_", "-")
 
-    if clean in ("llama-3.3-70b", "llama3.3-70b", "llama-70b", "llama3-70b", "llama-3.3-70b-instruct"):
-        return "llama-3.3-70b-versatile"
-    if clean in ("llama-3.1-8b", "llama3.1-8b", "llama-8b", "llama3-8b", "llama-3.1-8b-instruct"):
+    # Flagship OpenAI GPT-OSS on Groq
+    if clean in ("openai/gpt-oss-120b", "gpt-oss-120b", "openai-gpt-oss-120b", "gpt-oss", "oss-120b", "120b", "openai/gpt-oss"):
+        return "openai/gpt-oss-120b"
+    if clean in ("openai/gpt-oss-20b", "gpt-oss-20b", "openai-gpt-oss-20b", "oss-20b", "20b"):
+        return "openai/gpt-oss-20b"
+
+    # Automatically migrate decommissioned Llama 3.3 70B model to supported production model
+    if clean in ("llama-3.3-70b-versatile", "llama-3.3-70b", "llama3.3-70b", "llama-70b", "llama3-70b", "llama-3.3-70b-instruct"):
+        logger.warning(
+            "Deprecated Groq model '%s' requested (decommissioned August 2026); migrating to 'openai/gpt-oss-120b'.",
+            name
+        )
+        return "openai/gpt-oss-120b"
+
+    if clean in ("llama-3.1-8b", "llama3.1-8b", "llama-8b", "llama3-8b", "llama-3.1-8b-instant", "llama-3.1-8b-instruct"):
         return "llama-3.1-8b-instant"
-    if clean in ("mixtral", "mixtral-8x7b", "mixtral-8x7b-instruct"):
+    if clean in ("mixtral", "mixtral-8x7b", "mixtral-8x7b-instruct", "mixtral-8x7b-32768"):
         return "mixtral-8x7b-32768"
 
     return name
@@ -137,8 +171,24 @@ def resolve_ai_provider() -> tuple[str, str]:
     Returns (provider_name, api_key), where provider_name is 'groq' or 'gemini'.
     Raises AIAuthError if no configured key is found.
     """
-    raw_groq = config('GROQ_API_KEY', default='').strip().strip('\'"')
-    raw_gemini = config('GEMINI_API_KEY', default='').strip().strip('\'"')
+    raw_groq = (
+        getattr(settings, 'GROQ_API_KEY', None)
+        or config('GROQ_API_KEY', default='')
+    )
+    if isinstance(raw_groq, str):
+        raw_groq = raw_groq.strip().strip('\'"')
+    else:
+        raw_groq = ''
+
+    raw_gemini = (
+        getattr(settings, 'GEMINI_API_KEY', None)
+        or config('GEMINI_API_KEY', default='')
+    )
+    if isinstance(raw_gemini, str):
+        raw_gemini = raw_gemini.strip().strip('\'"')
+    else:
+        raw_gemini = ''
+
     provider_pref = config('AI_PROVIDER', default='auto').strip().lower()
 
     if provider_pref == 'gemini' and raw_gemini:
@@ -153,7 +203,7 @@ def resolve_ai_provider() -> tuple[str, str]:
 
     raise AIAuthError(
         "GROQ_API_KEY is not configured in your environment. "
-        "Please add GROQ_API_KEY to your .env file or Render environment variables."
+        "Please add GROQ_API_KEY to your .env file or production environment variables."
     )
 
 
@@ -291,6 +341,106 @@ def resolve_active_gemini_endpoint(api_key: str) -> str:
     """Backwards-compatible endpoint resolver for existing callers."""
     primary, _ = resolve_configured_models(api_key)
     return f"https://generativelanguage.googleapis.com/v1beta/models/{primary}:generateContent"
+
+
+def resolve_groq_models(api_key: str) -> tuple[str, str]:
+    """
+    Determines primary and fallback Groq models.
+    Prioritizes centralized configuration:
+      settings.GROQ_MODEL / GROQ_MODEL / GROQ_PRIMARY_MODEL (default: 'openai/gpt-oss-120b')
+      settings.GROQ_FALLBACK_MODEL / GROQ_FALLBACK_MODEL (default: 'openai/gpt-oss-20b')
+    If not explicitly specified, optionally queries Groq's /models endpoint to discover
+    active production models for this account.
+    Returns (primary_model, fallback_model).
+    """
+    configured_primary = config(
+        'GROQ_MODEL',
+        default=config('GROQ_PRIMARY_MODEL', default=getattr(settings, 'GROQ_MODEL', 'openai/gpt-oss-120b'))
+    )
+    raw_primary = str(configured_primary).strip() if configured_primary else 'openai/gpt-oss-120b'
+
+    configured_fallback = config(
+        'GROQ_FALLBACK_MODEL',
+        default=getattr(settings, 'GROQ_FALLBACK_MODEL', 'openai/gpt-oss-20b')
+    )
+    raw_fallback = str(configured_fallback).strip() if configured_fallback else 'openai/gpt-oss-20b'
+
+    primary_model = normalize_groq_model_name(raw_primary)
+    fallback_model = normalize_groq_model_name(raw_fallback)
+
+    if primary_model and fallback_model and primary_model != fallback_model:
+        logger.info(
+            "Using configured Groq models - Primary: '%s', Fallback: '%s'",
+            primary_model, fallback_model
+        )
+        return primary_model, fallback_model
+
+    discovered = []
+    if api_key:
+        list_url = "https://api.groq.com/openai/v1/models"
+        headers = {
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json",
+        }
+        try:
+            res = requests.get(list_url, headers=headers, timeout=10)
+            if res.status_code == 200:
+                models_data = res.json().get("data", [])
+                supported = [
+                    m["id"]
+                    for m in models_data
+                    if m.get("active", True)
+                    and not any(disallowed in m.get("id", "").lower() for disallowed in ("whisper", "tts", "embedding", "audio"))
+                ]
+                discovered = supported
+                logger.info("Discovered %d active Groq models for this account.", len(discovered))
+            elif res.status_code in (401, 403):
+                err_msg = sanitize_error_message(res)
+                logger.error("Groq ListModels authentication failed (%s): %s", res.status_code, err_msg)
+                raise AIAuthError(f"Groq API key authentication failed ({res.status_code}): {err_msg}")
+            else:
+                logger.warning("Groq ListModels returned status %s: %s", res.status_code, sanitize_error_message(res))
+        except AIAuthError:
+            raise
+        except requests.RequestException as e:
+            logger.warning("Groq ListModels request failed (%s). Using verified model defaults.", type(e).__name__)
+
+    groq_priority_order = (
+        "openai/gpt-oss-120b",
+        "openai/gpt-oss-20b",
+        "llama-3.1-8b-instant",
+        "qwen-2.5-32b",
+        "deepseek-r1-distill-llama-70b",
+        "gemma2-9b-it",
+    )
+
+    if not primary_model:
+        if discovered:
+            for pref in groq_priority_order:
+                match = next((m for m in discovered if pref in m.lower()), None)
+                if match:
+                    primary_model = match
+                    break
+            if not primary_model:
+                primary_model = discovered[0]
+        else:
+            primary_model = "openai/gpt-oss-120b"
+
+    if not fallback_model or fallback_model == primary_model:
+        if discovered:
+            for pref in groq_priority_order:
+                match = next((m for m in discovered if pref in m.lower() and m != primary_model), None)
+                if match:
+                    fallback_model = match
+                    break
+        if not fallback_model or fallback_model == primary_model:
+            if primary_model == "openai/gpt-oss-120b":
+                fallback_model = "openai/gpt-oss-20b"
+            else:
+                fallback_model = "llama-3.1-8b-instant"
+
+    logger.info("Active Groq models resolved - Primary: '%s', Fallback: '%s'", primary_model, fallback_model)
+    return primary_model, fallback_model
 
 
 # =====================================================================
@@ -939,7 +1089,11 @@ def _send_groq_request_with_retries(
     Sends chat completion request to Groq API with bounded exponential backoff for transient errors.
     Returns (response, None) on HTTP 200.
     Returns (None, last_error_message) if max retries exhausted for transient errors.
-    Raises non-retryable exceptions immediately (AIAuthError, AIInvalidRequestError, AIModelNotFoundError).
+    Raises non-retryable exceptions immediately:
+      - AIAuthError on 401
+      - AIPermissionError on 403
+      - AIModelNotFoundError on 404 or decommissioned model 400
+      - AIInvalidRequestError on 400
     """
     url = "https://api.groq.com/openai/v1/chat/completions"
     headers = {
@@ -981,38 +1135,54 @@ def _send_groq_request_with_retries(
 
             err_msg = sanitize_error_message(res)
 
-            # Non-retryable errors: 401, 403, 400, 404
-            if res.status_code in (401, 403):
+            # Authentication error: 401
+            if res.status_code == 401:
                 logger.error(
-                    "Non-retryable authentication error HTTP %d from Groq %s model '%s': %s",
-                    res.status_code, role_label, model_name, err_msg
+                    "Non-retryable authentication error HTTP 401 from Groq %s model '%s': %s",
+                    role_label, model_name, err_msg
                 )
                 raise AIAuthError(
-                    f"Groq API authentication failed ({res.status_code}): {err_msg}"
+                    f"Groq API authentication failed (Status 401): {err_msg}"
                 )
 
-            if res.status_code == 400:
+            # Permission error: 403
+            if res.status_code == 403:
                 logger.error(
-                    "Non-retryable malformed request HTTP %d from Groq %s model '%s': %s",
-                    res.status_code, role_label, model_name, err_msg
+                    "Non-retryable permission error HTTP 403 from Groq %s model '%s': %s",
+                    role_label, model_name, err_msg
                 )
-                raise AIInvalidRequestError(
-                    f"Groq API rejected request as invalid (Status 400): {err_msg}"
+                raise AIPermissionError(
+                    f"Groq API access forbidden (Status 403) for model '{model_name}': {err_msg}"
                 )
 
+            # Model not found: 404
             if res.status_code == 404:
                 logger.error(
-                    "Non-retryable invalid model HTTP %d from Groq %s model '%s': %s",
-                    res.status_code, role_label, model_name, err_msg
+                    "Non-retryable invalid model HTTP 404 from Groq %s model '%s': %s",
+                    role_label, model_name, err_msg
                 )
                 raise AIModelNotFoundError(
                     f"Groq model '{model_name}' not found (Status 404): {err_msg}"
                 )
 
-            # Transient errors: 429 (Rate Limit), 500, 502, 503, 504
-            if res.status_code in (429, 500, 502, 503, 504):
+            # Bad Request: 400 (Check if decommissioned or invalid model)
+            if res.status_code == 400:
+                logger.error(
+                    "Non-retryable HTTP 400 from Groq %s model '%s': %s",
+                    role_label, model_name, err_msg
+                )
+                if any(w in err_msg.lower() for w in ("model", "decommissioned", "not found", "does not exist", "unsupported")):
+                    raise AIModelNotFoundError(
+                        f"Groq model '{model_name}' is unavailable or decommissioned (Status 400): {err_msg}"
+                    )
+                raise AIInvalidRequestError(
+                    f"Groq API rejected request as invalid (Status 400): {err_msg}"
+                )
+
+            # Rate limit error: 429
+            if res.status_code == 429:
                 retry_after_hdr = res.headers.get("Retry-After")
-                last_transient_error = f"HTTP {res.status_code}: {err_msg}"
+                last_transient_error = f"Rate limit reached (HTTP 429): {err_msg}"
 
                 if attempt < max_retries:
                     delay = calculate_backoff_delay(
@@ -1022,16 +1192,43 @@ def _send_groq_request_with_retries(
                         max_delay=max_delay
                     )
                     logger.warning(
-                        "Transient HTTP %d from Groq %s model '%s' (attempt %d/%d). "
+                        "Rate limit HTTP 429 from Groq %s model '%s' (attempt %d/%d). "
                         "Retrying in %.2fs (Retry-After: %s). Message: %s",
-                        res.status_code, role_label, model_name, attempt_num, total_attempts,
+                        role_label, model_name, attempt_num, total_attempts,
                         delay, retry_after_hdr or "None", err_msg
                     )
                     time.sleep(delay)
                     continue
                 else:
                     logger.warning(
-                        "Groq %s model '%s' exhausted all %d retries with transient error: %s",
+                        "Groq %s model '%s' exhausted all %d retries on rate limit (HTTP 429): %s",
+                        role_label, model_name, max_retries, last_transient_error
+                    )
+                    return None, last_transient_error
+
+            # Server errors: 500, 502, 503, 504
+            if res.status_code in (500, 502, 503, 504):
+                retry_after_hdr = res.headers.get("Retry-After")
+                last_transient_error = f"Server error (HTTP {res.status_code}): {err_msg}"
+
+                if attempt < max_retries:
+                    delay = calculate_backoff_delay(
+                        attempt=attempt_num,
+                        retry_after_header=retry_after_hdr,
+                        base_delay=base_delay,
+                        max_delay=max_delay
+                    )
+                    logger.warning(
+                        "Server error HTTP %d from Groq %s model '%s' (attempt %d/%d). "
+                        "Retrying in %.2fs. Message: %s",
+                        res.status_code, role_label, model_name, attempt_num, total_attempts,
+                        delay, err_msg
+                    )
+                    time.sleep(delay)
+                    continue
+                else:
+                    logger.warning(
+                        "Groq %s model '%s' exhausted all %d retries with server error: %s",
                         role_label, model_name, max_retries, last_transient_error
                     )
                     return None, last_transient_error
@@ -1044,13 +1241,30 @@ def _send_groq_request_with_retries(
                 f"Groq API returned unexpected status {res.status_code}: {err_msg}"
             )
 
-        except (AIAuthError, AIInvalidRequestError, AIModelNotFoundError, CurriculumGenerationError):
+        except (AIAuthError, AIPermissionError, AIInvalidRequestError, AIModelNotFoundError, CurriculumGenerationError):
             raise
         except requests.exceptions.Timeout as timeout_err:
-            last_transient_error = f"Network Timeout: {sanitize_error_message(timeout_err)}"
+            last_transient_error = f"Network Timeout ({request_timeout}s): {sanitize_error_message(timeout_err)}"
             logger.warning(
-                "Timeout (%ds) calling Groq %s model '%s' (attempt %d/%d): %s",
-                request_timeout, role_label, model_name, attempt_num, total_attempts, last_transient_error
+                "Timeout calling Groq %s model '%s' (attempt %d/%d): %s",
+                role_label, model_name, attempt_num, total_attempts, last_transient_error
+            )
+            if attempt < min(max_retries, 1):
+                delay = calculate_backoff_delay(
+                    attempt=attempt_num,
+                    retry_after_header=None,
+                    base_delay=base_delay,
+                    max_delay=max_delay
+                )
+                time.sleep(delay)
+                continue
+            else:
+                return None, last_transient_error
+        except requests.exceptions.ConnectionError as conn_err:
+            last_transient_error = f"Network ConnectionError: {sanitize_error_message(conn_err)}"
+            logger.warning(
+                "Connection error calling Groq %s model '%s' (attempt %d/%d): %s",
+                role_label, model_name, attempt_num, total_attempts, last_transient_error
             )
             if attempt < min(max_retries, 1):
                 delay = calculate_backoff_delay(
@@ -1084,8 +1298,8 @@ def execute_groq_generation(
     system_instructions: str,
     user_prompt: str,
     api_key: str,
-    primary_model: str = "llama-3.3-70b-versatile",
-    fallback_model: str = "llama-3.1-8b-instant",
+    primary_model: str = "openai/gpt-oss-120b",
+    fallback_model: str = "openai/gpt-oss-20b",
     max_retries: int = 3,
     base_delay: float = 1.0,
     max_delay: float = 8.0,
@@ -1093,7 +1307,7 @@ def execute_groq_generation(
 ):
     """
     Executes curriculum generation via Groq API with primary model retries,
-    switching to fallback model if primary exhausts retries or returns model not found (404).
+    switching to fallback model if primary exhausts retries or returns model not found (404/400).
     """
     last_err = ""
     try:
@@ -1138,11 +1352,11 @@ def execute_groq_generation(
         except AIModelNotFoundError as f_err:
             last_err = f"Primary ({primary_model}): {last_err}; Fallback ({fallback_model}): {f_err}"
 
-    # Try universal safe Groq models
-    for safe_model in ("llama-3.3-70b-versatile", "llama-3.1-8b-instant", "mixtral-8x7b-32768"):
+    # Try universal safe production Groq models if both primary and fallback failed
+    for safe_model in ("openai/gpt-oss-120b", "openai/gpt-oss-20b", "llama-3.1-8b-instant"):
         if safe_model not in (primary_model, fallback_model):
             try:
-                logger.info("Attempting safe Groq model '%s'...", safe_model)
+                logger.info("Attempting safe Groq production model '%s'...", safe_model)
                 res, _ = _send_groq_request_with_retries(
                     model_name=safe_model,
                     system_instructions=system_instructions,
@@ -1160,9 +1374,21 @@ def execute_groq_generation(
                 pass
 
     logger.error("Curriculum generation failed: All eligible retries exhausted on Groq. %s", last_err)
-    if "not found" in last_err.lower():
+    if any(w in last_err.lower() for w in ("not found", "decommissioned", "does not exist", "unsupported", "404")):
         raise AIModelNotFoundError(
-            f"The configured AI model is not available: {last_err}. Please verify your Groq model configuration."
+            f"The configured Groq AI model is not available: {last_err}. Please verify your model settings (default: openai/gpt-oss-120b)."
+        )
+    if any(w in last_err.lower() for w in ("rate limit", "429")):
+        raise AIRateLimitError(
+            f"Groq API rate limit reached: {last_err}. Please wait a moment before trying again."
+        )
+    if any(w in last_err.lower() for w in ("timeout", "connectionerror", "network")):
+        raise AINetworkError(
+            f"Network error communicating with Groq API: {last_err}. Please check network connection and try again."
+        )
+    if any(c in last_err for c in ("500", "502", "503", "504")):
+        raise AIServerError(
+            f"Groq API server error ({last_err}). Please try again in a few moments."
         )
     raise AITransientError(
         f"The AI curriculum service is temporarily unavailable due to high demand. "
@@ -1371,14 +1597,11 @@ def generate_curriculum_data(subject_name, subject_code="", syllabus_text=""):
         )
 
     if provider == 'groq':
-        raw_primary = config('GROQ_PRIMARY_MODEL', default=config('GROQ_MODEL', default=config('AI_MODEL', default='llama-3.3-70b-versatile'))).strip()
-        groq_primary = normalize_groq_model_name(raw_primary)
-        raw_fallback = config('GROQ_FALLBACK_MODEL', default='llama-3.1-8b-instant').strip()
-        groq_fallback = normalize_groq_model_name(raw_fallback)
-        max_retries = config('GROQ_MAX_RETRIES', default=config('GEMINI_MAX_RETRIES', default=3, cast=int), cast=int)
-        base_delay = config('GROQ_BACKOFF_BASE', default=config('GEMINI_BACKOFF_BASE', default=1.0, cast=float), cast=float)
-        max_delay = config('GROQ_BACKOFF_MAX', default=config('GEMINI_BACKOFF_MAX', default=8.0, cast=float), cast=float)
-        request_timeout = config('GROQ_REQUEST_TIMEOUT', default=config('GEMINI_REQUEST_TIMEOUT', default=30, cast=int), cast=int)
+        groq_primary, groq_fallback = resolve_groq_models(api_key)
+        max_retries = config('GROQ_MAX_RETRIES', default=getattr(settings, 'GROQ_MAX_RETRIES', 3), cast=int)
+        base_delay = config('GROQ_BACKOFF_BASE', default=1.0, cast=float)
+        max_delay = config('GROQ_BACKOFF_MAX', default=8.0, cast=float)
+        request_timeout = config('GROQ_REQUEST_TIMEOUT', default=getattr(settings, 'GROQ_REQUEST_TIMEOUT', 30), cast=int)
 
         response, active_model = execute_groq_generation(
             system_instructions=system_instructions,

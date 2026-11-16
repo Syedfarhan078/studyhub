@@ -24,13 +24,21 @@ from curriculum.services.ai_curriculum import (
     GeminiModelNotFoundError,
     GeminiTransientError,
     AIAuthError,
+    AIPermissionError,
+    AIModelNotFoundError,
+    AIRateLimitError,
+    AIServerError,
+    AINetworkError,
     AITransientError,
+    AIInvalidRequestError,
     calculate_backoff_delay,
     generate_curriculum_from_prompt,
     parse_prescribed_syllabus,
     _extract_chapters_from_text,
     resolve_configured_models,
     resolve_ai_provider,
+    resolve_groq_models,
+    normalize_groq_model_name,
     sanitize_error_message,
 )
 from curriculum.worker import (
@@ -74,7 +82,7 @@ def make_mock_groq_json_response(data_dict, status_code=200, headers=None):
         "id": "chatcmpl-test-groq",
         "object": "chat.completion",
         "created": 1700000000,
-        "model": "llama-3.3-70b-versatile",
+        "model": "openai/gpt-oss-120b",
         "choices": [
             {
                 "index": 0,
@@ -2016,7 +2024,7 @@ class GroqIntegrationTests(TestCase):
 
     @patch('curriculum.services.ai_curriculum.requests.post')
     def test_groq_successful_generation(self, mock_post):
-        """Tests end-to-end curriculum generation using Groq API and Llama 3.3 70B."""
+        """Tests end-to-end curriculum generation using Groq API and openai/gpt-oss-120b."""
         mock_post.return_value = make_mock_groq_json_response(SAMPLE_CURRICULUM_DATA, status_code=200)
 
         def mock_config(key, default='', **kwargs):
@@ -2024,16 +2032,16 @@ class GroqIntegrationTests(TestCase):
                 return 'gsk_mock_valid_key_12345'
             if key == 'AI_PROVIDER':
                 return 'groq'
-            if key == 'GROQ_PRIMARY_MODEL':
-                return 'llama-3.3-70b-versatile'
+            if key in ('GROQ_MODEL', 'GROQ_PRIMARY_MODEL'):
+                return 'openai/gpt-oss-120b'
             if key == 'GROQ_FALLBACK_MODEL':
-                return 'llama-3.1-8b-instant'
+                return 'openai/gpt-oss-20b'
             return default
 
         with patch('curriculum.services.ai_curriculum.config', side_effect=mock_config):
             result = generate_curriculum_data("Machine Learning", "CS702")
 
-            self.assertEqual(result["active_model"], "llama-3.3-70b-versatile")
+            self.assertEqual(result["active_model"], "openai/gpt-oss-120b")
             self.assertEqual(len(result["data"]["modules"]), 5)
             self.assertEqual(result["clean_name"], "Machine Learning")
 
@@ -2043,6 +2051,17 @@ class GroqIntegrationTests(TestCase):
             self.assertEqual(call_url, "https://api.groq.com/openai/v1/chat/completions")
             call_headers = mock_post.call_args[1]["headers"]
             self.assertEqual(call_headers["Authorization"], "Bearer gsk_mock_valid_key_12345")
+            call_payload = mock_post.call_args[1]["json"]
+            self.assertEqual(call_payload["model"], "openai/gpt-oss-120b")
+
+    def test_groq_decommissioned_model_auto_redirect(self):
+        """Tests that decommissioned llama-3.3-70b-versatile is automatically upgraded to openai/gpt-oss-120b."""
+        normalized = normalize_groq_model_name("llama-3.3-70b-versatile")
+        self.assertEqual(normalized, "openai/gpt-oss-120b")
+        normalized_shorthand = normalize_groq_model_name("llama-3.3-70b")
+        self.assertEqual(normalized_shorthand, "openai/gpt-oss-120b")
+        default_model = normalize_groq_model_name("")
+        self.assertEqual(default_model, "openai/gpt-oss-120b")
 
     @patch('curriculum.services.ai_curriculum.requests.post')
     def test_groq_authentication_failure(self, mock_post):
@@ -2057,6 +2076,10 @@ class GroqIntegrationTests(TestCase):
                 return 'gsk_bad_key'
             if key == 'AI_PROVIDER':
                 return 'groq'
+            if key in ('GROQ_MODEL', 'GROQ_PRIMARY_MODEL'):
+                return 'openai/gpt-oss-120b'
+            if key == 'GROQ_FALLBACK_MODEL':
+                return 'openai/gpt-oss-20b'
             return default
 
         with patch('curriculum.services.ai_curriculum.config', side_effect=mock_config):
@@ -2064,6 +2087,47 @@ class GroqIntegrationTests(TestCase):
                 generate_curriculum_data("Machine Learning", "CS702")
             # Should fail fast without retry loops
             self.assertEqual(mock_post.call_count, 1)
+
+    @patch('curriculum.services.ai_curriculum.requests.post')
+    def test_groq_permission_failure_403(self, mock_post):
+        """Tests that HTTP 403 from Groq raises AIPermissionError."""
+        err_res = requests.Response()
+        err_res.status_code = 403
+        err_res._content = json.dumps({"error": {"message": "Model access restricted for this tier"}}).encode("utf-8")
+        mock_post.return_value = err_res
+
+        def mock_config(key, default='', **kwargs):
+            if key == 'GROQ_API_KEY':
+                return 'gsk_restricted_key'
+            if key == 'AI_PROVIDER':
+                return 'groq'
+            if key in ('GROQ_MODEL', 'GROQ_PRIMARY_MODEL'):
+                return 'openai/gpt-oss-120b'
+            return default
+
+        with patch('curriculum.services.ai_curriculum.config', side_effect=mock_config):
+            with self.assertRaises(AIPermissionError):
+                generate_curriculum_data("Machine Learning", "CS702")
+            self.assertEqual(mock_post.call_count, 1)
+
+    @patch('curriculum.services.ai_curriculum.requests.get')
+    def test_groq_list_models_auth_failure(self, mock_get):
+        """Tests that HTTP 401 from Groq ListModels immediately raises AIAuthError."""
+        err_res = requests.Response()
+        err_res.status_code = 401
+        err_res._content = json.dumps({"error": {"message": "Invalid API Key"}}).encode("utf-8")
+        mock_get.return_value = err_res
+
+        def mock_config(key, default='', **kwargs):
+            if key == 'GROQ_API_KEY':
+                return 'gsk_bad_key'
+            if key == 'AI_PROVIDER':
+                return 'groq'
+            return default
+
+        with patch('curriculum.services.ai_curriculum.config', side_effect=mock_config):
+            with self.assertRaises(AIAuthError):
+                generate_curriculum_data("Machine Learning", "CS702")
 
     @patch('curriculum.services.ai_curriculum.time.sleep')
     @patch('curriculum.services.ai_curriculum.requests.post')
@@ -2085,15 +2149,15 @@ class GroqIntegrationTests(TestCase):
                 return 'groq'
             if key in ('GROQ_MAX_RETRIES', 'GEMINI_MAX_RETRIES'):
                 return 1
-            if key == 'GROQ_PRIMARY_MODEL':
-                return 'llama-3.3-70b-versatile'
+            if key in ('GROQ_MODEL', 'GROQ_PRIMARY_MODEL'):
+                return 'openai/gpt-oss-120b'
             if key == 'GROQ_FALLBACK_MODEL':
-                return 'llama-3.1-8b-instant'
+                return 'openai/gpt-oss-20b'
             return default
 
         with patch('curriculum.services.ai_curriculum.config', side_effect=mock_config):
             result = generate_curriculum_data("Machine Learning", "CS702")
-            self.assertEqual(result["active_model"], "llama-3.1-8b-instant")
+            self.assertEqual(result["active_model"], "openai/gpt-oss-20b")
             self.assertEqual(len(result["data"]["modules"]), 5)
 
     @patch('curriculum.services.ai_curriculum.requests.post')
@@ -2113,16 +2177,44 @@ class GroqIntegrationTests(TestCase):
                 return 'gsk_mock_valid_key'
             if key == 'AI_PROVIDER':
                 return 'groq'
-            if key == 'GROQ_PRIMARY_MODEL':
+            if key in ('GROQ_MODEL', 'GROQ_PRIMARY_MODEL'):
                 return 'non-existent-primary'
             if key == 'GROQ_FALLBACK_MODEL':
-                return 'llama-3.1-8b-instant'
+                return 'openai/gpt-oss-20b'
             return default
 
         with patch('curriculum.services.ai_curriculum.config', side_effect=mock_config):
             result = generate_curriculum_data("Machine Learning", "CS702")
-            self.assertEqual(result["active_model"], "llama-3.1-8b-instant")
+            self.assertEqual(result["active_model"], "openai/gpt-oss-20b")
             self.assertEqual(len(result["data"]["modules"]), 5)
+
+    @patch('curriculum.services.ai_curriculum.requests.post')
+    def test_minimal_openai_gpt_oss_120b_chat_completion(self, mock_post):
+        """Minimal test verifying openai/gpt-oss-120b request payload structure and response processing."""
+        mock_post.return_value = make_mock_groq_json_response(
+            {"response": "Python is a high-level programming language known for readability. It supports multiple paradigms."},
+            status_code=200
+        )
+        def mock_config(key, default='', **kwargs):
+            if key == 'GROQ_API_KEY':
+                return 'gsk_test_key_123'
+            if key in ('GROQ_MODEL', 'GROQ_PRIMARY_MODEL'):
+                return 'openai/gpt-oss-120b'
+            return default
+
+        with patch('curriculum.services.ai_curriculum.config', side_effect=mock_config):
+            from curriculum.services.ai_curriculum import execute_groq_generation
+            res, model_used = execute_groq_generation(
+                system_instructions="You are a helpful assistant.",
+                user_prompt="Explain what Python is in two sentences.",
+                api_key="gsk_test_key_123",
+                primary_model="openai/gpt-oss-120b"
+            )
+            self.assertEqual(model_used, "openai/gpt-oss-120b")
+            self.assertEqual(res.status_code, 200)
+            data = res.json()
+            content = json.loads(data["choices"][0]["message"]["content"])
+            self.assertIn("Python is a high-level programming language", content["response"])
 
 
 

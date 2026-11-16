@@ -29,12 +29,20 @@ from curriculum.services.ai_curriculum import (
     persist_curriculum_records,
     CurriculumFencingError,
     CurriculumGenerationError,
+    AIAuthError,
+    AIPermissionError,
+    AIModelNotFoundError,
+    AIRateLimitError,
+    AIServerError,
+    AINetworkError,
+    AITransientError,
+    AIInvalidRequestError,
+    CurriculumParseError,
+    CurriculumValidationError,
     GeminiTransientError,
     GeminiAuthError,
     GeminiInvalidRequestError,
     GeminiModelNotFoundError,
-    CurriculumParseError,
-    CurriculumValidationError,
 )
 
 logger = logging.getLogger(__name__)
@@ -365,24 +373,39 @@ class GenerationWorkerEngine:
             )
             return
 
-        except GeminiTransientError as e:
-            err_msg = "The AI curriculum service is temporarily experiencing high server demand. Please wait a few moments and try again."
-            logger.warning("[%s] Job %s transient error: %s", self.worker_id, job_id, e)
-            self._mark_job_failed(job_id, current_claim_token, err_msg)
-
-        except GeminiAuthError as e:
+        except AIAuthError as e:
             err_msg = "AI service authentication error. Please verify that your GROQ_API_KEY is configured correctly."
             logger.error("[%s] Job %s auth error: %s", self.worker_id, job_id, e)
             self._mark_job_failed(job_id, current_claim_token, err_msg)
 
-        except GeminiInvalidRequestError as e:
-            err_msg = f"Unable to process curriculum request: {e}"
-            logger.error("[%s] Job %s invalid request: %s", self.worker_id, job_id, e)
+        except AIPermissionError as e:
+            err_msg = "AI service permission denied. Please verify your Groq account access and permissions."
+            logger.error("[%s] Job %s permission error: %s", self.worker_id, job_id, e)
             self._mark_job_failed(job_id, current_claim_token, err_msg)
 
-        except GeminiModelNotFoundError as e:
-            err_msg = "The configured Groq AI model is not available. Please verify your model settings (default: llama-3.3-70b-versatile)."
+        except AIModelNotFoundError as e:
+            err_msg = "The configured Groq AI model is not available. Please verify your model settings (default: openai/gpt-oss-120b)."
             logger.error("[%s] Job %s model not found: %s", self.worker_id, job_id, e)
+            self._mark_job_failed(job_id, current_claim_token, err_msg)
+
+        except AIRateLimitError as e:
+            err_msg = "Groq API rate limit reached. Please wait a moment before trying again."
+            logger.warning("[%s] Job %s rate limit: %s", self.worker_id, job_id, e)
+            self._mark_job_failed(job_id, current_claim_token, err_msg)
+
+        except AINetworkError as e:
+            err_msg = "Network error communicating with Groq API. Please check your network connection and try again."
+            logger.error("[%s] Job %s network error: %s", self.worker_id, job_id, e)
+            self._mark_job_failed(job_id, current_claim_token, err_msg)
+
+        except (AIServerError, AITransientError) as e:
+            err_msg = "The AI curriculum service is temporarily experiencing high server demand. Please wait a few moments and try again."
+            logger.warning("[%s] Job %s transient error: %s", self.worker_id, job_id, e)
+            self._mark_job_failed(job_id, current_claim_token, err_msg)
+
+        except AIInvalidRequestError as e:
+            err_msg = f"Unable to process curriculum request: {e}"
+            logger.error("[%s] Job %s invalid request: %s", self.worker_id, job_id, e)
             self._mark_job_failed(job_id, current_claim_token, err_msg)
 
         except CurriculumValidationError as ve:
