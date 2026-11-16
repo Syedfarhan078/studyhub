@@ -23,11 +23,14 @@ from curriculum.services.ai_curriculum import (
     GeminiInvalidRequestError,
     GeminiModelNotFoundError,
     GeminiTransientError,
+    AIAuthError,
+    AITransientError,
     calculate_backoff_delay,
     generate_curriculum_from_prompt,
     parse_prescribed_syllabus,
     _extract_chapters_from_text,
     resolve_configured_models,
+    resolve_ai_provider,
     sanitize_error_message,
 )
 from curriculum.worker import (
@@ -54,6 +57,32 @@ def make_mock_gemini_json_response(data_dict, status_code=200, headers=None):
                         {"text": json.dumps(data_dict)}
                     ]
                 }
+            }
+        ]
+    }
+    res._content = json.dumps(body).encode("utf-8")
+    return res
+
+
+def make_mock_groq_json_response(data_dict, status_code=200, headers=None):
+    """Helper creating a mock requests.Response with Groq chat completion choices structure."""
+    res = requests.Response()
+    res.status_code = status_code
+    if headers:
+        res.headers.update(headers)
+    body = {
+        "id": "chatcmpl-test-groq",
+        "object": "chat.completion",
+        "created": 1700000000,
+        "model": "llama-3.3-70b-versatile",
+        "choices": [
+            {
+                "index": 0,
+                "message": {
+                    "role": "assistant",
+                    "content": json.dumps(data_dict)
+                },
+                "finish_reason": "stop"
             }
         ]
     }
@@ -1926,6 +1955,146 @@ Public-Key Management: Certification of public keys, The certificate lifecycle, 
         self.assertIn("CHP-2", content)
         self.assertIn("Public-Key Management", content)
         self.assertIn("Chapter Architecture", content)
+
+
+class GroqIntegrationTests(TestCase):
+    """
+    Tests for Groq API curriculum generation, provider resolution,
+    retry/fallback mechanics, and key redaction.
+    """
+
+    def test_sanitizer_redacts_groq_api_keys(self):
+        """Verifies that sanitize_error_message scrubs Groq api keys (gsk_...) and Bearer tokens."""
+        raw_msg = "Failed with gsk_abcdef1234567890abcdef1234567890 and Bearer gsk_9876543210token"
+        sanitized = sanitize_error_message(raw_msg)
+        self.assertNotIn("gsk_abcdef", sanitized)
+        self.assertNotIn("gsk_987654", sanitized)
+        self.assertIn("[REDACTED_API_KEY]", sanitized)
+        self.assertIn("Bearer [REDACTED]", sanitized)
+
+    def test_provider_resolution_prefers_groq(self):
+        """Tests that auto mode selects Groq when GROQ_API_KEY is present."""
+        def mock_config(key, default='', **kwargs):
+            if key == 'GROQ_API_KEY':
+                return 'gsk_test_groq_key'
+            if key == 'GEMINI_API_KEY':
+                return 'AIzaSy_test_gemini_key'
+            if key == 'AI_PROVIDER':
+                return 'auto'
+            return default
+
+        with patch('curriculum.services.ai_curriculum.config', side_effect=mock_config):
+            provider, api_key = resolve_ai_provider()
+            self.assertEqual(provider, 'groq')
+            self.assertEqual(api_key, 'gsk_test_groq_key')
+
+    def test_provider_resolution_falls_back_to_gemini(self):
+        """Tests that auto mode selects Gemini when only GEMINI_API_KEY is present."""
+        def mock_config(key, default='', **kwargs):
+            if key == 'GROQ_API_KEY':
+                return ''
+            if key == 'GEMINI_API_KEY':
+                return 'AIzaSy_test_gemini_key'
+            if key == 'AI_PROVIDER':
+                return 'auto'
+            return default
+
+        with patch('curriculum.services.ai_curriculum.config', side_effect=mock_config):
+            provider, api_key = resolve_ai_provider()
+            self.assertEqual(provider, 'gemini')
+            self.assertEqual(api_key, 'AIzaSy_test_gemini_key')
+
+    def test_provider_resolution_raises_when_no_keys_configured(self):
+        """Tests that AIAuthError is raised when neither key is configured."""
+        def mock_config(key, default='', **kwargs):
+            return ''
+
+        with patch('curriculum.services.ai_curriculum.config', side_effect=mock_config):
+            with self.assertRaises(AIAuthError) as ctx:
+                resolve_ai_provider()
+            self.assertIn("Neither GROQ_API_KEY nor GEMINI_API_KEY", str(ctx.exception))
+
+    @patch('curriculum.services.ai_curriculum.requests.post')
+    def test_groq_successful_generation(self, mock_post):
+        """Tests end-to-end curriculum generation using Groq API and Llama 3.3 70B."""
+        mock_post.return_value = make_mock_groq_json_response(SAMPLE_CURRICULUM_DATA, status_code=200)
+
+        def mock_config(key, default='', **kwargs):
+            if key == 'GROQ_API_KEY':
+                return 'gsk_mock_valid_key_12345'
+            if key == 'AI_PROVIDER':
+                return 'groq'
+            if key == 'GROQ_PRIMARY_MODEL':
+                return 'llama-3.3-70b-versatile'
+            if key == 'GROQ_FALLBACK_MODEL':
+                return 'llama-3.1-8b-instant'
+            return default
+
+        with patch('curriculum.services.ai_curriculum.config', side_effect=mock_config):
+            result = generate_curriculum_data("Machine Learning", "CS702")
+
+            self.assertEqual(result["active_model"], "llama-3.3-70b-versatile")
+            self.assertEqual(len(result["data"]["modules"]), 5)
+            self.assertEqual(result["clean_name"], "Machine Learning")
+
+            # Check that request went to Groq OpenAI-compatible endpoint
+            self.assertTrue(mock_post.called)
+            call_url = mock_post.call_args[0][0]
+            self.assertEqual(call_url, "https://api.groq.com/openai/v1/chat/completions")
+            call_headers = mock_post.call_args[1]["headers"]
+            self.assertEqual(call_headers["Authorization"], "Bearer gsk_mock_valid_key_12345")
+
+    @patch('curriculum.services.ai_curriculum.requests.post')
+    def test_groq_authentication_failure(self, mock_post):
+        """Tests that HTTP 401 from Groq immediately raises AIAuthError without retries."""
+        err_res = requests.Response()
+        err_res.status_code = 401
+        err_res._content = json.dumps({"error": {"message": "Invalid API Key"}}).encode("utf-8")
+        mock_post.return_value = err_res
+
+        def mock_config(key, default='', **kwargs):
+            if key == 'GROQ_API_KEY':
+                return 'gsk_bad_key'
+            if key == 'AI_PROVIDER':
+                return 'groq'
+            return default
+
+        with patch('curriculum.services.ai_curriculum.config', side_effect=mock_config):
+            with self.assertRaises(AIAuthError):
+                generate_curriculum_data("Machine Learning", "CS702")
+            # Should fail fast without retry loops
+            self.assertEqual(mock_post.call_count, 1)
+
+    @patch('curriculum.services.ai_curriculum.time.sleep')
+    @patch('curriculum.services.ai_curriculum.requests.post')
+    def test_groq_transient_retry_and_fallback(self, mock_post, mock_sleep):
+        """Tests that transient 429 from Groq triggers retry and falls back to secondary model."""
+        rate_limit_res = requests.Response()
+        rate_limit_res.status_code = 429
+        rate_limit_res._content = json.dumps({"error": {"message": "Rate limit reached"}}).encode("utf-8")
+
+        success_res = make_mock_groq_json_response(SAMPLE_CURRICULUM_DATA, status_code=200)
+
+        # Primary model exhausts 1 retry, fallback model succeeds on 1st attempt
+        mock_post.side_effect = [rate_limit_res, rate_limit_res, success_res]
+
+        def mock_config(key, default='', **kwargs):
+            if key == 'GROQ_API_KEY':
+                return 'gsk_mock_valid_key'
+            if key == 'AI_PROVIDER':
+                return 'groq'
+            if key in ('GROQ_MAX_RETRIES', 'GEMINI_MAX_RETRIES'):
+                return 1
+            if key == 'GROQ_PRIMARY_MODEL':
+                return 'llama-3.3-70b-versatile'
+            if key == 'GROQ_FALLBACK_MODEL':
+                return 'llama-3.1-8b-instant'
+            return default
+
+        with patch('curriculum.services.ai_curriculum.config', side_effect=mock_config):
+            result = generate_curriculum_data("Machine Learning", "CS702")
+            self.assertEqual(result["active_model"], "llama-3.1-8b-instant")
+            self.assertEqual(len(result["data"]["modules"]), 5)
 
 
 

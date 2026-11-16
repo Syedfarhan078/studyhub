@@ -31,20 +31,28 @@ class GeminiTransientError(CurriculumGenerationError):
     """Raised when transient errors (503, 500, 429) persist after all retries."""
     pass
 
+AITransientError = GeminiTransientError
+
 
 class GeminiAuthError(CurriculumGenerationError):
     """Raised for authentication or permission errors (HTTP 401, 403)."""
     pass
+
+AIAuthError = GeminiAuthError
 
 
 class GeminiInvalidRequestError(CurriculumGenerationError):
     """Raised for bad or malformed requests (HTTP 400)."""
     pass
 
+AIInvalidRequestError = GeminiInvalidRequestError
+
 
 class GeminiModelNotFoundError(CurriculumGenerationError):
-    """Raised when the requested Gemini model is not found (HTTP 404)."""
+    """Raised when the requested model is not found (HTTP 404)."""
     pass
+
+AIModelNotFoundError = GeminiModelNotFoundError
 
 
 class CurriculumParseError(CurriculumGenerationError):
@@ -94,10 +102,51 @@ def sanitize_error_message(response_or_text) -> str:
     else:
         msg = str(response_or_text)
 
-    # Scrub query param keys or raw Google API keys
+    # Scrub query param keys or raw Google/Groq API keys
     msg = re.sub(r'key=[A-Za-z0-9_\-]+', 'key=[REDACTED]', msg)
     msg = re.sub(r'AIza[0-9A-Za-z-_]{35}', '[REDACTED_API_KEY]', msg)
+    msg = re.sub(r'gsk_[0-9A-Za-z_-]{10,}', '[REDACTED_API_KEY]', msg)
+    msg = re.sub(r'Bearer\s+\S+', 'Bearer [REDACTED]', msg, flags=re.IGNORECASE)
     return msg.strip()[:300]
+
+
+def resolve_ai_provider() -> tuple[str, str]:
+    """
+    Determines active AI provider and API key.
+    Checks AI_PROVIDER ('auto', 'groq', 'gemini'), GROQ_API_KEY, and GEMINI_API_KEY.
+    Returns (provider_name, api_key), where provider_name is 'groq' or 'gemini'.
+    Raises AIAuthError if no configured key is found.
+    """
+    raw_groq = config('GROQ_API_KEY', default='').strip().strip('\'"')
+    raw_gemini = config('GEMINI_API_KEY', default='').strip().strip('\'"')
+    provider_pref = config('AI_PROVIDER', default='auto').strip().lower()
+
+    if provider_pref == 'groq':
+        if not raw_groq:
+            raise AIAuthError(
+                "GROQ_API_KEY is not configured in your environment. "
+                "Please add GROQ_API_KEY to your .env file or Render environment variables."
+            )
+        return 'groq', raw_groq
+
+    if provider_pref == 'gemini':
+        if not raw_gemini:
+            raise AIAuthError(
+                "GEMINI_API_KEY is not configured in your environment. "
+                "Please add GEMINI_API_KEY to your .env file or Render environment variables."
+            )
+        return 'gemini', raw_gemini
+
+    # Auto mode: prioritize Groq if set, then Gemini
+    if raw_groq:
+        return 'groq', raw_groq
+    if raw_gemini:
+        return 'gemini', raw_gemini
+
+    raise AIAuthError(
+        "Neither GROQ_API_KEY nor GEMINI_API_KEY is configured in your environment. "
+        "Please add GROQ_API_KEY (from console.groq.com) or GEMINI_API_KEY to your .env file or Render environment variables."
+    )
 
 
 def calculate_backoff_delay(
@@ -833,6 +882,224 @@ def execute_gemini_generation(
 
 
 # =====================================================================
+# Groq Request Execution with Retry & Fallback
+# =====================================================================
+
+def _send_groq_request_with_retries(
+    model_name: str,
+    system_instructions: str,
+    user_prompt: str,
+    api_key: str,
+    max_retries: int = 3,
+    base_delay: float = 1.0,
+    max_delay: float = 8.0,
+    request_timeout: int = 30,
+    is_fallback: bool = False
+):
+    """
+    Sends chat completion request to Groq API with bounded exponential backoff for transient errors.
+    Returns (response, None) on HTTP 200.
+    Returns (None, last_error_message) if max retries exhausted for transient errors.
+    Raises non-retryable exceptions immediately (AIAuthError, AIInvalidRequestError, AIModelNotFoundError).
+    """
+    url = "https://api.groq.com/openai/v1/chat/completions"
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json",
+    }
+    payload = {
+        "model": model_name,
+        "messages": [
+            {"role": "system", "content": system_instructions},
+            {"role": "user", "content": user_prompt}
+        ],
+        "response_format": {"type": "json_object"},
+        "temperature": 0.2,
+        "max_tokens": 8192
+    }
+
+    role_label = "fallback" if is_fallback else "primary"
+    last_transient_error = ""
+
+    for attempt in range(max_retries + 1):
+        attempt_num = attempt + 1
+        total_attempts = max_retries + 1
+        logger.info(
+            "Dispatching Groq generation request to %s model '%s' (attempt %d/%d)",
+            role_label, model_name, attempt_num, total_attempts
+        )
+
+        try:
+            res = requests.post(url, json=payload, headers=headers, timeout=request_timeout)
+
+            # Success
+            if res.status_code == 200:
+                logger.info(
+                    "Received HTTP 200 OK from Groq %s model '%s' on attempt %d/%d",
+                    role_label, model_name, attempt_num, total_attempts
+                )
+                return res, None
+
+            err_msg = sanitize_error_message(res)
+
+            # Non-retryable errors: 401, 403, 400, 404
+            if res.status_code in (401, 403):
+                logger.error(
+                    "Non-retryable authentication error HTTP %d from Groq %s model '%s': %s",
+                    res.status_code, role_label, model_name, err_msg
+                )
+                raise AIAuthError(
+                    f"Groq API authentication failed ({res.status_code}): {err_msg}"
+                )
+
+            if res.status_code == 400:
+                logger.error(
+                    "Non-retryable malformed request HTTP %d from Groq %s model '%s': %s",
+                    res.status_code, role_label, model_name, err_msg
+                )
+                raise AIInvalidRequestError(
+                    f"Groq API rejected request as invalid (Status 400): {err_msg}"
+                )
+
+            if res.status_code == 404:
+                logger.error(
+                    "Non-retryable invalid model HTTP %d from Groq %s model '%s': %s",
+                    res.status_code, role_label, model_name, err_msg
+                )
+                raise AIModelNotFoundError(
+                    f"Groq model '{model_name}' not found (Status 404): {err_msg}"
+                )
+
+            # Transient errors: 429 (Rate Limit), 500, 502, 503, 504
+            if res.status_code in (429, 500, 502, 503, 504):
+                retry_after_hdr = res.headers.get("Retry-After")
+                last_transient_error = f"HTTP {res.status_code}: {err_msg}"
+
+                if attempt < max_retries:
+                    delay = calculate_backoff_delay(
+                        attempt=attempt_num,
+                        retry_after_header=retry_after_hdr,
+                        base_delay=base_delay,
+                        max_delay=max_delay
+                    )
+                    logger.warning(
+                        "Transient HTTP %d from Groq %s model '%s' (attempt %d/%d). "
+                        "Retrying in %.2fs (Retry-After: %s). Message: %s",
+                        res.status_code, role_label, model_name, attempt_num, total_attempts,
+                        delay, retry_after_hdr or "None", err_msg
+                    )
+                    time.sleep(delay)
+                    continue
+                else:
+                    logger.warning(
+                        "Groq %s model '%s' exhausted all %d retries with transient error: %s",
+                        role_label, model_name, max_retries, last_transient_error
+                    )
+                    return None, last_transient_error
+
+            logger.error(
+                "Unexpected HTTP %d from Groq %s model '%s': %s",
+                res.status_code, role_label, model_name, err_msg
+            )
+            raise CurriculumGenerationError(
+                f"Groq API returned unexpected status {res.status_code}: {err_msg}"
+            )
+
+        except (AIAuthError, AIInvalidRequestError, AIModelNotFoundError, CurriculumGenerationError):
+            raise
+        except requests.exceptions.Timeout as timeout_err:
+            last_transient_error = f"Network Timeout: {sanitize_error_message(timeout_err)}"
+            logger.warning(
+                "Timeout (%ds) calling Groq %s model '%s' (attempt %d/%d): %s",
+                request_timeout, role_label, model_name, attempt_num, total_attempts, last_transient_error
+            )
+            if attempt < min(max_retries, 1):
+                delay = calculate_backoff_delay(
+                    attempt=attempt_num,
+                    retry_after_header=None,
+                    base_delay=base_delay,
+                    max_delay=max_delay
+                )
+                time.sleep(delay)
+                continue
+            else:
+                return None, last_transient_error
+        except requests.RequestException as req_err:
+            last_transient_error = f"Network {type(req_err).__name__}: {sanitize_error_message(req_err)}"
+            if attempt < max_retries:
+                delay = calculate_backoff_delay(
+                    attempt=attempt_num,
+                    retry_after_header=None,
+                    base_delay=base_delay,
+                    max_delay=max_delay
+                )
+                time.sleep(delay)
+                continue
+            else:
+                return None, last_transient_error
+
+    return None, last_transient_error
+
+
+def execute_groq_generation(
+    system_instructions: str,
+    user_prompt: str,
+    api_key: str,
+    primary_model: str = "llama-3.3-70b-versatile",
+    fallback_model: str = "llama-3.1-8b-instant",
+    max_retries: int = 3,
+    base_delay: float = 1.0,
+    max_delay: float = 8.0,
+    request_timeout: int = 30
+):
+    """
+    Executes curriculum generation via Groq API with primary model retries,
+    switching to fallback model only if primary exhausts retries for transient errors.
+    """
+    res, last_err = _send_groq_request_with_retries(
+        model_name=primary_model,
+        system_instructions=system_instructions,
+        user_prompt=user_prompt,
+        api_key=api_key,
+        max_retries=max_retries,
+        base_delay=base_delay,
+        max_delay=max_delay,
+        request_timeout=request_timeout,
+        is_fallback=False
+    )
+    if res is not None:
+        return res, primary_model
+
+    if fallback_model and fallback_model != primary_model:
+        logger.warning(
+            "Groq primary model '%s' exhausted %d retries with transient errors (%s). "
+            "Switching to fallback model '%s'...",
+            primary_model, max_retries, last_err, fallback_model
+        )
+        res, fallback_err = _send_groq_request_with_retries(
+            model_name=fallback_model,
+            system_instructions=system_instructions,
+            user_prompt=user_prompt,
+            api_key=api_key,
+            max_retries=max_retries,
+            base_delay=base_delay,
+            max_delay=max_delay,
+            request_timeout=request_timeout,
+            is_fallback=True
+        )
+        if res is not None:
+            logger.info("Groq fallback model '%s' succeeded where primary failed.", fallback_model)
+            return res, fallback_model
+        last_err = f"Primary ({primary_model}): {last_err}; Fallback ({fallback_model}): {fallback_err}"
+
+    logger.error("Curriculum generation failed: All eligible retries exhausted on Groq. %s", last_err)
+    raise AITransientError(
+        f"The AI curriculum service is temporarily unavailable due to high demand. "
+        f"Retries across models were exhausted ({last_err}). Please try again in a few moments."
+    )
+
+
+# =====================================================================
 # JSON Response Parsing & Extraction Logic (Preserved)
 # =====================================================================
 
@@ -920,7 +1187,8 @@ def extract_curriculum_data_from_json(raw_text):
 
 def generate_curriculum_data(subject_name, subject_code="", syllabus_text=""):
     """
-    Calls the Gemini API to generate and validate structured curriculum data without touching the database.
+    Calls the configured AI API (Groq or Gemini) to generate and validate structured curriculum data
+    without touching the database.
     - When official syllabus text is supplied: extracts and preserves all 5 module titles
       and prescribed topics, validating the AI output against the source.
     - When syllabus text is omitted: checks verified official syllabus records for known
@@ -928,14 +1196,7 @@ def generate_curriculum_data(subject_name, subject_code="", syllabus_text=""):
       AI reference curriculum.
     Returns curriculum dictionary payload ready for atomic persistence.
     """
-    raw_key = config('GEMINI_API_KEY', default='')
-    api_key = raw_key.strip().strip('\'"') if raw_key else None
-
-    if not api_key:
-        raise GeminiAuthError(
-            "GEMINI_API_KEY is not configured in your environment. "
-            "Please add GEMINI_API_KEY to your .env file or Render environment variables."
-        )
+    provider, api_key = resolve_ai_provider()
 
     clean_name = subject_name.strip()
     clean_code = (subject_code.strip() or "COURSE").upper()
@@ -1038,59 +1299,97 @@ def generate_curriculum_data(subject_name, subject_code="", syllabus_text=""):
             f"(Course Code: '{clean_code}'). Provide detailed topics and realistic educational search keywords."
         )
 
-    payload = {
-        "contents": [
-            {
-                "parts": [
-                    {"text": f"{system_instructions}\n\nUser Request:\n{user_prompt}"}
-                ]
+    if provider == 'groq':
+        groq_primary = config('GROQ_PRIMARY_MODEL', default='llama-3.3-70b-versatile').strip()
+        groq_fallback = config('GROQ_FALLBACK_MODEL', default='llama-3.1-8b-instant').strip()
+        max_retries = config('GROQ_MAX_RETRIES', default=config('GEMINI_MAX_RETRIES', default=3, cast=int), cast=int)
+        base_delay = config('GROQ_BACKOFF_BASE', default=config('GEMINI_BACKOFF_BASE', default=1.0, cast=float), cast=float)
+        max_delay = config('GROQ_BACKOFF_MAX', default=config('GEMINI_BACKOFF_MAX', default=8.0, cast=float), cast=float)
+        request_timeout = config('GROQ_REQUEST_TIMEOUT', default=config('GEMINI_REQUEST_TIMEOUT', default=30, cast=int), cast=int)
+
+        response, active_model = execute_groq_generation(
+            system_instructions=system_instructions,
+            user_prompt=user_prompt,
+            api_key=api_key,
+            primary_model=groq_primary,
+            fallback_model=groq_fallback,
+            max_retries=max_retries,
+            base_delay=base_delay,
+            max_delay=max_delay,
+            request_timeout=request_timeout
+        )
+
+        try:
+            res_json = response.json()
+            choices = res_json.get("choices", [])
+            if not choices:
+                raise CurriculumParseError("Groq API returned no response choices.")
+
+            message = choices[0].get("message", {})
+            full_text = message.get("content", "")
+            if not full_text.strip():
+                raise CurriculumParseError("Groq returned empty text in response message.")
+
+            data = extract_curriculum_data_from_json(full_text)
+
+        except (KeyError, IndexError, json.JSONDecodeError, CurriculumParseError) as e:
+            logger.error("Failed to parse Groq response: %s", e)
+            raise CurriculumParseError(f"Failed to parse AI generated curriculum: {e}")
+
+    else:
+        payload = {
+            "contents": [
+                {
+                    "parts": [
+                        {"text": f"{system_instructions}\n\nUser Request:\n{user_prompt}"}
+                    ]
+                }
+            ],
+            "generationConfig": {
+                "response_mime_type": "application/json",
+                "temperature": 0.2,
+                "maxOutputTokens": 8192
             }
-        ],
-        "generationConfig": {
-            "response_mime_type": "application/json",
-            "temperature": 0.2,
-            "maxOutputTokens": 8192
         }
-    }
 
-    max_retries = config('GEMINI_MAX_RETRIES', default=3, cast=int)
-    base_delay = config('GEMINI_BACKOFF_BASE', default=1.0, cast=float)
-    max_delay = config('GEMINI_BACKOFF_MAX', default=8.0, cast=float)
-    request_timeout = config('GEMINI_REQUEST_TIMEOUT', default=30, cast=int)
+        max_retries = config('GEMINI_MAX_RETRIES', default=3, cast=int)
+        base_delay = config('GEMINI_BACKOFF_BASE', default=1.0, cast=float)
+        max_delay = config('GEMINI_BACKOFF_MAX', default=8.0, cast=float)
+        request_timeout = config('GEMINI_REQUEST_TIMEOUT', default=30, cast=int)
 
-    primary_model, fallback_model = resolve_configured_models(api_key)
+        primary_model, fallback_model = resolve_configured_models(api_key)
 
-    response, active_model = execute_gemini_generation(
-        payload=payload,
-        api_key=api_key,
-        primary_model=primary_model,
-        fallback_model=fallback_model,
-        max_retries=max_retries,
-        base_delay=base_delay,
-        max_delay=max_delay,
-        request_timeout=request_timeout
-    )
+        response, active_model = execute_gemini_generation(
+            payload=payload,
+            api_key=api_key,
+            primary_model=primary_model,
+            fallback_model=fallback_model,
+            max_retries=max_retries,
+            base_delay=base_delay,
+            max_delay=max_delay,
+            request_timeout=request_timeout
+        )
 
-    try:
-        res_json = response.json()
-        candidates = res_json.get("candidates", [])
-        if not candidates:
-            raise CurriculumParseError("Gemini API returned no response candidates.")
+        try:
+            res_json = response.json()
+            candidates = res_json.get("candidates", [])
+            if not candidates:
+                raise CurriculumParseError("Gemini API returned no response candidates.")
 
-        candidate = candidates[0]
-        parts = candidate.get("content", {}).get("parts", [])
-        if not parts:
-            raise CurriculumParseError("Gemini candidate contains no content parts.")
+            candidate = candidates[0]
+            parts = candidate.get("content", {}).get("parts", [])
+            if not parts:
+                raise CurriculumParseError("Gemini candidate contains no content parts.")
 
-        full_text = "".join(part.get("text", "") for part in parts if isinstance(part, dict))
-        if not full_text.strip():
-            raise CurriculumParseError("Gemini returned empty text in candidate parts.")
+            full_text = "".join(part.get("text", "") for part in parts if isinstance(part, dict))
+            if not full_text.strip():
+                raise CurriculumParseError("Gemini returned empty text in candidate parts.")
 
-        data = extract_curriculum_data_from_json(full_text)
+            data = extract_curriculum_data_from_json(full_text)
 
-    except (KeyError, IndexError, json.JSONDecodeError, CurriculumParseError) as e:
-        logger.error("Failed to parse Gemini response: %s", e)
-        raise CurriculumParseError(f"Failed to parse AI generated curriculum: {e}")
+        except (KeyError, IndexError, json.JSONDecodeError, CurriculumParseError) as e:
+            logger.error("Failed to parse Gemini response: %s", e)
+            raise CurriculumParseError(f"Failed to parse AI generated curriculum: {e}")
 
     # Validate against authoritative prescribed source modules before persistence
     data = validate_curriculum_against_source(data, prescribed_modules=prescribed_modules)
