@@ -3,300 +3,175 @@
 {% block title %}StudyHub — University Curriculum & Academic Learning Platform{% endblock %}
 
 {% block content %}
-<!-- Academic Dashboard Header & Quick Stats -->
-<div class="sh-panel mb-4 p-3.5 p-md-4">
-    <div class="d-flex flex-column flex-lg-row justify-content-between align-items-start align-items-lg-center gap-3">
+<header class="sheet page-head mb-4">
+    <div>
+        <p class="eyebrow">VTU 2022 scheme</p>
+        <h1 class="page-title">Curriculum</h1>
+        <p class="lede">Open a subject to work through its modules, mark what you have finished, and pull up lectures and articles for the topic in front of you.</p>
+    </div>
+    <div class="page-actions mt-3 mt-lg-0">
+        <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#generateSubjectModal">
+            Generate subject
+        </button>
+    </div>
+    <dl class="stat-row">
         <div>
-            <div class="d-flex align-items-center gap-2 mb-2 flex-wrap">
-                <span class="badge bg-primary-subtle text-primary border border-primary-subtle py-1 px-2.5" style="font-family: var(--sh-font-mono); font-size: 0.72rem; font-weight: 600;">
-                    VTU 2022 SCHEME
-                </span>
-                <span class="text-secondary small">&bull; Engineering Curriculum Portal</span>
-            </div>
-            <h1 class="h2 fw-bold text-light mb-1.5">Academic Curriculum Dashboard</h1>
-            <p class="text-secondary small mb-0" style="max-width: 650px; line-height: 1.6;">
-                Select a university subject to navigate module-wise syllabi, track your learning progress, discover curated lecture videos, and access verified technical articles.
-            </p>
+            <dt>Subjects</dt>
+            <dd>{{ subjects|length }}</dd>
         </div>
-
-        <!-- Primary Call to Action -->
-        <div class="d-flex align-items-center gap-2 flex-wrap w-100 w-lg-auto mt-2 mt-lg-0">
-            <button type="button" class="btn btn-primary w-100 w-lg-auto d-inline-flex align-items-center justify-content-center gap-2 shadow-sm" data-bs-toggle="modal" data-bs-target="#generateSubjectModal">
-                <i class="bi bi-sparkles"></i> Auto-Generate Subject
-            </button>
+        <div>
+            <dt>Structure</dt>
+            <dd>5 modules each</dd>
         </div>
-    </div>
-
-    <!-- Quick Stats Metric Pills -->
-    <div class="pt-3.5 mt-3.5 border-top border-secondary-subtle d-flex flex-wrap align-items-center justify-content-between gap-3">
-        <div class="d-flex flex-wrap align-items-center gap-3 gap-md-4">
-            <div class="d-flex align-items-center gap-2">
-                <div class="rounded-circle d-flex align-items-center justify-content-center" style="width: 28px; height: 28px; background-color: var(--sh-accent-subtle); border: 1px solid var(--sh-accent-border);">
-                    <i class="bi bi-mortarboard text-primary" style="font-size: 0.85rem;"></i>
-                </div>
-                <div>
-                    <span class="text-light fw-semibold" style="font-size: 0.875rem; font-family: var(--sh-font-mono);">{{ subjects|length }}</span>
-                    <span class="text-secondary small ms-1" style="font-size: 0.75rem;">Total Subjects</span>
-                </div>
-            </div>
-
-            <div class="d-flex align-items-center gap-2">
-                <div class="rounded-circle d-flex align-items-center justify-content-center" style="width: 28px; height: 28px; background-color: rgba(16, 185, 129, 0.12); border: 1px solid rgba(16, 185, 129, 0.28);">
-                    <i class="bi bi-folder2-open text-success" style="font-size: 0.85rem;"></i>
-                </div>
-                <div>
-                    <span class="text-light fw-semibold" style="font-size: 0.875rem; font-family: var(--sh-font-mono);">5 Modules / Course</span>
-                    <span class="text-secondary small ms-1" style="font-size: 0.75rem;">Prescribed Structure</span>
-                </div>
-            </div>
-
-            <div class="d-flex align-items-center gap-2">
-                <div class="rounded-circle d-flex align-items-center justify-content-center" style="width: 28px; height: 28px; background-color: rgba(6, 182, 212, 0.12); border: 1px solid rgba(6, 182, 212, 0.28);">
-                    <i class="bi bi-shield-check text-info" style="font-size: 0.85rem;"></i>
-                </div>
-                <div>
-                    <span class="text-light fw-semibold" style="font-size: 0.875rem; font-family: var(--sh-font-mono);">Source Grounded</span>
-                    <span class="text-secondary small ms-1" style="font-size: 0.75rem;">AI Syllabus Fidelity</span>
-                </div>
-            </div>
+        <div>
+            <dt>Term</dt>
+            <dd>2026</dd>
         </div>
+    </dl>
+</header>
 
-        <span class="text-secondary small d-none d-md-inline" style="font-size: 0.75rem;">
-            Updated for 2026 Academic Term
-        </span>
-    </div>
-</div>
-
-<!-- Instant Search & Filter Bar -->
 <div class="mb-4">
     <div class="row align-items-center g-2">
-        <div class="col-md-6 col-lg-5">
+        <div class="col-lg-6">
             <div class="input-group">
-                <span class="input-group-text bg-dark border-secondary-subtle text-secondary" style="border-color: var(--sh-border) !important; background-color: #0e1422 !important;">
-                    <i class="bi bi-search"></i>
-                </span>
-                <input type="text" 
-                       id="subjectSearchInput" 
-                       class="form-control" 
-                       placeholder="Filter by subject code or name (e.g. BAD703, Data, AI)..." 
+                <span class="input-group-text"><i class="bi bi-search"></i></span>
+                <input type="text"
+                       id="subjectSearchInput"
+                       class="form-control"
+                       placeholder="Search by code or name"
                        aria-label="Filter subjects">
                 <button class="btn btn-outline-secondary d-none" type="button" id="clearSearchBtn" title="Clear filter">
-                    <i class="bi bi-x-lg"></i>
+                    Clear
                 </button>
             </div>
         </div>
-        <div class="col-md-6 col-lg-7 text-md-end">
-            <span class="text-secondary small" id="searchFilterStats" style="font-size: 0.775rem;">
+        <div class="col-lg-6 text-lg-end">
+            <span class="text-secondary" id="searchFilterStats" style="font-size: 0.9rem;">
                 Showing all {{ subjects|length }} subjects
             </span>
         </div>
     </div>
 </div>
 
-<!-- Subjects Grid -->
-<div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-4 gy-4" id="subjectGrid">
+<div class="row row-cols-1 row-cols-md-2 row-cols-xl-3 g-3" id="subjectGrid">
     {% for subject in subjects %}
-        <div class="col subject-card-item" 
-             data-code="{{ subject.code|lower }}" 
+        <div class="col subject-card-item"
+             data-code="{{ subject.code|lower }}"
              data-name="{{ subject.name|lower }}"
              data-desc="{{ subject.description|default:''|lower }}">
             <a href="{% url 'curriculum:subject_detail' subject.slug %}" class="sh-card">
-                <!-- Top Meta Row: Subject Code Badge & Module Pill -->
-                <div class="d-flex justify-content-between align-items-center mb-2.5">
-                    <span class="sh-badge-code">{{ subject.code }}</span>
-                    <span class="sh-meta-pill">
-                        <i class="bi bi-folder2-open text-secondary"></i>
-                        <span>{{ subject.module_count }} Modules</span>
-                    </span>
+                <div class="d-flex justify-content-between align-items-baseline gap-2 mb-2">
+                    <span class="course-code">{{ subject.code }}</span>
+                    <span class="sh-meta">{{ subject.module_count }} modules</span>
                 </div>
-
-                <!-- Subject Title (Uniform 2-line clamp) -->
-                <h5 class="card-title fw-semibold text-light mb-2 sh-clamp-2" style="font-size: 0.975rem; line-height: 1.35; min-height: 26px;" title="{{ subject.name }}">
-                    {{ subject.name }}
-                </h5>
-
-                <!-- Syllabus Source Verification Pill -->
-                <div class="mb-2">
+                <h2 class="h5 subject-name mb-2 sh-clamp-2">{{ subject.name }}</h2>
+                <p class="mb-2">
                     {% if "Unverified" in subject.description %}
-                        <span class="badge bg-warning-subtle text-warning border border-warning-subtle" style="font-size: 0.65rem; font-family: var(--sh-font-mono);">
-                            <i class="bi bi-exclamation-triangle-fill me-1"></i>AI Reference &bull; Unverified
-                        </span>
+                        <span class="flag flag-warn">Reference syllabus, not verified</span>
                     {% else %}
-                        <span class="badge bg-success-subtle text-success border border-success-subtle" style="font-size: 0.65rem; font-family: var(--sh-font-mono);">
-                            <i class="bi bi-patch-check-fill me-1"></i>Source Grounded Syllabus
-                        </span>
-                    {% endif %}
-                </div>
-
-                <!-- Description: Clamped strictly to 2 lines for uniform grid geometry -->
-                <p class="card-text text-secondary small mb-3 sh-clamp-2" style="font-size: 0.8rem; line-height: 1.5; height: 38px; overflow: hidden; margin-bottom: 0.85rem !important;">
-                    {% if subject.description %}
-                        {{ subject.description|truncatewords:14 }}
-                    {% else %}
-                        Syllabus modules, video lectures, and technical articles.
+                        <span class="flag flag-ok">Matches the prescribed syllabus</span>
                     {% endif %}
                 </p>
-
-                <!-- Card Action Footer -->
-                <div class="pt-2.5 border-top border-secondary-subtle d-flex justify-content-between align-items-center mt-auto" style="border-top: 1px solid var(--sh-border) !important;">
-                    <span class="text-primary small fw-medium d-inline-flex align-items-center gap-1.5" style="font-size: 0.775rem;">
-                        Explore Syllabus <i class="bi bi-arrow-right"></i>
-                    </span>
-                    <span class="text-secondary" style="font-size: 0.7rem; font-family: var(--sh-font-mono);">VTU</span>
-                </div>
+                <p class="text-secondary small mb-3 sh-clamp-2">
+                    {% if subject.description %}
+                        {{ subject.description|truncatewords:18 }}
+                    {% else %}
+                        Modules, lecture videos, and articles for this course.
+                    {% endif %}
+                </p>
+                <span class="card-link">Open syllabus</span>
             </a>
         </div>
     {% empty %}
         <div class="col-12">
-            <div class="sh-panel p-5 text-center">
-                <i class="bi bi-journal-x fs-1 text-secondary mb-3 d-block"></i>
-                <h5 class="text-light">No subjects added yet</h5>
-                <p class="text-secondary small mb-3" style="max-width: 460px; margin: 0 auto;">
-                    Generate your first university course in 5 seconds using AI, or manually create one in the admin panel.
-                </p>
-                <button type="button" class="btn btn-primary btn-sm me-2" data-bs-toggle="modal" data-bs-target="#generateSubjectModal">
-                    <i class="bi bi-sparkles"></i> Auto-Generate Subject
+            <div class="sheet empty-state">
+                <h5>No subjects yet</h5>
+                <p class="text-secondary mb-3">Generate a course from a name and syllabus, or add one in the admin.</p>
+                <button type="button" class="btn btn-primary me-2 mb-2" data-bs-toggle="modal" data-bs-target="#generateSubjectModal">
+                    Generate subject
                 </button>
-                <a href="/admin/curriculum/subject/add/" class="btn btn-outline-secondary btn-sm">
-                    <i class="bi bi-plus-lg"></i> Manual Admin Add
-                </a>
+                <a href="/admin/curriculum/subject/add/" class="btn btn-outline-secondary mb-2">Add in admin</a>
             </div>
         </div>
     {% endfor %}
 </div>
 
-<!-- Client-side No Search Results State (hidden by default) -->
-<div id="noSearchResults" class="sh-panel p-5 text-center d-none mt-2">
-    <i class="bi bi-search fs-2 text-secondary mb-2 d-block"></i>
-    <h6 class="text-light mb-1">No matching subjects found</h6>
-    <p class="text-secondary small mb-3" id="noSearchQueryText">No course matched your search filter.</p>
-    <button type="button" class="btn btn-sm btn-outline-secondary" id="resetSearchBtn">
-        <i class="bi bi-arrow-counterclockwise"></i> Clear Search Filter
-    </button>
+<div id="noSearchResults" class="sheet empty-state d-none mt-3">
+    <h6 class="mb-1">No matching subjects</h6>
+    <p class="text-secondary small mb-3" id="noSearchQueryText">Nothing matched that search.</p>
+    <button type="button" class="btn btn-sm btn-outline-secondary" id="resetSearchBtn">Clear search</button>
 </div>
 
-<!-- Modal: AI Subject & Curriculum Generator -->
 <div class="modal fade" id="generateSubjectModal" tabindex="-1" aria-labelledby="generateSubjectModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered modal-lg">
+    <div class="modal-dialog modal-dialog-centered modal-lg modal-dialog-scrollable">
         <div class="modal-content">
             <form id="aiGenerateForm" action="{% url 'curriculum:generate_subject_ai' %}" method="POST" class="mb-0">
                 {% csrf_token %}
-                <div class="modal-header py-3 px-4">
-                    <div class="d-flex align-items-center gap-2.5">
-                        <div class="rounded p-2 d-flex align-items-center justify-content-center" style="background-color: var(--sh-accent-subtle); border: 1px solid var(--sh-accent-border);">
-                            <i class="bi bi-sparkles text-primary fs-5"></i>
-                        </div>
-                        <div>
-                            <h5 class="modal-title text-light fw-semibold fs-6 mb-0" id="generateSubjectModalLabel">
-                                Auto-Generate Subject & Syllabus
-                            </h5>
-                            <span class="text-secondary small" style="font-size: 0.75rem;">
-                                AI-assisted 5-module university curriculum with educational resource queries.
-                            </span>
-                        </div>
+                <div class="modal-header">
+                    <div>
+                        <h5 class="modal-title mb-0" id="generateSubjectModalLabel" style="font-family: var(--serif);">Generate a subject</h5>
+                        <p class="text-secondary small mb-0">Five modules, with search terms for lectures and articles.</p>
                     </div>
-                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
-
-                <div class="modal-body p-4">
-                    <!-- Error Alert inside Modal (hidden by default) -->
-                    <div id="aiModalErrorAlert" class="alert alert-danger d-none p-3 mb-3 d-flex align-items-start gap-2.5" role="alert">
-                        <i class="bi bi-exclamation-triangle-fill fs-5 mt-0.5 flex-shrink-0 text-danger"></i>
-                        <div class="flex-grow-1">
-                            <h6 class="alert-heading text-light fw-semibold mb-1" style="font-size: 0.85rem;">Generation Error</h6>
-                            <p id="aiModalErrorMessage" class="text-secondary small mb-2" style="font-size: 0.785rem; line-height: 1.5;"></p>
-                            <button type="button" class="btn btn-sm btn-outline-danger" id="aiModalRetryBtn">
-                                <i class="bi bi-arrow-counterclockwise"></i> Try Again
-                            </button>
-                        </div>
+                <div class="modal-body">
+                    <div id="aiModalErrorAlert" class="alert alert-danger d-none mb-3" role="alert">
+                        <h6 class="mb-1" style="font-size: 0.95rem;">Could not generate</h6>
+                        <p id="aiModalErrorMessage" class="small mb-2"></p>
+                        <button type="button" class="btn btn-sm btn-outline-danger" id="aiModalRetryBtn">Try again</button>
                     </div>
 
-                    <!-- Background Progress Bar & Step Tracker (hidden by default) -->
-                    <div id="aiProgressContainer" class="d-none mb-3 p-3 rounded" style="background-color: #0e1422; border: 1px solid var(--sh-accent-border);">
-                        <div class="d-flex align-items-center justify-content-between mb-2">
-                            <span class="small fw-semibold text-light d-flex align-items-center gap-2" id="aiStepTitle">
-                                <span class="spinner-border spinner-border-sm text-primary" role="status" aria-hidden="true"></span>
-                                <span id="aiStepText">Initializing generation...</span>
+                    <div id="aiProgressContainer" class="d-none mb-3 note-quiet">
+                        <div class="d-flex justify-content-between align-items-center gap-2 mb-2">
+                            <span class="d-flex align-items-center gap-2" id="aiStepTitle" style="font-weight: 600;">
+                                <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+                                <span id="aiStepText">Starting…</span>
                             </span>
-                            <span class="badge bg-primary-subtle text-primary border border-primary-subtle" id="aiStepBadge" style="font-family: var(--sh-font-mono); font-size: 0.7rem;">
-                                Step 1 of 4
-                            </span>
+                            <span class="text-secondary small" id="aiStepBadge">Step 1 of 4</span>
                         </div>
-                        <div class="progress" style="height: 6px; border-radius: 3px; background-color: var(--sh-bg-main);">
-                            <div id="aiProgressBar" class="progress-bar progress-bar-striped progress-bar-animated bg-primary" role="progressbar" style="width: 15%; border-radius: 3px;" aria-valuenow="15" aria-valuemin="0" aria-valuemax="100"></div>
+                        <div class="progress">
+                            <div id="aiProgressBar" class="progress-bar" role="progressbar" style="width: 15%;" aria-valuenow="15" aria-valuemin="0" aria-valuemax="100"></div>
                         </div>
-                        <small class="text-secondary d-block mt-2" id="aiDetailedStatus" style="font-size: 0.72rem;">
-                            Processing in Celery background worker with Gemini AI. You will be automatically redirected when complete.
-                        </small>
+                        <p class="text-secondary small mb-0 mt-2" id="aiDetailedStatus">This runs in the background. You will be taken to the subject when it finishes.</p>
                     </div>
 
                     <div id="aiFormFields">
                         <div class="row g-3 mb-3">
                             <div class="col-md-8">
-                                <label class="form-label text-light small fw-medium">
-                                    Subject Name <span class="text-danger">*</span>
-                                </label>
-                                <input type="text" name="subject_name" required class="form-control" placeholder="e.g. Natural Language Processing, Cloud Computing">
+                                <label class="form-label">Subject name <span class="text-danger">*</span></label>
+                                <input type="text" name="subject_name" required class="form-control" placeholder="Natural Language Processing">
                             </div>
                             <div class="col-md-4">
-                                <label class="form-label text-light small fw-medium">
-                                    Course Code <span class="text-secondary">(Optional)</span>
-                                </label>
-                                <input type="text" name="subject_code" class="form-control" placeholder="e.g. BAD703, BCS701, 21CS71">
+                                <label class="form-label">Course code</label>
+                                <input type="text" name="subject_code" class="form-control" placeholder="BAD703">
                             </div>
                         </div>
-
                         <div class="mb-3">
-                            <div class="d-flex justify-content-between align-items-center mb-1 flex-wrap gap-1">
-                                <label class="form-label text-light small fw-medium mb-0">
-                                    Prescribed Syllabus Text <span class="text-info" style="font-size: 0.72rem;">(Recommended for exact match)</span>
-                                </label>
-                                <span class="badge bg-primary-subtle text-primary border border-primary-subtle" style="font-size: 0.68rem; font-family: var(--sh-font-mono);">
-                                    Authoritative Source Grounding
-                                </span>
-                            </div>
-                            <textarea name="syllabus_text" rows="5" class="form-control" placeholder="Paste your official 5-module syllabus here to ensure 100% fidelity.&#10;&#10;Example:&#10;Module 1: Classical Encryption & Block Ciphers&#10;Module 2: Public-Key Cryptography & Key Exchange&#10;Module 3: Key Management & Public-Key Infrastructure&#10;Module 4: Web & IP Security&#10;Module 5: Data Security & Data Hiding / Privacy" style="font-size: 0.8rem; line-height: 1.5;"></textarea>
-                            
-                            <!-- Unverified generation warning notice -->
-                            <div class="d-flex align-items-start gap-2 mt-2 p-2.5 rounded" style="background-color: var(--sh-warning-subtle); border: 1px solid var(--sh-warning-border);">
-                                <i class="bi bi-exclamation-triangle-fill text-warning mt-0.5" style="font-size: 0.85rem;"></i>
-                                <span class="text-warning small mb-0" style="font-size: 0.75rem; line-height: 1.45;">
-                                    <strong>Notice:</strong> When syllabus text is omitted, the AI synthesizes reference content that is marked as <em>unverified</em> and may not match your college or VTU scheme. Paste your module outline above for an exact match.
-                                </span>
+                            <label class="form-label">Prescribed syllabus</label>
+                            <textarea name="syllabus_text" rows="6" class="form-control" placeholder="Paste the official module outline so the result matches your scheme.&#10;&#10;Module 1: …&#10;Module 2: …"></textarea>
+                            <div class="notice mt-2">
+                                If you leave this blank, the syllabus is drafted from the subject name and marked unverified. It may not match your college scheme.
                             </div>
                         </div>
-
-                        <!-- Informational Callout -->
-                        <div class="p-2.5 rounded d-flex align-items-start gap-2.5" style="background-color: #0e1422; border: 1px solid var(--sh-border);">
-                            <i class="bi bi-info-circle text-primary mt-0.5"></i>
-                            <p class="text-secondary mb-0" style="font-size: 0.775rem; line-height: 1.5;">
-                                Powered by Google Gemini and background task processing. The generated subject automatically links to curated YouTube lecture searches and technical articles from GeeksforGeeks and W3Schools.
-                            </p>
-                        </div>
+                        <p class="note-quiet mb-0">The subject is saved with YouTube and article searches for each topic.</p>
                     </div>
                 </div>
-
-                <div class="modal-footer py-2.5 px-4 d-flex justify-content-between align-items-center">
-                    <span id="aiStatusText" class="text-secondary small fst-italic" style="font-size: 0.775rem;"></span>
-                    <div class="d-flex gap-2">
-                        <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
-                        <button type="submit" id="btnSubmitGenerate" class="btn btn-sm btn-primary d-inline-flex align-items-center gap-1.5">
-                            <i class="bi bi-magic"></i>
-                            <span id="btnText">Generate Curriculum</span>
-                        </button>
-                    </div>
+                <div class="modal-footer flex-wrap gap-2">
+                    <span id="aiStatusText" class="text-secondary small me-auto"></span>
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" id="btnSubmitGenerate" class="btn btn-primary">
+                        <span id="btnText">Generate curriculum</span>
+                    </button>
                 </div>
             </form>
         </div>
     </div>
 </div>
-
 {% endblock %}
 
 {% block extra_js %}
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    // 1. Asynchronous Celery Form Submission & Real-time Task Status Polling
     const form = document.getElementById('aiGenerateForm');
     const submitBtn = document.getElementById('btnSubmitGenerate');
     const btnText = document.getElementById('btnText');
@@ -347,11 +222,10 @@ document.addEventListener('DOMContentLoaded', function() {
             if (disabled) {
                 submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1.5" role="status" aria-hidden="true"></span> Generating...';
             } else {
-                submitBtn.innerHTML = '<i class="bi bi-magic"></i> <span id="btnText">Generate Curriculum</span>';
+                submitBtn.innerHTML = '<span id="btnText">Generate curriculum</span>';
             }
         }
         if (form) {
-            // Only disable visible interactive inputs, never touch hidden CSRF tokens
             const inputs = form.querySelectorAll('input:not([type="hidden"]), textarea');
             inputs.forEach(input => input.disabled = disabled);
         }
@@ -378,7 +252,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 } else if (data.status === 'COMPLETED' || data.status === 'SUCCESS') {
                     clearInterval(pollInterval);
                     showProgress(data.message || "Curriculum generated successfully! Redirecting...", 4, 100);
-                    if (detailedStatus) detailedStatus.textContent = "Complete! Taking you to the syllabus workspace...";
+                    if (detailedStatus) detailedStatus.textContent = "Complete. Opening the syllabus…";
                     setTimeout(function() {
                         window.location.href = data.redirect_url;
                     }, 500);
@@ -406,12 +280,10 @@ document.addEventListener('DOMContentLoaded', function() {
                 return;
             }
 
-            // Capture FormData and CSRF token BEFORE disabling any UI controls
             const formData = new FormData(form);
             const csrfInput = form.querySelector('[name="csrfmiddlewaretoken"]');
             const csrfToken = csrfInput ? csrfInput.value : '';
 
-            // Ensure CSRF token is explicitly present in FormData
             if (csrfToken && !formData.has('csrfmiddlewaretoken')) {
                 formData.append('csrfmiddlewaretoken', csrfToken);
             }
@@ -487,13 +359,11 @@ document.addEventListener('DOMContentLoaded', function() {
     if (generateModal) {
         generateModal.addEventListener('hidden.bs.modal', function() {
             if (pollInterval) {
-                // If closed while task was finished or failed, clear interval
                 clearInterval(pollInterval);
             }
         });
     }
 
-    // 2. Instant Client-Side Search / Filter
     const searchInput = document.getElementById('subjectSearchInput');
     const clearBtn = document.getElementById('clearSearchBtn');
     const resetBtn = document.getElementById('resetSearchBtn');
@@ -539,7 +409,7 @@ document.addEventListener('DOMContentLoaded', function() {
             if (visibleCount === 0 && totalCount > 0) {
                 noResultsEl.classList.remove('d-none');
                 if (noQueryText) {
-                    noQueryText.textContent = `No subjects matched "${searchInput.value.trim()}". Try searching by course code or subject keyword.`;
+                    noQueryText.textContent = `No subjects matched "${searchInput.value.trim()}". Try a course code or a keyword.`;
                 }
             } else {
                 noResultsEl.classList.add('d-none');

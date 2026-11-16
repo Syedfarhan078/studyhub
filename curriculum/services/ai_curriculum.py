@@ -9,10 +9,11 @@ from pathlib import Path
 
 import requests
 from django.db import transaction
+from django.utils import timezone as dj_timezone
 from django.utils.text import slugify
 from decouple import config
 
-from curriculum.models import Subject, Module, Topic, TopicKeyword
+from curriculum.models import Subject, Module, Topic, TopicKeyword, GenerationJob
 
 logger = logging.getLogger(__name__)
 
@@ -53,6 +54,11 @@ class CurriculumParseError(CurriculumGenerationError):
 
 class CurriculumValidationError(CurriculumGenerationError):
     """Raised when the generated curriculum fails validation against the prescribed source syllabus."""
+    pass
+
+
+class CurriculumFencingError(CurriculumGenerationError):
+    """Raised when job claim token or lease validation fails during curriculum persistence."""
     pass
 
 
@@ -813,16 +819,15 @@ def extract_curriculum_data_from_json(raw_text):
 # Main Service Entrypoint
 # =====================================================================
 
-def generate_curriculum_from_prompt(subject_name, subject_code="", syllabus_text=""):
+def generate_curriculum_data(subject_name, subject_code="", syllabus_text=""):
     """
-    Calls the Gemini API to generate a source-grounded university curriculum.
+    Calls the Gemini API to generate and validate structured curriculum data without touching the database.
     - When official syllabus text is supplied: extracts and preserves all 5 module titles
       and prescribed topics, validating the AI output against the source.
     - When syllabus text is omitted: checks verified official syllabus records for known
       course codes (e.g. BAD703, BAI701), or marks the generated subject as an unverified
       AI reference curriculum.
-    Saves everything atomically into PostgreSQL and returns the Subject instance.
-    Prevents duplicate curriculum records if a request is retried.
+    Returns curriculum dictionary payload ready for atomic persistence.
     """
     raw_key = config('GEMINI_API_KEY', default='')
     api_key = raw_key.strip().strip('\'"') if raw_key else None
@@ -977,11 +982,62 @@ def generate_curriculum_from_prompt(subject_name, subject_code="", syllabus_text
         logger.error("Failed to parse Gemini response: %s", e)
         raise CurriculumParseError(f"Failed to parse AI generated curriculum: {e}")
 
-    # Validate against authoritative prescribed source modules before database insertion
+    # Validate against authoritative prescribed source modules before persistence
     data = validate_curriculum_against_source(data, prescribed_modules=prescribed_modules)
 
-    # Save to database in an atomic transaction (idempotent duplicate prevention)
+    return {
+        "data": data,
+        "clean_name": clean_name,
+        "clean_code": clean_code,
+        "is_verified_source": is_verified_source,
+        "active_model": active_model,
+    }
+
+
+def persist_curriculum_records(
+    curriculum_payload: dict,
+    job_id=None,
+    claim_token=None,
+    lease_duration=300
+) -> Subject:
+    """
+    Persists Subject, Module, Topic, and TopicKeyword records atomically in PostgreSQL.
+    When job_id is provided, acquires a row lock on GenerationJob using select_for_update(),
+    strictly verifying:
+    1. The job exists in the database.
+    2. Job status is RUNNING.
+    3. Claim token matches claim_token exactly (fencing protection).
+    4. The worker lease has not expired.
+    If any check fails, raises CurriculumFencingError, rolling back all records without modifying database state.
+    Only after successful fencing validation are curriculum records persisted,
+    and GenerationJob is marked COMPLETED in the same atomic transaction.
+    """
     with transaction.atomic():
+        job = None
+        if job_id is not None:
+            job = GenerationJob.objects.select_for_update().filter(id=job_id).first()
+            if not job:
+                raise CurriculumFencingError(f"GenerationJob {job_id} not found during persistence.")
+            if job.status != GenerationJob.Status.RUNNING:
+                raise CurriculumFencingError(
+                    f"GenerationJob {job_id} status is '{job.status}', expected RUNNING."
+                )
+            if claim_token is not None and str(job.claim_token) != str(claim_token):
+                raise CurriculumFencingError(
+                    f"GenerationJob {job_id} claim token '{job.claim_token}' revoked or mismatch (expected '{claim_token}')."
+                )
+            effective_lease = lease_duration or 300
+            if job.is_lease_expired(lease_duration_seconds=effective_lease):
+                raise CurriculumFencingError(
+                    f"GenerationJob {job_id} lease expired at {job.locked_at} (duration: {effective_lease}s)."
+                )
+
+        data = curriculum_payload["data"]
+        clean_name = curriculum_payload["clean_name"]
+        clean_code = curriculum_payload["clean_code"]
+        is_verified_source = curriculum_payload["is_verified_source"]
+        active_model = curriculum_payload.get("active_model", "gemini")
+
         final_name = (data.get("name") or clean_name).strip()
         final_code = (clean_code if clean_code and clean_code != "COURSE" else (data.get("code") or clean_code)).strip().upper()
         raw_desc = data.get("description") or f"Curriculum and learning resources for {final_name}."
@@ -1007,76 +1063,116 @@ def generate_curriculum_from_prompt(subject_name, subject_code="", syllabus_text
                 "Subject '%s' (%s) already exists with %d modules. Returning existing subject to prevent duplicates.",
                 existing_subject.name, existing_subject.code, existing_subject.modules.count()
             )
-            return existing_subject
-
-        if existing_subject:
             subject = existing_subject
-            subject.name = final_name[:150]
-            subject.code = final_code[:20]
-            subject.description = final_desc
-            subject.save()
         else:
-            base_slug = slugify(final_name) or "new-subject"
-            unique_slug = base_slug
-            slug_counter = 1
-            while Subject.objects.filter(slug=unique_slug).exists():
-                unique_slug = f"{base_slug}-{slug_counter}"
-                slug_counter += 1
+            if existing_subject:
+                subject = existing_subject
+                subject.name = final_name[:150]
+                subject.code = final_code[:20]
+                subject.description = final_desc
+                subject.save()
+            else:
+                base_slug = slugify(final_name) or "new-subject"
+                unique_slug = base_slug
+                slug_counter = 1
+                while Subject.objects.filter(slug=unique_slug).exists():
+                    unique_slug = f"{base_slug}-{slug_counter}"
+                    slug_counter += 1
 
-            next_order = (Subject.objects.order_by('-order').values_list('order', flat=True).first() or 0) + 1
+                next_order = (Subject.objects.order_by('-order').values_list('order', flat=True).first() or 0) + 1
 
-            subject = Subject.objects.create(
-                name=final_name[:150],
-                code=final_code[:20],
-                slug=unique_slug[:160],
-                description=final_desc,
-                order=next_order
-            )
-
-        if not subject.modules.exists():
-            for m_data in data["modules"]:
-                mod_num = m_data.get("module_number", 1)
-                mod_title = m_data.get("title") or f"Module {mod_num}"
-                mod_desc = m_data.get("description", "")
-
-                module = Module.objects.create(
-                    subject=subject,
-                    module_number=mod_num,
-                    title=mod_title[:100],
-                    description=mod_desc
+                subject = Subject.objects.create(
+                    name=final_name[:150],
+                    code=final_code[:20],
+                    slug=unique_slug[:160],
+                    description=final_desc,
+                    order=next_order
                 )
 
-                topics_data = m_data.get("topics", [])
-                for t_idx, t_data in enumerate(topics_data, start=1):
-                    t_title = t_data.get("title") or f"Topic {t_idx}"
-                    t_desc = t_data.get("description", "")
+            if not subject.modules.exists():
+                for m_data in data["modules"]:
+                    mod_num = m_data.get("module_number", 1)
+                    mod_title = m_data.get("title") or f"Module {mod_num}"
+                    mod_desc = m_data.get("description", "")
 
-                    base_t_slug = slugify(t_title) or f"topic-{t_idx}"
-                    t_slug = base_t_slug
-                    t_counter = 1
-                    while Topic.objects.filter(module=module, slug=t_slug).exists():
-                        t_slug = f"{base_t_slug}-{t_counter}"
-                        t_counter += 1
-
-                    topic = Topic.objects.create(
-                        module=module,
-                        title=t_title[:200],
-                        slug=t_slug[:220],
-                        order=t_idx,
-                        description=t_desc
+                    module = Module.objects.create(
+                        subject=subject,
+                        module_number=mod_num,
+                        title=mod_title[:100],
+                        description=mod_desc
                     )
 
-                    keywords_data = t_data.get("keywords", [])
-                    for kw in keywords_data:
-                        kw_clean = str(kw).strip()
-                        if kw_clean:
-                            TopicKeyword.objects.get_or_create(
-                                topic=topic,
-                                keyword=kw_clean[:120]
-                            )
+                    topics_data = m_data.get("topics", [])
+                    for t_idx, t_data in enumerate(topics_data, start=1):
+                        t_title = t_data.get("title") or f"Topic {t_idx}"
+                        t_desc = t_data.get("description", "")
 
-    logger.info(
-        "Successfully created subject '%s' (%s) with %d modules using model '%s'. Source-grounded: %s",
-        subject.name, subject.code, subject.modules.count(), active_model, is_verified_source
+                        base_t_slug = slugify(t_title) or f"topic-{t_idx}"
+                        t_slug = base_t_slug
+                        t_counter = 1
+                        while Topic.objects.filter(module=module, slug=t_slug).exists():
+                            t_slug = f"{base_t_slug}-{t_counter}"
+                            t_counter += 1
+
+                        topic = Topic.objects.create(
+                            module=module,
+                            title=t_title[:200],
+                            slug=t_slug[:220],
+                            order=t_idx,
+                            description=t_desc
+                        )
+
+                        keywords_data = t_data.get("keywords", [])
+                        for kw in keywords_data:
+                            kw_clean = str(kw).strip()
+                            if kw_clean:
+                                TopicKeyword.objects.get_or_create(
+                                    topic=topic,
+                                    keyword=kw_clean[:120]
+                                )
+
+        # Update GenerationJob status to COMPLETED inside the same atomic transaction
+        if job is not None:
+            job.status = GenerationJob.Status.COMPLETED
+            job.progress = 100
+            job.step = 4
+            job.subject = subject
+            job.finished_at = dj_timezone.now()
+            job.progress_message = (
+                f"Syllabus for '{subject.name}' ({subject.code}) generated successfully with "
+                f"{subject.modules.count()} modules!"
+            )
+            job.error_message = ""
+            job.save(update_fields=['status', 'progress', 'step', 'subject', 'finished_at', 'progress_message', 'error_message'])
+
+        logger.info(
+            "Successfully persisted subject '%s' (%s) with %d modules using model '%s'. Source-grounded: %s",
+            subject.name, subject.code, subject.modules.count(), active_model, is_verified_source
+        )
+        return subject
+
+
+def generate_curriculum_from_prompt(
+    subject_name,
+    subject_code="",
+    syllabus_text="",
+    job_id=None,
+    claim_token=None,
+    lease_duration=300
+) -> Subject:
+    """
+    Main service entrypoint: generates curriculum via Gemini and persists it to PostgreSQL.
+    Preserves exact backward-compatibility for direct callers and legacy view invocations.
+    When job_id is provided, coordinates atomic row-lock fencing validation during persistence.
+    """
+    curriculum_payload = generate_curriculum_data(
+        subject_name=subject_name,
+        subject_code=subject_code,
+        syllabus_text=syllabus_text
     )
-    return subject
+    return persist_curriculum_records(
+        curriculum_payload=curriculum_payload,
+        job_id=job_id,
+        claim_token=claim_token,
+        lease_duration=lease_duration
+    )

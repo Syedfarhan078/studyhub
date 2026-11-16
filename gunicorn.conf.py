@@ -23,10 +23,13 @@ def post_worker_init(worker):
     """
     Called after a Gunicorn worker process has initialized the Django application.
     Starts the in-process background task worker thread.
+    Propagates any startup failures to fail Gunicorn worker boot so the arbiter can restart or alert.
     """
     try:
         from curriculum.worker import start_in_process_worker
         thread = start_in_process_worker()
+        if not thread or not thread.is_alive():
+            raise RuntimeError(f"Worker thread failed to become alive after start_in_process_worker() in worker (pid={worker.pid}).")
         logger.info(
             "[Gunicorn Hook] In-process generation worker thread [%s] started successfully in worker (pid=%s).",
             thread.name, worker.pid
@@ -36,6 +39,7 @@ def post_worker_init(worker):
             "[Gunicorn Hook] CRITICAL: Failed to start in-process generation worker in worker (pid=%s): %s",
             worker.pid, e
         )
+        raise RuntimeError(f"Gunicorn worker (pid={worker.pid}) boot failed: unable to start in-process generation worker: {e}") from e
 
 
 def worker_exit(server, worker):

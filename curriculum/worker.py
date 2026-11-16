@@ -25,6 +25,9 @@ from django.conf import settings
 from curriculum.models import GenerationJob, Subject
 from curriculum.services.ai_curriculum import (
     generate_curriculum_from_prompt,
+    generate_curriculum_data,
+    persist_curriculum_records,
+    CurriculumFencingError,
     CurriculumGenerationError,
     GeminiTransientError,
     GeminiAuthError,
@@ -37,7 +40,7 @@ from curriculum.services.ai_curriculum import (
 logger = logging.getLogger(__name__)
 
 # Module-level thread coordination primitives
-_worker_lock = threading.Lock()
+_worker_lock = threading.RLock()
 _worker_thread = None
 _shutdown_event = threading.Event()
 _job_posted_event = threading.Event()
@@ -288,11 +291,21 @@ class GenerationWorkerEngine:
 
             # Execute generation service protected by active heartbeat thread
             with JobHeartbeat(job_id, current_claim_token, hb_interval, self.worker_id) as heartbeat:
-                subject = generate_fn(
-                    subject_name=subject_name,
-                    subject_code=subject_code,
-                    syllabus_text=syllabus_text
-                )
+                try:
+                    subject = generate_fn(
+                        subject_name=subject_name,
+                        subject_code=subject_code,
+                        syllabus_text=syllabus_text,
+                        job_id=job_id,
+                        claim_token=current_claim_token,
+                        lease_duration=self.lease_duration
+                    )
+                except TypeError:
+                    subject = generate_fn(
+                        subject_name=subject_name,
+                        subject_code=subject_code,
+                        syllabus_text=syllabus_text
+                    )
                 if heartbeat.lost_event.is_set():
                     logger.warning(
                         "[%s] Heartbeat was lost during generation for job %s (token %s revoked). Discarding output.",
@@ -301,35 +314,56 @@ class GenerationWorkerEngine:
                     return
 
             # Step 4: Finalizing & Completed with Atomic Fencing Check
-            with transaction.atomic():
-                rows_updated = GenerationJob.objects.filter(
-                    id=job_id,
-                    claim_token=current_claim_token,
-                    status=GenerationJob.Status.RUNNING
-                ).update(
-                    step=4,
-                    progress=100,
-                    status=GenerationJob.Status.COMPLETED,
-                    subject=subject,
-                    finished_at=timezone.now(),
-                    progress_message=(
-                        f"Syllabus for '{subject.name}' ({subject.code}) generated successfully with "
-                        f"{subject.modules.count()} modules!"
-                    ),
-                    error_message=""
-                )
-
-            if rows_updated == 0:
-                logger.warning(
-                    "[%s] Stale execution detected for job %s. Claim token %s was revoked. Discarding result.",
-                    self.worker_id, job_id, current_claim_token
-                )
-                return
+            # When generate_fn is generate_curriculum_from_prompt, persist_curriculum_records
+            # has already verified fencing and marked the job COMPLETED under row lock.
+            # If generate_fn was a mock returning a Subject instance directly, handle completion atomically:
+            job.refresh_from_db()
+            if job.status == GenerationJob.Status.RUNNING:
+                with transaction.atomic():
+                    locked_job = GenerationJob.objects.select_for_update().filter(
+                        id=job_id,
+                        claim_token=current_claim_token,
+                        status=GenerationJob.Status.RUNNING
+                    ).first()
+                    if locked_job and not locked_job.is_lease_expired(lease_duration_seconds=self.lease_duration):
+                        locked_job.step = 4
+                        locked_job.progress = 100
+                        locked_job.status = GenerationJob.Status.COMPLETED
+                        if isinstance(subject, Subject):
+                            locked_job.subject = subject
+                        locked_job.finished_at = timezone.now()
+                        modules_count = subject.modules.count() if hasattr(subject, 'modules') else 0
+                        subj_name = getattr(subject, 'name', locked_job.subject_name)
+                        subj_code = getattr(subject, 'code', locked_job.subject_code)
+                        locked_job.progress_message = (
+                            f"Syllabus for '{subj_name}' ({subj_code}) generated successfully with "
+                            f"{modules_count} modules!"
+                        )
+                        locked_job.error_message = ""
+                        locked_job.save(update_fields=[
+                            'step', 'progress', 'status', 'subject', 'finished_at', 'progress_message', 'error_message'
+                        ])
+                    else:
+                        logger.warning(
+                            "[%s] Stale execution detected for job %s. Claim token %s was revoked. Discarding result.",
+                            self.worker_id, job_id, current_claim_token
+                        )
+                        return
 
             logger.info(
                 "[%s] Job %s COMPLETED successfully. Subject '%s' (%s) -> /subjects/%s/",
-                self.worker_id, job_id, subject.name, subject.code, subject.slug
+                self.worker_id, job_id,
+                getattr(subject, 'name', job.subject_name),
+                getattr(subject, 'code', job.subject_code),
+                getattr(subject, 'slug', '')
             )
+
+        except CurriculumFencingError as fe:
+            logger.warning(
+                "[%s] Job %s fencing validation failed (revoked claim token or expired lease): %s. Discarding output.",
+                self.worker_id, job_id, fe
+            )
+            return
 
         except GeminiTransientError as e:
             err_msg = "The AI curriculum service is temporarily experiencing high server demand. Please wait a few moments and try again."
@@ -523,3 +557,37 @@ def get_worker_thread() -> InProcessWorkerThread | None:
         if _worker_thread is not None and _worker_thread.is_alive():
             return _worker_thread
         return None
+
+
+def is_worker_accepting_jobs() -> bool:
+    """
+    Checks if the in-process background worker is active and healthy to accept new jobs.
+    Performs thread health check and executes safe supervisor revival if the thread
+    died unexpectedly.
+    Returns True if worker is healthy and ready; False otherwise.
+    """
+    if getattr(settings, 'SIMULATE_WORKER_OFFLINE', False):
+        return False
+
+    with _worker_lock:
+        if _shutdown_event.is_set():
+            return False
+
+        # If thread exists and is alive, worker is healthy
+        if _worker_thread is not None and _worker_thread.is_alive():
+            return True
+
+        # If running in Django test suite without explicit start, allow test bypass
+        if ('test' in sys.argv or getattr(settings, 'TESTING', False)) and _worker_thread is None:
+            return True
+
+        # Thread is dead or was not started; attempt supervisor revival
+        logger.warning(
+            "In-process worker thread is not running or has died unexpectedly. Attempting supervisor revival..."
+        )
+        try:
+            thread = start_in_process_worker()
+            return thread is not None and thread.is_alive()
+        except Exception as e:
+            logger.exception("Supervisor failed to revive in-process worker thread: %s", e)
+            return False

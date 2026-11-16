@@ -16,6 +16,9 @@ from curriculum.models import Module, Subject, Topic, TopicKeyword, GenerationJo
 from curriculum.services.ai_curriculum import (
     CurriculumParseError,
     CurriculumValidationError,
+    CurriculumFencingError,
+    generate_curriculum_data,
+    persist_curriculum_records,
     GeminiAuthError,
     GeminiInvalidRequestError,
     GeminiModelNotFoundError,
@@ -31,6 +34,7 @@ from curriculum.worker import (
     stop_in_process_worker,
     notify_new_job,
     get_worker_thread,
+    is_worker_accepting_jobs,
     GenerationWorkerEngine,
 )
 
@@ -1518,6 +1522,211 @@ class InProcessWorkerThreadTests(TransactionTestCase):
         self.assertIsNone(stale_job.locked_at)
         self.assertEqual(stale_job.locked_by, "")
         self.assertIn("requeued", stale_job.progress_message)
+
+
+class ProductionHardeningFencingAndHealthTests(TestCase):
+    """
+    Verification tests for Critical Production Fixes:
+    - Atomicity & Fencing: decoupling generation from DB persistence.
+    - Stale-worker curriculum rejection: revoked claim tokens and expired leases fail atomically.
+    - Transaction rollback: zero records created on fencing rejection.
+    - Worker startup failure propagation in gunicorn.conf.py.
+    - Worker health check & supervisor revival in worker.py.
+    - Rejection with HTTP 503 when worker is offline (no orphaned jobs).
+    """
+
+    def setUp(self):
+        self.client = Client()
+
+    def tearDown(self):
+        stop_in_process_worker(timeout=2.0)
+
+    def test_persist_curriculum_records_with_valid_claim(self):
+        """Verifies curriculum persistence succeeds and updates job to COMPLETED under valid claim."""
+        claim_token = uuid.uuid4()
+        job = GenerationJob.objects.create(
+            subject_name="Software Engineering",
+            subject_code="BCS501_VALID",
+            status=GenerationJob.Status.RUNNING,
+            claim_token=claim_token,
+            locked_at=timezone.now(),
+            locked_by="worker-valid"
+        )
+
+        payload = {
+            "data": SAMPLE_CURRICULUM_DATA,
+            "clean_name": "Software Engineering",
+            "clean_code": "BCS501_VALID",
+            "is_verified_source": True,
+            "active_model": "gemini-3.5-flash",
+        }
+
+        subject = persist_curriculum_records(
+            curriculum_payload=payload,
+            job_id=job.id,
+            claim_token=claim_token,
+            lease_duration=300
+        )
+
+        self.assertIsNotNone(subject)
+        self.assertEqual(subject.name, "Software Engineering")
+        self.assertEqual(subject.modules.count(), 5)
+        self.assertEqual(Topic.objects.filter(module__subject=subject).count(), 15)
+
+        job.refresh_from_db()
+        self.assertEqual(job.status, GenerationJob.Status.COMPLETED)
+        self.assertEqual(job.step, 4)
+        self.assertEqual(job.progress, 100)
+        self.assertEqual(job.subject, subject)
+
+    def test_persist_curriculum_records_rejects_revoked_claim_token(self):
+        """Verifies CurriculumFencingError is raised and 0 records created when claim token is mismatched/revoked."""
+        initial_token = uuid.uuid4()
+        revoked_token = uuid.uuid4()
+
+        job = GenerationJob.objects.create(
+            subject_name="Cyber Threat Intel",
+            subject_code="CTI901",
+            status=GenerationJob.Status.RUNNING,
+            claim_token=revoked_token,  # Another worker re-claimed or updated the token
+            locked_at=timezone.now(),
+            locked_by="worker-new"
+        )
+
+        payload = {
+            "data": SAMPLE_CURRICULUM_DATA,
+            "clean_name": "Cyber Threat Intel",
+            "clean_code": "CTI901",
+            "is_verified_source": False,
+            "active_model": "gemini-3.5-flash",
+        }
+
+        # Attempt to persist using the old initial_token
+        with self.assertRaises(CurriculumFencingError):
+            persist_curriculum_records(
+                curriculum_payload=payload,
+                job_id=job.id,
+                claim_token=initial_token,
+                lease_duration=300
+            )
+
+        # Database atomicity check: NO Subject, Module, or Topic should have been committed
+        self.assertFalse(Subject.objects.filter(code="CTI901").exists())
+        self.assertFalse(Module.objects.filter(title__contains="CTI901").exists())
+
+        # Job must NOT be marked COMPLETED or FAILED by stale worker
+        job.refresh_from_db()
+        self.assertEqual(job.status, GenerationJob.Status.RUNNING)
+        self.assertEqual(job.claim_token, revoked_token)
+
+    def test_persist_curriculum_records_rejects_expired_lease(self):
+        """Verifies CurriculumFencingError is raised and rolled back when worker lease has expired."""
+        claim_token = uuid.uuid4()
+        past_time = timezone.now() - timedelta(seconds=500)
+
+        job = GenerationJob.objects.create(
+            subject_name="Quantum Computing",
+            subject_code="QC999",
+            status=GenerationJob.Status.RUNNING,
+            claim_token=claim_token,
+            locked_at=past_time,
+            locked_by="worker-expired"
+        )
+
+        payload = {
+            "data": SAMPLE_CURRICULUM_DATA,
+            "clean_name": "Quantum Computing",
+            "clean_code": "QC999",
+            "is_verified_source": False,
+            "active_model": "gemini-3.5-flash",
+        }
+
+        with self.assertRaises(CurriculumFencingError):
+            persist_curriculum_records(
+                curriculum_payload=payload,
+                job_id=job.id,
+                claim_token=claim_token,
+                lease_duration=300
+            )
+
+        self.assertFalse(Subject.objects.filter(code="QC999").exists())
+        job.refresh_from_db()
+        self.assertEqual(job.status, GenerationJob.Status.RUNNING)
+
+    def test_execute_job_catches_curriculum_fencing_error_gracefully(self):
+        """Verifies execute_job discards output on CurriculumFencingError without overwriting job state."""
+        job = GenerationJob.objects.create(
+            subject_name="Fencing Test",
+            subject_code="FNC101",
+            status=GenerationJob.Status.RUNNING,
+            claim_token=uuid.uuid4(),
+            locked_at=timezone.now(),
+            locked_by="worker-fencing"
+        )
+
+        def mock_failing_generator(**kwargs):
+            raise CurriculumFencingError("Simulated fencing failure: lease expired.")
+
+        engine = GenerationWorkerEngine()
+        # Should catch CurriculumFencingError and return cleanly without crashing
+        engine.execute_job(job, heartbeat_interval=0, generator_func=mock_failing_generator)
+
+        job.refresh_from_db()
+        # The job was not marked FAILED because worker recognized it no longer owned the lease
+        self.assertEqual(job.status, GenerationJob.Status.RUNNING)
+
+    def test_worker_offline_returns_503_without_creating_job(self):
+        """Verifies generate_subject_ai returns HTTP 503 and creates no GenerationJob when worker is offline."""
+        with override_settings(SIMULATE_WORKER_OFFLINE=True):
+            resp = self.client.post(
+                reverse("curriculum:generate_subject_ai"),
+                {"subject_name": "Compiler Design", "subject_code": "CD601"},
+                HTTP_X_REQUESTED_WITH="XMLHttpRequest"
+            )
+            self.assertEqual(resp.status_code, 503)
+            data = resp.json()
+            self.assertFalse(data.get("success"))
+            self.assertEqual(data.get("status"), "FAILED")
+            self.assertEqual(
+                data.get("error"),
+                "Curriculum generation is temporarily unavailable. Please try again later."
+            )
+            # Ensure zero jobs were created in PostgreSQL
+            self.assertFalse(GenerationJob.objects.filter(subject_code="CD601").exists())
+
+    def test_worker_supervisor_revives_dead_thread(self):
+        """Verifies that is_worker_accepting_jobs automatically revives an unexpectedly killed worker thread."""
+        stop_in_process_worker(timeout=2.0)
+        thread = start_in_process_worker()
+        self.assertIsNotNone(thread)
+        self.assertTrue(thread.is_alive())
+
+        # Mock thread being dead
+        with patch.object(thread, "is_alive", return_value=False):
+            # Supervisor should detect dead thread and trigger restart
+            is_healthy = is_worker_accepting_jobs()
+            self.assertTrue(is_healthy)
+            revived = get_worker_thread()
+            self.assertIsNotNone(revived)
+            self.assertTrue(revived.is_alive())
+
+        stop_in_process_worker(timeout=2.0)
+
+    def test_gunicorn_post_worker_init_propagates_startup_failure(self):
+        """Verifies that gunicorn.conf.py post_worker_init propagates exceptions to fail worker boot."""
+        import importlib.util
+        spec = importlib.util.spec_from_file_location("gunicorn_conf_test", "gunicorn.conf.py")
+        gconf = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(gconf)
+
+        mock_worker = MagicMock()
+        mock_worker.pid = 99999
+
+        with patch("curriculum.worker.start_in_process_worker", side_effect=Exception("Database connection timeout")):
+            with self.assertRaises(RuntimeError) as ctx:
+                gconf.post_worker_init(mock_worker)
+            self.assertIn("Gunicorn worker (pid=99999) boot failed", str(ctx.exception))
+
 
 
 

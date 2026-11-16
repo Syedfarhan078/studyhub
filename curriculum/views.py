@@ -17,7 +17,7 @@ from .services.ai_curriculum import (
     CurriculumParseError,
     CurriculumValidationError,
 )
-from curriculum.worker import notify_new_job
+from curriculum.worker import notify_new_job, is_worker_accepting_jobs
 
 logger = logging.getLogger(__name__)
 
@@ -81,6 +81,14 @@ def generate_subject_ai(request):
 
         # Background generation via PostgreSQL GenerationJob for interactive web client
         if is_ajax:
+            if not is_worker_accepting_jobs():
+                logger.error("Curriculum generation rejected: in-process worker is offline or unavailable.")
+                return JsonResponse({
+                    'success': False,
+                    'status': 'FAILED',
+                    'error': 'Curriculum generation is temporarily unavailable. Please try again later.'
+                }, status=503)
+
             user = request.user if request.user.is_authenticated else None
             session_key = ""
             if not user:

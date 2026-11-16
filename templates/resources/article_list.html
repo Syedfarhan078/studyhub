@@ -3,124 +3,66 @@
 {% block title %}Articles: {{ topic.title }} — StudyHub{% endblock %}
 
 {% block content %}
-<!-- Standardized Horizontal Scrollable Breadcrumb for Mobile -->
 <div class="breadcrumb-wrapper mb-3">
     <nav aria-label="breadcrumb">
-        <ol class="breadcrumb mb-0">
-            <li class="breadcrumb-item"><a href="/">Home</a></li>
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="/">Curriculum</a></li>
             <li class="breadcrumb-item"><a href="{% url 'curriculum:subject_detail' subject.slug %}">{{ subject.code }}</a></li>
-            <li class="breadcrumb-item text-secondary">Module {{ module.module_number }}</li>
+            <li class="breadcrumb-item">Module {{ module.module_number }}</li>
             <li class="breadcrumb-item active" aria-current="page">{{ topic.title }}</li>
         </ol>
     </nav>
 </div>
 
-<!-- Page Header Banner -->
-<div class="sh-panel mb-4 p-3.5 p-md-4">
-    <div class="d-flex flex-column flex-lg-row justify-content-between align-items-start align-items-lg-center gap-3">
-        <div>
-            <div class="d-flex align-items-center gap-2 mb-2 flex-wrap">
-                <span class="badge bg-info-subtle text-info border border-info-subtle d-inline-flex align-items-center gap-1.5 py-1 px-2.5" style="font-size: 0.72rem; font-weight: 600;">
-                    <i class="bi bi-newspaper"></i> Article Discovery Platform
-                </span>
-                <span class="text-secondary small">&bull; Module {{ module.module_number }}: {{ topic.title }}</span>
-            </div>
-            <h1 class="h2 fw-bold text-light mb-1">{{ topic.title }}</h1>
-            <p class="text-secondary small mb-0" style="max-width: 650px; line-height: 1.6;">
-                Curated articles, engineering blogs, and documentation from reputable academic and developer sources.
-            </p>
-        </div>
-
-        <!-- Symmetrical Header Action Buttons (Thumb-Friendly on Mobile) -->
-        <div class="d-flex align-items-center gap-2 flex-wrap w-100 w-lg-auto mt-2 mt-lg-0">
-            <a href="{% url 'resources:topic_videos' topic.id %}" class="btn btn-sm btn-outline-danger flex-fill flex-lg-grow-0">
-                <i class="bi bi-youtube"></i> Switch to Videos
-            </a>
-            <a href="{% url 'curriculum:subject_detail' subject.slug %}?topic={{ topic.slug }}" class="btn btn-sm btn-outline-secondary flex-fill flex-lg-grow-0">
-                <i class="bi bi-arrow-left"></i> Syllabus
-            </a>
-            <a href="?refresh=1" class="btn btn-sm btn-outline-info flex-fill flex-lg-grow-0" title="Fetches fresh articles">
-                <i class="bi bi-arrow-clockwise"></i> Refresh
-            </a>
-        </div>
+<header class="sheet page-head mb-4">
+    <div>
+        <p class="eyebrow">Reading · Module {{ module.module_number }}</p>
+        <h1 class="page-title">{{ topic.title }}</h1>
+        <p class="lede">Articles and documentation related to this topic.</p>
     </div>
-</div>
+    <div class="page-actions d-flex flex-column flex-sm-row gap-2 mt-3 mt-lg-0">
+        <a href="{% url 'resources:topic_videos' topic.id %}" class="btn btn-outline-secondary">Videos</a>
+        <a href="{% url 'curriculum:subject_detail' subject.slug %}?topic={{ topic.slug }}" class="btn btn-outline-secondary">Syllabus</a>
+        <a href="?refresh=1" class="btn btn-primary">Refresh</a>
+    </div>
+</header>
 
-<!-- Standardized Keywords Pill Bar -->
-<div class="p-3 mb-4 rounded border border-secondary-subtle d-flex flex-wrap align-items-center gap-2" style="background-color: #0e1422; border-color: var(--sh-border) !important;">
-    <span class="small text-secondary fw-semibold me-1" style="font-size: 0.75rem;"><i class="bi bi-tag-fill me-1"></i>Search Keywords:</span>
+<div class="d-flex flex-wrap align-items-center gap-2 mb-4">
+    <span class="section-label">Keywords</span>
     {% for kw in topic.keywords.all %}
-        <span class="sh-badge-tag">
-            <i class="bi bi-search text-secondary" style="font-size: 0.65rem;"></i>{{ kw.keyword }}
-        </span>
+        <span class="keyword">{{ kw.keyword }}</span>
     {% empty %}
-        <span class="small text-secondary fst-italic">{{ topic.title }}</span>
+        <span class="keyword">{{ topic.title }}</span>
     {% endfor %}
 </div>
 
-<!-- Articles Feed -->
 {% if articles %}
-    <div class="row row-cols-1 row-cols-lg-2 g-4 gy-4">
+    <div class="row row-cols-1 row-cols-lg-2 g-3">
         {% for article in articles %}
             <div class="col">
-                <div class="sh-card p-3.5 p-md-4 d-flex flex-column h-100">
-                    <!-- Top Row: Source Badge & Date -->
-                    <div class="d-flex justify-content-between align-items-center mb-3">
-                        {% if "GeeksforGeeks" in article.source_name or "W3Schools" in article.source_name %}
-                            <span class="badge bg-success-subtle text-success border border-success-subtle d-inline-flex align-items-center gap-1.5 py-1 px-2.5" style="font-size: 0.72rem; font-weight: 600;">
-                                <i class="bi bi-star-fill text-warning"></i>
-                                {{ article.source_name }} &bull; Recommended
-                            </span>
-                        {% else %}
-                            <span class="badge bg-dark border border-secondary-subtle text-info-emphasis d-inline-flex align-items-center gap-1.5 py-1 px-2.5" style="font-size: 0.72rem;">
-                                <i class="bi bi-journal-text text-info"></i>
-                                {{ article.source_name }}
-                            </span>
-                        {% endif %}
-
+                <article class="sh-card">
+                    <div class="d-flex justify-content-between align-items-baseline gap-2 mb-2">
+                        <span class="course-code">{{ article.source_name }}</span>
                         {% if article.published_date %}
-                            <span class="text-secondary small" style="font-size: 0.72rem; font-family: var(--sh-font-mono);">
-                                <i class="bi bi-clock me-1"></i>{{ article.published_date|date:"M d, Y" }}
-                            </span>
+                            <time class="sh-meta" datetime="{{ article.published_date|date:'Y-m-d' }}">{{ article.published_date|date:"M j, Y" }}</time>
                         {% endif %}
                     </div>
-
-                    <!-- Article Title (Clamped to 2 lines for uniform card alignment) -->
-                    <h5 class="card-title fw-semibold text-light mb-2 sh-clamp-2" style="font-size: 0.95rem; line-height: 1.4; min-height: 42px;">
-                        <a href="{{ article.url }}" target="_blank" rel="noopener noreferrer" class="text-light text-decoration-none">
-                            {{ article.title }}
-                        </a>
-                    </h5>
-
-                    <!-- Snippet Excerpt (Clamped to 3 lines for balanced cards) -->
-                    <p class="card-text text-secondary small flex-grow-1 mb-4 sh-clamp-3" style="font-size: 0.8125rem; line-height: 1.6; min-height: 52px;">
-                        {{ article.snippet|default:"Read the full educational article and tutorials on the source publication website." }}
+                    <h2 class="h5 sh-clamp-2 mb-2">
+                        <a href="{{ article.url }}" target="_blank" rel="noopener noreferrer" class="text-decoration-none" style="color: inherit;">{{ article.title }}</a>
+                    </h2>
+                    <p class="text-secondary small sh-clamp-3 flex-grow-1 mb-3">
+                        {{ article.snippet|default:"Open the article on the publisher’s site." }}
                     </p>
-
-                    <!-- Footer Action (Full-width on small phones) -->
-                    <div class="pt-3 border-top border-secondary-subtle d-flex flex-column flex-sm-row justify-content-between align-items-sm-center gap-2 mt-auto" style="border-top-color: var(--sh-border) !important;">
-                        <a href="{{ article.url }}" target="_blank" rel="noopener noreferrer" class="btn btn-sm btn-outline-info w-100 w-sm-auto">
-                            Read Full Article <i class="bi bi-box-arrow-up-right" style="font-size: 0.7rem;"></i>
-                        </a>
-                        <span class="text-secondary small text-center text-sm-end" style="font-size: 0.72rem; font-family: var(--sh-font-mono);">
-                            External Reference
-                        </span>
-                    </div>
-                </div>
+                    <a href="{{ article.url }}" target="_blank" rel="noopener noreferrer" class="card-link">Read article</a>
+                </article>
             </div>
         {% endfor %}
     </div>
 {% else %}
-    <!-- Empty State -->
-    <div class="sh-panel p-5 text-center">
-        <i class="bi bi-journal-x fs-1 text-secondary mb-3 d-block"></i>
-        <h5 class="text-light">No Articles Found</h5>
-        <p class="text-secondary small mb-3">
-            Unable to discover articles for this topic yet. Click below to fetch articles from educational feeds.
-        </p>
-        <a href="?refresh=1" class="btn btn-info btn-sm">
-            <i class="bi bi-arrow-clockwise"></i> Discover Articles Now
-        </a>
+    <div class="sheet empty-state">
+        <h5>No articles yet</h5>
+        <p class="text-secondary">Fetch a fresh set from the usual education sites.</p>
+        <a href="?refresh=1" class="btn btn-primary">Find articles</a>
     </div>
 {% endif %}
 {% endblock %}
