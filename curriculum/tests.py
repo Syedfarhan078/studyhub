@@ -2336,6 +2336,133 @@ class ModuleNoteStreamingTests(TestCase):
         self.assertEqual(response.status_code, 404)
 
 
+class HybridDeskAndCatalogTests(TestCase):
+    """
+    Tests for the Hybrid Academic model:
+    - Auto-inferencing branch and semester from VTU and university course codes.
+    - Personal study desk pinning and unpinning without accounts or login.
+    - University catalog filtering context and cookie synchronization.
+    """
+
+    def setUp(self):
+        self.client = Client()
+
+    def test_infer_branch_and_semester_vtu_codes(self):
+        """Verifies branch and semester are accurately deduced from common VTU codes."""
+        b, s = Subject.infer_branch_and_semester("BAI701", "Deep Learning")
+        self.assertEqual(b, Subject.Branch.AIML)
+        self.assertEqual(s, 7)
+
+        b, s = Subject.infer_branch_and_semester("BCS502", "Database Management Systems")
+        self.assertEqual(b, Subject.Branch.CSE)
+        self.assertEqual(s, 5)
+
+        b, s = Subject.infer_branch_and_semester("BME755A", "Non-Traditional Machining")
+        self.assertEqual(b, Subject.Branch.ME)
+        self.assertEqual(s, 7)
+
+        b, s = Subject.infer_branch_and_semester("18CS71", "Web Technology and its applications")
+        self.assertEqual(b, Subject.Branch.CSE)
+        self.assertEqual(s, 7)
+
+        b, s = Subject.infer_branch_and_semester("BMAT101", "Calculus and Linear Algebra")
+        self.assertEqual(b, Subject.Branch.ALL)
+        self.assertEqual(s, 1)
+
+    def test_subject_save_auto_infers_branch_and_semester(self):
+        """When not provided, saving a Subject auto-infers branch and semester."""
+        s = Subject.objects.create(
+            name="Deep Learning",
+            code="BAI701",
+            slug="dl-auto"
+        )
+        self.assertEqual(s.branch, Subject.Branch.AIML)
+        self.assertEqual(s.semester, 7)
+        self.assertEqual(s.academic_tag, "AIML · Sem 7")
+
+    def test_subject_save_honors_explicit_branch_and_semester(self):
+        """Explicitly specified branch and semester are not overridden."""
+        s = Subject.objects.create(
+            name="Custom Course",
+            code="GEN999",
+            slug="custom-course",
+            branch=Subject.Branch.ECE,
+            semester=3
+        )
+        self.assertEqual(s.branch, Subject.Branch.ECE)
+        self.assertEqual(s.semester, 3)
+        self.assertEqual(s.academic_tag, "ECE · Sem 3")
+
+    def test_toggle_subject_pin_flow(self):
+        """Verifies pinning and unpinning a subject via AJAX without an account."""
+        sub = Subject.objects.create(
+            name="Operating Systems",
+            code="BCS403",
+            slug="operating-systems",
+            branch=Subject.Branch.CSE,
+            semester=4
+        )
+        url = reverse('curriculum:toggle_subject_pin')
+
+        # 1. Pin
+        res1 = self.client.post(url, data={'slug': sub.slug})
+        self.assertEqual(res1.status_code, 200)
+        data1 = res1.json()
+        self.assertTrue(data1['success'])
+        self.assertTrue(data1['is_pinned'])
+        self.assertEqual(data1['total_pinned'], 1)
+        self.assertIn(sub.slug, res1.cookies['studyhub_pinned'].value)
+
+        # 2. Unpin
+        res2 = self.client.post(url, data={'slug': sub.slug})
+        self.assertEqual(res2.status_code, 200)
+        data2 = res2.json()
+        self.assertTrue(data2['success'])
+        self.assertFalse(data2['is_pinned'])
+        self.assertEqual(data2['total_pinned'], 0)
+
+    def test_toggle_subject_pin_validation(self):
+        """Verifies validation and HTTP error codes for toggle pin."""
+        url = reverse('curriculum:toggle_subject_pin')
+
+        # Method not allowed (GET)
+        get_res = self.client.get(url)
+        self.assertEqual(get_res.status_code, 405)
+
+        # Missing slug
+        missing_res = self.client.post(url, data={})
+        self.assertEqual(missing_res.status_code, 400)
+
+        # Nonexistent subject
+        not_found_res = self.client.post(url, data={'slug': 'non-existent-subject'})
+        self.assertEqual(not_found_res.status_code, 404)
+
+    def test_home_view_hybrid_desk_context(self):
+        """Verifies home view renders pinned subjects from cookie and passes branch/sem choices."""
+        s1 = Subject.objects.create(name="Networks", code="BCS501", slug="networks-test", branch=Subject.Branch.CSE, semester=5)
+        s2 = Subject.objects.create(name="CAD", code="BME501", slug="cad-test", branch=Subject.Branch.ME, semester=5)
+
+        # Set cookie with s1 pinned
+        self.client.cookies['studyhub_pinned'] = s1.slug
+        res = self.client.get('/')
+        self.assertEqual(res.status_code, 200)
+
+        # Check context
+        self.assertEqual(res.context['pinned_count'], 1)
+        self.assertEqual(len(res.context['pinned_subjects']), 1)
+        self.assertEqual(res.context['pinned_subjects'][0].slug, s1.slug)
+        self.assertTrue(any(code == 'CSE' for code, label in res.context['branches']))
+        self.assertIn(5, res.context['semesters'])
+
+        # Check HTML contains tabs and cards
+        html = res.content.decode('utf-8')
+        self.assertIn('My Desk', html)
+        self.assertIn('University Catalog', html)
+        self.assertIn('networks-test', html)
+        self.assertIn('cad-test', html)
+
+
+
 
 
 

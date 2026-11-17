@@ -46,6 +46,9 @@ def generate_subject_ai(request):
         subject_name = request.POST.get('subject_name', '').strip()
         subject_code = request.POST.get('subject_code', '').strip()
         syllabus_text = request.POST.get('syllabus_text', '').strip()
+        branch = request.POST.get('branch', '').strip()
+        semester_raw = request.POST.get('semester', '').strip()
+        semester = int(semester_raw) if semester_raw.isdigit() else None
 
         is_ajax = (
             request.headers.get('x-requested-with') == 'XMLHttpRequest'
@@ -85,6 +88,7 @@ def generate_subject_ai(request):
                     'redirect_url': redirect_url,
                     'subject_name': existing_subject.name,
                     'subject_code': existing_subject.code,
+                    'subject_slug': existing_subject.slug,
                     'message': f"Subject '{existing_subject.name}' ({existing_subject.code}) is already available with {existing_subject.modules.count()} modules."
                 })
             messages.info(request, f"Subject '{existing_subject.name}' already exists.")
@@ -114,6 +118,8 @@ def generate_subject_ai(request):
                     subject_name=subject_name,
                     subject_code=subject_code,
                     syllabus_text=syllabus_text,
+                    branch=branch,
+                    semester=semester,
                     status=GenerationJob.Status.PENDING,
                     progress=0,
                     step=1,
@@ -143,7 +149,9 @@ def generate_subject_ai(request):
             subject = generate_curriculum_from_prompt(
                 subject_name=subject_name,
                 subject_code=subject_code,
-                syllabus_text=syllabus_text
+                syllabus_text=syllabus_text,
+                branch=branch,
+                semester=semester
             )
             messages.success(
                 request,
@@ -269,8 +277,10 @@ def generation_status(request, task_id):
             }, status=403)
 
     redirect_url = None
+    subject_slug = None
     if job.subject:
         redirect_url = reverse('curriculum:subject_detail', kwargs={'slug': job.subject.slug})
+        subject_slug = job.subject.slug
 
     is_success = (job.status != GenerationJob.Status.FAILED)
 
@@ -283,6 +293,7 @@ def generation_status(request, task_id):
         'total_steps': job.total_steps,
         'message': job.progress_message,
         'redirect_url': redirect_url,
+        'subject_slug': subject_slug,
         'error': job.error_message or None,
     })
 
@@ -472,3 +483,63 @@ def download_module_note(request, note_id):
     Prompts immediate file download with a clean, branded academic filename.
     """
     return _serve_note_file(request, note_id, as_attachment=True)
+
+
+def toggle_subject_pin(request):
+    """
+    AJAX endpoint allowing anonymous and guest students to pin or unpin
+    a subject to/from their personal study desk without an account.
+    Synchronizes state across session and long-lived cookie.
+    """
+    if request.method != 'POST':
+        return JsonResponse({'success': False, 'error': 'Method not allowed. Use POST.'}, status=405)
+
+    slug = (request.POST.get('slug') or '').strip()
+    if not slug:
+        import json
+        try:
+            body = json.loads(request.body.decode('utf-8'))
+            slug = (body.get('slug') or '').strip()
+        except Exception:
+            slug = ''
+
+    if not slug:
+        return JsonResponse({'success': False, 'error': 'Subject slug is required.'}, status=400)
+
+    subject = get_object_or_404(Subject, slug=slug)
+
+    pinned = set(request.session.get('studyhub_pinned', []))
+    cookie_pinned = request.COOKIES.get('studyhub_pinned', '')
+    if cookie_pinned:
+        for s in cookie_pinned.split(','):
+            s_clean = s.strip()
+            if s_clean:
+                pinned.add(s_clean)
+
+    is_pinned = False
+    if slug in pinned:
+        pinned.remove(slug)
+        is_pinned = False
+    else:
+        pinned.add(slug)
+        is_pinned = True
+
+    pinned_list = sorted(list(pinned))
+    request.session['studyhub_pinned'] = pinned_list
+    request.session.modified = True
+
+    response = JsonResponse({
+        'success': True,
+        'slug': slug,
+        'is_pinned': is_pinned,
+        'total_pinned': len(pinned_list),
+        'pinned_slugs': pinned_list,
+        'message': f"Subject '{subject.name}' {'pinned to' if is_pinned else 'removed from'} your desk."
+    })
+    response.set_cookie(
+        'studyhub_pinned',
+        ','.join(pinned_list),
+        max_age=365 * 24 * 60 * 60,
+        samesite='Lax'
+    )
+    return response

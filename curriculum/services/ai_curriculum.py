@@ -1706,7 +1706,9 @@ def persist_curriculum_records(
     curriculum_payload: dict,
     job_id=None,
     claim_token=None,
-    lease_duration=300
+    lease_duration=300,
+    branch=None,
+    semester=None
 ) -> Subject:
     """
     Persists Subject, Module, Topic, and TopicKeyword records atomically in PostgreSQL.
@@ -1760,6 +1762,12 @@ def persist_curriculum_records(
             else:
                 final_desc = raw_desc
 
+        if job:
+            if not branch and job.branch:
+                branch = job.branch
+            if not semester and job.semester:
+                semester = job.semester
+
         existing_subject = None
         if final_code and final_code != "COURSE":
             existing_subject = Subject.objects.filter(code__iexact=final_code, name__iexact=final_name).first()
@@ -1772,12 +1780,21 @@ def persist_curriculum_records(
                 existing_subject.name, existing_subject.code, existing_subject.modules.count()
             )
             subject = existing_subject
+            if branch and subject.branch != branch:
+                subject.branch = branch
+            if semester and subject.semester != semester:
+                subject.semester = semester
+            subject.save()
         else:
             if existing_subject:
                 subject = existing_subject
                 subject.name = final_name[:150]
                 subject.code = final_code[:20]
                 subject.description = final_desc
+                if branch:
+                    subject.branch = branch
+                if semester:
+                    subject.semester = semester
                 subject.save()
             else:
                 base_slug = slugify(final_name) or "new-subject"
@@ -1789,13 +1806,18 @@ def persist_curriculum_records(
 
                 next_order = (Subject.objects.order_by('-order').values_list('order', flat=True).first() or 0) + 1
 
-                subject = Subject.objects.create(
+                subject = Subject(
                     name=final_name[:150],
                     code=final_code[:20],
                     slug=unique_slug[:160],
                     description=final_desc,
                     order=next_order
                 )
+                if branch:
+                    subject.branch = branch
+                if semester:
+                    subject.semester = semester
+                subject.save()
 
             if not subject.modules.exists():
                 for m_data in data["modules"]:
@@ -1893,10 +1915,12 @@ def generate_curriculum_from_prompt(
     syllabus_text="",
     job_id=None,
     claim_token=None,
-    lease_duration=300
+    lease_duration=300,
+    branch=None,
+    semester=None
 ) -> Subject:
     """
-    Main service entrypoint: generates curriculum via Gemini and persists it to PostgreSQL.
+    Main service entrypoint: generates curriculum via Gemini/Groq and persists it to PostgreSQL.
     Preserves exact backward-compatibility for direct callers and legacy view invocations.
     When job_id is provided, coordinates atomic row-lock fencing validation during persistence.
     """
@@ -1909,5 +1933,7 @@ def generate_curriculum_from_prompt(
         curriculum_payload=curriculum_payload,
         job_id=job_id,
         claim_token=claim_token,
-        lease_duration=lease_duration
+        lease_duration=lease_duration,
+        branch=branch,
+        semester=semester
     )

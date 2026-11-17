@@ -16,12 +16,12 @@
     </div>
     <dl class="stat-row">
         <div>
-            <dt>Subjects</dt>
-            <dd>{{ subjects|length }}</dd>
+            <dt>Desk Subjects</dt>
+            <dd id="statDeskCount">{{ pinned_count }}</dd>
         </div>
         <div>
-            <dt>Structure</dt>
-            <dd>5 modules each</dd>
+            <dt>University Catalog</dt>
+            <dd>{{ subjects|length }}</dd>
         </div>
         <div>
             <dt>Term</dt>
@@ -30,78 +30,227 @@
     </dl>
 </header>
 
-<div class="mb-4">
-    <div class="row align-items-center g-2">
-        <div class="col-lg-6">
-            <div class="input-group">
-                <span class="input-group-text"><i class="bi bi-search"></i></span>
-                <input type="text"
-                       id="subjectSearchInput"
-                       class="form-control"
-                       placeholder="Search by code or name"
-                       aria-label="Filter subjects">
-                <button class="btn btn-outline-secondary d-none" type="button" id="clearSearchBtn" title="Clear filter">
-                    Clear
+<div class="desk-tabs-bar">
+    <ul class="custom-tabs" id="deskCatalogTabs" role="tablist">
+        <li role="presentation">
+            <button class="custom-tab-btn active" id="tabMyDesk" data-bs-toggle="tab" data-bs-target="#paneMyDesk" type="button" role="tab" aria-controls="paneMyDesk" aria-selected="true">
+                <i class="bi bi-mortarboard-fill"></i>
+                <span>My Desk</span>
+                <span class="tab-badge" id="myDeskCounter">{{ pinned_count }}</span>
+            </button>
+        </li>
+        <li role="presentation">
+            <button class="custom-tab-btn" id="tabCatalog" data-bs-toggle="tab" data-bs-target="#paneCatalog" type="button" role="tab" aria-controls="paneCatalog" aria-selected="false">
+                <i class="bi bi-collection"></i>
+                <span>University Catalog</span>
+                <span class="tab-badge-muted" id="catalogCounter">{{ subjects|length }}</span>
+            </button>
+        </li>
+    </ul>
+
+    <div class="d-flex align-items-center gap-2">
+        <span class="badge-academic d-none d-sm-inline-flex" id="activeFilterBadge">
+            <i class="bi bi-funnel me-1"></i><span id="activeFilterBadgeText">All Branches · All Semesters</span>
+        </span>
+    </div>
+</div>
+
+<div class="tab-content" id="deskCatalogTabContent">
+    <!-- PANE 1: MY DESK -->
+    <div class="tab-pane fade show active" id="paneMyDesk" role="tabpanel" aria-labelledby="tabMyDesk">
+        <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+            <div>
+                <h2 class="h5 mb-0" style="font-family: var(--serif);">My Active Courses</h2>
+                <p class="text-secondary small mb-0">Your personal desk workspace. Pin courses from the catalog to keep them here without an account.</p>
+            </div>
+            <button type="button" class="btn btn-sm btn-outline-secondary" id="btnExploreCatalogQuick">
+                <i class="bi bi-plus-lg me-1"></i>Browse Catalog
+            </button>
+        </div>
+
+        <div class="row row-cols-1 row-cols-md-2 row-cols-xl-3 g-3" id="myDeskGrid">
+            {% for subject in subjects %}
+                <div class="col mydesk-card-item {% if not subject.is_pinned %}d-none{% endif %}"
+                     data-slug="{{ subject.slug }}"
+                     data-code="{{ subject.code|lower }}"
+                     data-name="{{ subject.name|lower }}">
+                    <div class="sh-card">
+                        <div class="d-flex justify-content-between align-items-baseline gap-2 mb-2">
+                            <span class="course-code">{{ subject.code }}</span>
+                            <span class="badge-academic">{{ subject.academic_tag }}</span>
+                            <span class="sh-meta ms-auto">{{ subject.module_count }} modules</span>
+                        </div>
+                        <h3 class="h5 subject-name mb-2 sh-clamp-2">
+                            <a href="{% url 'curriculum:subject_detail' subject.slug %}" class="text-decoration-none text-reset">
+                                {{ subject.name }}
+                            </a>
+                        </h3>
+                        <p class="mb-2">
+                            {% if "Unverified" in subject.description %}
+                                <span class="flag flag-warn">Reference syllabus, not verified</span>
+                            {% else %}
+                                <span class="flag flag-ok">Matches the prescribed syllabus</span>
+                            {% endif %}
+                        </p>
+                        <p class="text-secondary small mb-3 sh-clamp-2">
+                            {% if subject.description %}
+                                {{ subject.description|truncatewords:18 }}
+                            {% else %}
+                                Modules, lecture videos, and articles for this course.
+                            {% endif %}
+                        </p>
+                        <div class="card-footer-actions">
+                            <a href="{% url 'curriculum:subject_detail' subject.slug %}" class="card-link">
+                                Open syllabus <i class="bi bi-arrow-right ms-1"></i>
+                            </a>
+                            <button type="button" class="btn-pin is-pinned" data-slug="{{ subject.slug }}" data-name="{{ subject.name }}" title="Remove from My Desk">
+                                <i class="bi bi-pin-fill"></i> Pinned
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            {% endfor %}
+        </div>
+
+        <div id="myDeskEmptyState" class="desk-empty-box {% if pinned_count > 0 %}d-none{% endif %} mt-2">
+            <i class="bi bi-journal-bookmark fs-1 text-secondary mb-3 d-inline-block"></i>
+            <h3 class="h5 mb-2" style="font-family: var(--serif);">Your study desk is clear</h3>
+            <p class="text-secondary small mb-3" style="max-width: 32rem; margin-inline: auto;">
+                You haven't pinned any courses to your desk yet. Browse the university catalog below to choose your current semester courses, or generate a new syllabus.
+            </p>
+            <div class="d-flex flex-wrap justify-content-center gap-2">
+                <button type="button" class="btn btn-primary" id="btnSwitchToCatalog">
+                    <i class="bi bi-collection me-1.5"></i>Browse University Catalog
+                </button>
+                <button type="button" class="btn btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#generateSubjectModal">
+                    <i class="bi bi-plus-circle me-1.5"></i>Generate Subject
                 </button>
             </div>
         </div>
-        <div class="col-lg-6 text-lg-end">
-            <span class="text-secondary" id="searchFilterStats" style="font-size: 0.9rem;">
-                Showing all {{ subjects|length }} subjects
-            </span>
+    </div>
+
+    <!-- PANE 2: UNIVERSITY CATALOG -->
+    <div class="tab-pane fade" id="paneCatalog" role="tabpanel" aria-labelledby="tabCatalog">
+        <div class="catalog-filters">
+            <div class="row g-2 align-items-center">
+                <div class="col-12 col-md-5">
+                    <label class="form-label small text-secondary mb-1">Search Catalog</label>
+                    <div class="input-group">
+                        <span class="input-group-text bg-white"><i class="bi bi-search"></i></span>
+                        <input type="text"
+                               id="catalogSearchInput"
+                               class="form-control"
+                               placeholder="Search by code, title, or keyword..."
+                               aria-label="Filter subjects">
+                        <button class="btn btn-outline-secondary d-none" type="button" id="clearCatalogSearchBtn" title="Clear search">
+                            Clear
+                        </button>
+                    </div>
+                </div>
+                <div class="col-6 col-md-3">
+                    <label class="form-label small text-secondary mb-1">Branch / Stream</label>
+                    <select id="branchSelectFilter" class="form-select">
+                        {% for code, label in branches %}
+                            <option value="{{ code }}">{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-6 col-md-2">
+                    <label class="form-label small text-secondary mb-1">Semester</label>
+                    <select id="semesterSelectFilter" class="form-select">
+                        <option value="ALL">All Semesters</option>
+                        {% for sem in semesters %}
+                            <option value="{{ sem }}">Semester {{ sem }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-12 col-md-2 text-md-end mt-2 mt-md-auto">
+                    <button type="button" id="btnResetFilters" class="btn btn-sm btn-outline-secondary w-100 d-none">
+                        <i class="bi bi-x-circle me-1"></i>Reset
+                    </button>
+                </div>
+            </div>
+            <div class="d-flex justify-content-between align-items-center mt-2 pt-2 border-top">
+                <span class="text-secondary small" id="catalogFilterStats">
+                    Showing all {{ subjects|length }} subjects
+                </span>
+                <span class="text-secondary small d-none d-sm-inline">
+                    <i class="bi bi-pin-angle me-1"></i>Click "Pin to Desk" to save courses to your desk
+                </span>
+            </div>
+        </div>
+
+        <div class="row row-cols-1 row-cols-md-2 row-cols-xl-3 g-3" id="catalogGrid">
+            {% for subject in subjects %}
+                <div class="col catalog-card-item"
+                     data-slug="{{ subject.slug }}"
+                     data-code="{{ subject.code|lower }}"
+                     data-name="{{ subject.name|lower }}"
+                     data-desc="{{ subject.description|default:''|lower }}"
+                     data-branch="{{ subject.branch }}"
+                     data-sem="{{ subject.semester|default:'' }}">
+                    <div class="sh-card">
+                        <div class="d-flex justify-content-between align-items-baseline gap-2 mb-2">
+                            <span class="course-code">{{ subject.code }}</span>
+                            <span class="badge-academic">{{ subject.academic_tag }}</span>
+                            <span class="sh-meta ms-auto">{{ subject.module_count }} modules</span>
+                        </div>
+                        <h3 class="h5 subject-name mb-2 sh-clamp-2">
+                            <a href="{% url 'curriculum:subject_detail' subject.slug %}" class="text-decoration-none text-reset">
+                                {{ subject.name }}
+                            </a>
+                        </h3>
+                        <p class="mb-2">
+                            {% if "Unverified" in subject.description %}
+                                <span class="flag flag-warn">Reference syllabus, not verified</span>
+                            {% else %}
+                                <span class="flag flag-ok">Matches the prescribed syllabus</span>
+                            {% endif %}
+                        </p>
+                        <p class="text-secondary small mb-3 sh-clamp-2">
+                            {% if subject.description %}
+                                {{ subject.description|truncatewords:18 }}
+                            {% else %}
+                                Modules, lecture videos, and articles for this course.
+                            {% endif %}
+                        </p>
+                        <div class="card-footer-actions">
+                            <a href="{% url 'curriculum:subject_detail' subject.slug %}" class="card-link">
+                                Open syllabus <i class="bi bi-arrow-right ms-1"></i>
+                            </a>
+                            <button type="button" class="btn-pin {% if subject.is_pinned %}is-pinned{% endif %}" data-slug="{{ subject.slug }}" data-name="{{ subject.name }}" title="{% if subject.is_pinned %}Remove from My Desk{% else %}Pin to My Desk{% endif %}">
+                                {% if subject.is_pinned %}
+                                    <i class="bi bi-pin-fill"></i> Pinned
+                                {% else %}
+                                    <i class="bi bi-pin-angle"></i> Pin to Desk
+                                {% endif %}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            {% empty %}
+                <div class="col-12">
+                    <div class="sheet empty-state">
+                        <h5>No subjects yet</h5>
+                        <p class="text-secondary mb-3">Generate a course from a name and syllabus, or add one in the admin.</p>
+                        <button type="button" class="btn btn-primary me-2 mb-2" data-bs-toggle="modal" data-bs-target="#generateSubjectModal">
+                            Generate subject
+                        </button>
+                        <a href="/admin/curriculum/subject/add/" class="btn btn-outline-secondary mb-2">Add in admin</a>
+                    </div>
+                </div>
+            {% endfor %}
+        </div>
+
+        <div id="noCatalogSearchResults" class="sheet empty-state d-none mt-3">
+            <h6 class="mb-1">No matching subjects</h6>
+            <p class="text-secondary small mb-3" id="noCatalogSearchQueryText">No subjects match your search and branch/semester filter.</p>
+            <button type="button" class="btn btn-sm btn-outline-secondary" id="btnResetFiltersEmpty">Reset filters</button>
         </div>
     </div>
 </div>
 
-<div class="row row-cols-1 row-cols-md-2 row-cols-xl-3 g-3" id="subjectGrid">
-    {% for subject in subjects %}
-        <div class="col subject-card-item"
-             data-code="{{ subject.code|lower }}"
-             data-name="{{ subject.name|lower }}"
-             data-desc="{{ subject.description|default:''|lower }}">
-            <a href="{% url 'curriculum:subject_detail' subject.slug %}" class="sh-card">
-                <div class="d-flex justify-content-between align-items-baseline gap-2 mb-2">
-                    <span class="course-code">{{ subject.code }}</span>
-                    <span class="sh-meta">{{ subject.module_count }} modules</span>
-                </div>
-                <h2 class="h5 subject-name mb-2 sh-clamp-2">{{ subject.name }}</h2>
-                <p class="mb-2">
-                    {% if "Unverified" in subject.description %}
-                        <span class="flag flag-warn">Reference syllabus, not verified</span>
-                    {% else %}
-                        <span class="flag flag-ok">Matches the prescribed syllabus</span>
-                    {% endif %}
-                </p>
-                <p class="text-secondary small mb-3 sh-clamp-2">
-                    {% if subject.description %}
-                        {{ subject.description|truncatewords:18 }}
-                    {% else %}
-                        Modules, lecture videos, and articles for this course.
-                    {% endif %}
-                </p>
-                <span class="card-link">Open syllabus</span>
-            </a>
-        </div>
-    {% empty %}
-        <div class="col-12">
-            <div class="sheet empty-state">
-                <h5>No subjects yet</h5>
-                <p class="text-secondary mb-3">Generate a course from a name and syllabus, or add one in the admin.</p>
-                <button type="button" class="btn btn-primary me-2 mb-2" data-bs-toggle="modal" data-bs-target="#generateSubjectModal">
-                    Generate subject
-                </button>
-                <a href="/admin/curriculum/subject/add/" class="btn btn-outline-secondary mb-2">Add in admin</a>
-            </div>
-        </div>
-    {% endfor %}
-</div>
-
-<div id="noSearchResults" class="sheet empty-state d-none mt-3">
-    <h6 class="mb-1">No matching subjects</h6>
-    <p class="text-secondary small mb-3" id="noSearchQueryText">Nothing matched that search.</p>
-    <button type="button" class="btn btn-sm btn-outline-secondary" id="resetSearchBtn">Clear search</button>
-</div>
-
+<!-- GENERATE SUBJECT MODAL -->
 <div class="modal fade" id="generateSubjectModal" tabindex="-1" aria-labelledby="generateSubjectModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered modal-lg modal-dialog-scrollable">
         <div class="modal-content">
@@ -146,14 +295,35 @@
                                 <input type="text" name="subject_code" class="form-control" placeholder="BAD703">
                             </div>
                         </div>
+
+                        <div class="row g-3 mb-3">
+                            <div class="col-md-7">
+                                <label class="form-label">Branch / Department</label>
+                                <select name="branch" id="modalBranchSelect" class="form-select">
+                                    {% for code, label in branches %}
+                                        <option value="{{ code }}">{{ label }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="col-md-5">
+                                <label class="form-label">Semester</label>
+                                <select name="semester" id="modalSemesterSelect" class="form-select">
+                                    <option value="">Auto-detect from code</option>
+                                    {% for sem in semesters %}
+                                        <option value="{{ sem }}">Semester {{ sem }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                        </div>
+
                         <div class="mb-3">
                             <label class="form-label">Prescribed syllabus</label>
-                            <textarea name="syllabus_text" rows="6" class="form-control" placeholder="Paste the official module outline so the result matches your scheme.&#10;&#10;Module 1: …&#10;Module 2: …"></textarea>
+                            <textarea name="syllabus_text" rows="5" class="form-control" placeholder="Paste the official module outline so the result matches your scheme.&#10;&#10;Module 1: …&#10;Module 2: …"></textarea>
                             <div class="notice mt-2">
                                 If you leave this blank, the syllabus is drafted from the subject name and marked unverified. It may not match your college scheme.
                             </div>
                         </div>
-                        <p class="note-quiet mb-0">The subject is saved with YouTube and article searches for each topic.</p>
+                        <p class="note-quiet mb-0">The newly generated subject will be automatically pinned to your study desk.</p>
                     </div>
                 </div>
                 <div class="modal-footer flex-wrap gap-2">
@@ -172,9 +342,316 @@
 {% block extra_js %}
 <script>
 document.addEventListener('DOMContentLoaded', function() {
+    // -------------------------------------------------------------------------
+    // 1. PINNING ARCHITECTURE (LocalStorage + Session/Cookie Sync)
+    // -------------------------------------------------------------------------
+    const PINNED_STORAGE_KEY = 'studyhub_pinned_subjects';
+    const BRANCH_STORAGE_KEY = 'studyhub_filter_branch';
+    const SEM_STORAGE_KEY = 'studyhub_filter_semester';
+
+    function getPinnedFromStorage() {
+        try {
+            const raw = localStorage.getItem(PINNED_STORAGE_KEY);
+            return raw ? JSON.parse(raw) : [];
+        } catch (e) {
+            return [];
+        }
+    }
+
+    function savePinnedToStorage(slugs) {
+        try {
+            localStorage.setItem(PINNED_STORAGE_KEY, JSON.stringify(slugs));
+            // Keep cookie in sync (1 year expiry)
+            document.cookie = `studyhub_pinned=${slugs.join(',')};path=/;max-age=${365 * 24 * 60 * 60};SameSite=Lax`;
+        } catch (e) {}
+    }
+
+    // Initialize from DOM on first load if localStorage is empty
+    let currentPinned = getPinnedFromStorage();
+    if (!currentPinned.length) {
+        const domPinned = [];
+        document.querySelectorAll('.mydesk-card-item:not(.d-none)').forEach(el => {
+            const s = el.getAttribute('data-slug');
+            if (s) domPinned.push(s);
+        });
+        if (domPinned.length) {
+            currentPinned = domPinned;
+            savePinnedToStorage(currentPinned);
+        }
+    } else {
+        // Sync DOM with stored pinned state if already in storage
+        document.cookie = `studyhub_pinned=${currentPinned.join(',')};path=/;max-age=${365 * 24 * 60 * 60};SameSite=Lax`;
+    }
+
+    function updateDeskUI() {
+        let deskCount = 0;
+        const deskGrid = document.getElementById('myDeskGrid');
+        const deskCards = deskGrid ? deskGrid.querySelectorAll('.mydesk-card-item') : [];
+        const catalogCards = document.querySelectorAll('.catalog-card-item');
+
+        const pinnedSet = new Set(currentPinned);
+
+        deskCards.forEach(card => {
+            const slug = card.getAttribute('data-slug');
+            if (pinnedSet.has(slug)) {
+                card.classList.remove('d-none');
+                deskCount++;
+            } else {
+                card.classList.add('d-none');
+            }
+        });
+
+        catalogCards.forEach(card => {
+            const slug = card.getAttribute('data-slug');
+            const pinBtn = card.querySelector('.btn-pin');
+            if (pinBtn) {
+                if (pinnedSet.has(slug)) {
+                    pinBtn.classList.add('is-pinned');
+                    pinBtn.innerHTML = '<i class="bi bi-pin-fill"></i> Pinned';
+                    pinBtn.title = 'Remove from My Desk';
+                } else {
+                    pinBtn.classList.remove('is-pinned');
+                    pinBtn.innerHTML = '<i class="bi bi-pin-angle"></i> Pin to Desk';
+                    pinBtn.title = 'Pin to My Desk';
+                }
+            }
+        });
+
+        const myDeskCounter = document.getElementById('myDeskCounter');
+        const statDeskCount = document.getElementById('statDeskCount');
+        const emptyState = document.getElementById('myDeskEmptyState');
+
+        if (myDeskCounter) myDeskCounter.textContent = deskCount;
+        if (statDeskCount) statDeskCount.textContent = deskCount;
+
+        if (emptyState) {
+            if (deskCount === 0) {
+                emptyState.classList.remove('d-none');
+            } else {
+                emptyState.classList.add('d-none');
+            }
+        }
+    }
+
+    // Handle Pin / Unpin clicks anywhere on page
+    document.addEventListener('click', function(e) {
+        const pinBtn = e.target.closest('.btn-pin');
+        if (!pinBtn) return;
+
+        e.preventDefault();
+        e.stopPropagation();
+
+        const slug = pinBtn.getAttribute('data-slug');
+        if (!slug) return;
+
+        const idx = currentPinned.indexOf(slug);
+        let isNowPinned = false;
+        if (idx !== -1) {
+            currentPinned.splice(idx, 1);
+            isNowPinned = false;
+        } else {
+            currentPinned.push(slug);
+            isNowPinned = true;
+        }
+
+        savePinnedToStorage(currentPinned);
+        updateDeskUI();
+
+        // Background server sync
+        const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]')?.value || '';
+        fetch('/subjects/toggle-pin/', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': csrfToken,
+                'X-Requested-With': 'XMLHttpRequest'
+            },
+            body: JSON.stringify({ slug: slug })
+        }).catch(err => {
+            console.debug('Pin sync network notice:', err);
+        });
+    });
+
+    // Tab switching helpers
+    const tabCatalogBtn = document.getElementById('tabCatalog');
+    const btnSwitchToCatalog = document.getElementById('btnSwitchToCatalog');
+    const btnExploreCatalogQuick = document.getElementById('btnExploreCatalogQuick');
+
+    function activateCatalogTab() {
+        if (tabCatalogBtn && window.bootstrap) {
+            const tab = bootstrap.Tab.getOrCreateInstance(tabCatalogBtn);
+            tab.show();
+            window.scrollTo({ top: tabCatalogBtn.offsetTop - 80, behavior: 'smooth' });
+        }
+    }
+
+    if (btnSwitchToCatalog) btnSwitchToCatalog.addEventListener('click', activateCatalogTab);
+    if (btnExploreCatalogQuick) btnExploreCatalogQuick.addEventListener('click', activateCatalogTab);
+
+    // Initial Desk UI sync
+    updateDeskUI();
+
+    // -------------------------------------------------------------------------
+    // 2. UNIVERSITY CATALOG FILTERING (Search + Branch + Semester)
+    // -------------------------------------------------------------------------
+    const catalogSearchInput = document.getElementById('catalogSearchInput');
+    const clearCatalogSearchBtn = document.getElementById('clearCatalogSearchBtn');
+    const branchFilter = document.getElementById('branchSelectFilter');
+    const semesterFilter = document.getElementById('semesterSelectFilter');
+    const resetFiltersBtn = document.getElementById('btnResetFilters');
+    const resetFiltersEmptyBtn = document.getElementById('btnResetFiltersEmpty');
+    const catalogFilterStats = document.getElementById('catalogFilterStats');
+    const noCatalogResults = document.getElementById('noCatalogSearchResults');
+    const noCatalogQueryText = document.getElementById('noCatalogSearchQueryText');
+    const activeFilterBadgeText = document.getElementById('activeFilterBadgeText');
+    const catalogCards = document.querySelectorAll('.catalog-card-item');
+    const totalCatalog = catalogCards.length;
+
+    // Restore saved branch & semester filters from storage if available
+    try {
+        const savedBranch = localStorage.getItem(BRANCH_STORAGE_KEY);
+        if (savedBranch && branchFilter) branchFilter.value = savedBranch;
+        const savedSem = localStorage.getItem(SEM_STORAGE_KEY);
+        if (savedSem && semesterFilter) semesterFilter.value = savedSem;
+    } catch (e) {}
+
+    function filterCatalog() {
+        if (!catalogCards.length) return;
+
+        const query = (catalogSearchInput?.value || '').trim().toLowerCase();
+        const selectedBranch = branchFilter ? branchFilter.value : 'ALL';
+        const selectedSem = semesterFilter ? semesterFilter.value : 'ALL';
+
+        // Save preferences
+        try {
+            if (branchFilter) localStorage.setItem(BRANCH_STORAGE_KEY, selectedBranch);
+            if (semesterFilter) localStorage.setItem(SEM_STORAGE_KEY, selectedSem);
+        } catch (e) {}
+
+        // Toggle clear search button
+        if (clearCatalogSearchBtn) {
+            if (query.length > 0) {
+                clearCatalogSearchBtn.classList.remove('d-none');
+            } else {
+                clearCatalogSearchBtn.classList.add('d-none');
+            }
+        }
+
+        // Toggle reset button
+        const isFiltered = (query.length > 0 || selectedBranch !== 'ALL' || selectedSem !== 'ALL');
+        if (resetFiltersBtn) {
+            if (isFiltered) {
+                resetFiltersBtn.classList.remove('d-none');
+            } else {
+                resetFiltersBtn.classList.add('d-none');
+            }
+        }
+
+        let visibleCount = 0;
+
+        catalogCards.forEach(card => {
+            const code = card.getAttribute('data-code') || '';
+            const name = card.getAttribute('data-name') || '';
+            const desc = card.getAttribute('data-desc') || '';
+            const branch = card.getAttribute('data-branch') || 'ALL';
+            const sem = card.getAttribute('data-sem') || '';
+
+            // Search filter
+            const matchesQuery = (!query || code.includes(query) || name.includes(query) || desc.includes(query));
+
+            // Branch filter
+            const matchesBranch = (selectedBranch === 'ALL' || branch === 'ALL' || branch === selectedBranch);
+
+            // Semester filter
+            const matchesSem = (selectedSem === 'ALL' || !sem || sem === selectedSem);
+
+            if (matchesQuery && matchesBranch && matchesSem) {
+                card.classList.remove('d-none');
+                visibleCount++;
+            } else {
+                card.classList.add('d-none');
+            }
+        });
+
+        // Update stats
+        if (catalogFilterStats) {
+            if (isFiltered) {
+                let contextDetails = [];
+                if (selectedBranch !== 'ALL') contextDetails.push(selectedBranch);
+                if (selectedSem !== 'ALL') contextDetails.push(`Sem ${selectedSem}`);
+                const extra = contextDetails.length ? ` for ${contextDetails.join(' · ')}` : '';
+                catalogFilterStats.textContent = `Showing ${visibleCount} of ${totalCatalog} subjects${extra}`;
+            } else {
+                catalogFilterStats.textContent = `Showing all ${totalCatalog} subjects`;
+            }
+        }
+
+        // Update badge on header
+        if (activeFilterBadgeText) {
+            let labelParts = [];
+            if (selectedBranch !== 'ALL') {
+                labelParts.push(selectedBranch);
+            } else {
+                labelParts.push('All Branches');
+            }
+            if (selectedSem !== 'ALL') {
+                labelParts.push(`Sem ${selectedSem}`);
+            } else {
+                labelParts.push('All Semesters');
+            }
+            activeFilterBadgeText.textContent = labelParts.join(' · ');
+        }
+
+        // Handle empty results
+        if (noCatalogResults) {
+            if (visibleCount === 0 && totalCatalog > 0) {
+                noCatalogResults.classList.remove('d-none');
+                if (noCatalogQueryText) {
+                    let reasons = [];
+                    if (query) reasons.push(`keyword "${query}"`);
+                    if (selectedBranch !== 'ALL') reasons.push(`branch "${selectedBranch}"`);
+                    if (selectedSem !== 'ALL') reasons.push(`semester ${selectedSem}`);
+                    noCatalogQueryText.textContent = `No subjects matched ${reasons.join(' and ')}. Try resetting filters or generate this subject.`;
+                }
+            } else {
+                noCatalogResults.classList.add('d-none');
+            }
+        }
+    }
+
+    if (catalogSearchInput) catalogSearchInput.addEventListener('input', filterCatalog);
+    if (branchFilter) branchFilter.addEventListener('change', filterCatalog);
+    if (semesterFilter) semesterFilter.addEventListener('change', filterCatalog);
+
+    function resetFilters() {
+        if (catalogSearchInput) catalogSearchInput.value = '';
+        if (branchFilter) branchFilter.value = 'ALL';
+        if (semesterFilter) semesterFilter.value = 'ALL';
+        filterCatalog();
+        if (catalogSearchInput) catalogSearchInput.focus();
+    }
+
+    if (clearCatalogSearchBtn) {
+        clearCatalogSearchBtn.addEventListener('click', function() {
+            if (catalogSearchInput) {
+                catalogSearchInput.value = '';
+                filterCatalog();
+                catalogSearchInput.focus();
+            }
+        });
+    }
+
+    if (resetFiltersBtn) resetFiltersBtn.addEventListener('click', resetFilters);
+    if (resetFiltersEmptyBtn) resetFiltersEmptyBtn.addEventListener('click', resetFilters);
+
+    // Initial catalog filter run
+    filterCatalog();
+
+    // -------------------------------------------------------------------------
+    // 3. AI SUBJECT GENERATION & AUTO-PINNING
+    // -------------------------------------------------------------------------
     const form = document.getElementById('aiGenerateForm');
     const submitBtn = document.getElementById('btnSubmitGenerate');
-    const btnText = document.getElementById('btnText');
     const statusText = document.getElementById('aiStatusText');
     const progressContainer = document.getElementById('aiProgressContainer');
     const stepText = document.getElementById('aiStepText');
@@ -184,7 +661,6 @@ document.addEventListener('DOMContentLoaded', function() {
     const errorAlert = document.getElementById('aiModalErrorAlert');
     const errorMessage = document.getElementById('aiModalErrorMessage');
     const retryBtn = document.getElementById('aiModalRetryBtn');
-    const formFields = document.getElementById('aiFormFields');
     const generateModal = document.getElementById('generateSubjectModal');
 
     let pollInterval = null;
@@ -226,9 +702,21 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         }
         if (form) {
-            const inputs = form.querySelectorAll('input:not([type="hidden"]), textarea');
+            const inputs = form.querySelectorAll('input:not([type="hidden"]), textarea, select');
             inputs.forEach(input => input.disabled = disabled);
         }
+    }
+
+    function autoPinAndRedirect(slug, redirectUrl) {
+        if (slug) {
+            if (!currentPinned.includes(slug)) {
+                currentPinned.push(slug);
+                savePinnedToStorage(currentPinned);
+            }
+        }
+        setTimeout(function() {
+            window.location.href = redirectUrl || '/';
+        }, 500);
     }
 
     function startPolling(taskId) {
@@ -248,14 +736,12 @@ document.addEventListener('DOMContentLoaded', function() {
                     if (pct === undefined || pct === null || pct <= 0) {
                         pct = step === 2 ? 40 : (step === 3 ? 70 : 90);
                     }
-                    showProgress(data.message || "Generating curriculum modules with Gemini AI...", step, pct);
+                    showProgress(data.message || "Generating curriculum modules with AI...", step, pct);
                 } else if (data.status === 'COMPLETED' || data.status === 'SUCCESS') {
                     clearInterval(pollInterval);
-                    showProgress(data.message || "Curriculum generated successfully! Redirecting...", 4, 100);
-                    if (detailedStatus) detailedStatus.textContent = "Complete. Opening the syllabus…";
-                    setTimeout(function() {
-                        window.location.href = data.redirect_url;
-                    }, 500);
+                    showProgress(data.message || "Curriculum ready! Pinning to desk...", 4, 100);
+                    if (detailedStatus) detailedStatus.textContent = "Complete. Pinning to your desk and opening syllabus…";
+                    autoPinAndRedirect(data.subject_slug, data.redirect_url);
                 } else if (data.status === 'FAILED' || data.status === 'FAILURE') {
                     clearInterval(pollInterval);
                     setFormDisabled(false);
@@ -270,6 +756,23 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     if (form) {
+        // Pre-select modal branch and sem from active filters when modal opens
+        if (generateModal) {
+            generateModal.addEventListener('show.bs.modal', function() {
+                const modalBranch = document.getElementById('modalBranchSelect');
+                const modalSem = document.getElementById('modalSemesterSelect');
+                if (modalBranch && branchFilter && branchFilter.value !== 'ALL') {
+                    modalBranch.value = branchFilter.value;
+                }
+                if (modalSem && semesterFilter && semesterFilter.value !== 'ALL') {
+                    modalSem.value = semesterFilter.value;
+                }
+            });
+            generateModal.addEventListener('hidden.bs.modal', function() {
+                if (pollInterval) clearInterval(pollInterval);
+            });
+        }
+
         form.addEventListener('submit', function(e) {
             e.preventDefault();
             hideError();
@@ -295,9 +798,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 'X-Requested-With': 'XMLHttpRequest',
                 'Accept': 'application/json'
             };
-            if (csrfToken) {
-                headers['X-CSRFToken'] = csrfToken;
-            }
+            if (csrfToken) headers['X-CSRFToken'] = csrfToken;
 
             fetch(form.action, {
                 method: 'POST',
@@ -327,8 +828,8 @@ document.addEventListener('DOMContentLoaded', function() {
             })
             .then(data => {
                 if ((data.status === 'SUCCESS' || data.status === 'COMPLETED') && data.redirect_url) {
-                    showProgress("Subject ready! Redirecting...", 4, 100);
-                    window.location.href = data.redirect_url;
+                    showProgress("Subject ready! Pinning to desk...", 4, 100);
+                    autoPinAndRedirect(data.subject_slug, data.redirect_url);
                 } else if (data.status === 'PENDING' && data.task_id) {
                     startPolling(data.task_id);
                 } else if (data.status === 'FAILED' || data.status === 'FAILURE') {
@@ -353,87 +854,6 @@ document.addEventListener('DOMContentLoaded', function() {
         retryBtn.addEventListener('click', function() {
             hideError();
             if (submitBtn) submitBtn.focus();
-        });
-    }
-
-    if (generateModal) {
-        generateModal.addEventListener('hidden.bs.modal', function() {
-            if (pollInterval) {
-                clearInterval(pollInterval);
-            }
-        });
-    }
-
-    const searchInput = document.getElementById('subjectSearchInput');
-    const clearBtn = document.getElementById('clearSearchBtn');
-    const resetBtn = document.getElementById('resetSearchBtn');
-    const statsEl = document.getElementById('searchFilterStats');
-    const noResultsEl = document.getElementById('noSearchResults');
-    const noQueryText = document.getElementById('noSearchQueryText');
-    const cards = document.querySelectorAll('.subject-card-item');
-    const totalCount = cards.length;
-
-    function filterSubjects() {
-        if (!searchInput) return;
-        const query = searchInput.value.trim().toLowerCase();
-        let visibleCount = 0;
-
-        if (query.length > 0) {
-            clearBtn.classList.remove('d-none');
-        } else {
-            clearBtn.classList.add('d-none');
-        }
-
-        cards.forEach(card => {
-            const code = card.getAttribute('data-code') || '';
-            const name = card.getAttribute('data-name') || '';
-            const desc = card.getAttribute('data-desc') || '';
-
-            if (code.includes(query) || name.includes(query) || desc.includes(query)) {
-                card.classList.remove('d-none');
-                visibleCount++;
-            } else {
-                card.classList.add('d-none');
-            }
-        });
-
-        if (statsEl) {
-            if (query.length > 0) {
-                statsEl.textContent = `Showing ${visibleCount} of ${totalCount} subjects`;
-            } else {
-                statsEl.textContent = `Showing all ${totalCount} subjects`;
-            }
-        }
-
-        if (noResultsEl) {
-            if (visibleCount === 0 && totalCount > 0) {
-                noResultsEl.classList.remove('d-none');
-                if (noQueryText) {
-                    noQueryText.textContent = `No subjects matched "${searchInput.value.trim()}". Try a course code or a keyword.`;
-                }
-            } else {
-                noResultsEl.classList.add('d-none');
-            }
-        }
-    }
-
-    if (searchInput) {
-        searchInput.addEventListener('input', filterSubjects);
-    }
-
-    if (clearBtn) {
-        clearBtn.addEventListener('click', function() {
-            searchInput.value = '';
-            filterSubjects();
-            searchInput.focus();
-        });
-    }
-
-    if (resetBtn) {
-        resetBtn.addEventListener('click', function() {
-            searchInput.value = '';
-            filterSubjects();
-            searchInput.focus();
         });
     }
 });

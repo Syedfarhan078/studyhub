@@ -8,8 +8,8 @@ class TopicKeywordInline(admin.TabularInline):
 
 @admin.register(Subject)
 class SubjectAdmin(admin.ModelAdmin):
-    list_display = ('code', 'name', 'order', 'module_count')
-    prepopulated_fields = {'slug': ('name',)}
+    list_display = ('code', 'name', 'branch', 'semester', 'scheme', 'order', 'module_count')
+    list_filter = ('branch', 'semester', 'scheme')
     search_fields = ('name', 'code')
     ordering = ('order', 'name')
 

@@ -14,7 +14,7 @@
 
 <header class="sheet page-head mb-4">
     <div>
-        <p class="eyebrow">{{ subject.code }} · {{ subject.modules.count }} modules · {{ total_topics }} topics</p>
+        <p class="eyebrow">{{ subject.code }} · <span class="badge-academic">{{ subject.academic_tag }}</span> · {{ subject.modules.count }} modules · {{ total_topics }} topics</p>
         <h1 class="page-title">{{ subject.name }}</h1>
         <p class="lede">{{ subject.description|default:"Syllabus modules, video lectures, and technical articles." }}</p>
         <p class="mb-0 mt-2">
@@ -25,8 +25,11 @@
             {% endif %}
         </p>
     </div>
-    <div class="page-actions mt-3 mt-lg-0">
-        <a href="/" class="btn btn-outline-secondary">All subjects</a>
+    <div class="page-actions mt-3 mt-lg-0 d-flex flex-wrap align-items-center gap-2">
+        <button type="button" class="btn btn-sm btn-pin" id="subjectDetailPinBtn" data-slug="{{ subject.slug }}" data-name="{{ subject.name }}">
+            <i class="bi bi-pin-angle"></i> Pin to Desk
+        </button>
+        <a href="/" class="btn btn-sm btn-outline-secondary">All subjects</a>
     </div>
     <div class="stat-row" style="display: block;">
         <div class="d-flex justify-content-between gap-2 mb-2">
@@ -361,4 +364,60 @@
         {% endif %}
     </div>
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const pinBtn = document.getElementById('subjectDetailPinBtn');
+    if (!pinBtn) return;
+    const slug = pinBtn.getAttribute('data-slug');
+    const PINNED_STORAGE_KEY = 'studyhub_pinned_subjects';
+
+    let pinned = [];
+    try {
+        const raw = localStorage.getItem(PINNED_STORAGE_KEY);
+        pinned = raw ? JSON.parse(raw) : [];
+    } catch(e) {}
+
+    function renderDetailPinState() {
+        if (pinned.includes(slug)) {
+            pinBtn.classList.add('is-pinned');
+            pinBtn.innerHTML = '<i class="bi bi-pin-fill"></i> Pinned';
+            pinBtn.title = 'Remove from My Desk';
+        } else {
+            pinBtn.classList.remove('is-pinned');
+            pinBtn.innerHTML = '<i class="bi bi-pin-angle"></i> Pin to Desk';
+            pinBtn.title = 'Pin to My Desk';
+        }
+    }
+    renderDetailPinState();
+
+    pinBtn.addEventListener('click', function(e) {
+        e.preventDefault();
+        const idx = pinned.indexOf(slug);
+        if (idx !== -1) {
+            pinned.splice(idx, 1);
+        } else {
+            pinned.push(slug);
+        }
+        try {
+            localStorage.setItem(PINNED_STORAGE_KEY, JSON.stringify(pinned));
+            document.cookie = `studyhub_pinned=${pinned.join(',')};path=/;max-age=${365 * 24 * 60 * 60};SameSite=Lax`;
+        } catch(e) {}
+        renderDetailPinState();
+
+        const csrfToken = '{{ csrf_token }}';
+        fetch('/subjects/toggle-pin/', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': csrfToken,
+                'X-Requested-With': 'XMLHttpRequest'
+            },
+            body: JSON.stringify({ slug: slug })
+        }).catch(e => {});
+    });
+});
+</script>
 {% endblock %}

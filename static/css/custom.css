@@ -713,3 +713,153 @@ textarea.form-control { border-radius: var(--radius) !important; border-left: 1p
         width: 100% !important;
     }
 }
+
+/* ------------------------------------------------ Hybrid Desk & Catalog Tabs */
+
+.desk-tabs-bar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding-bottom: 0.85rem;
+    border-bottom: 1px solid var(--line);
+    margin-bottom: 1.5rem;
+}
+
+.custom-tabs {
+    display: flex;
+    gap: 0.5rem;
+    padding: 0;
+    margin: 0;
+    list-style: none;
+}
+
+.custom-tab-btn {
+    font-family: var(--sans);
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: var(--muted);
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: var(--radius);
+    padding: 0.5rem 1.1rem;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    text-decoration: none;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.custom-tab-btn:hover {
+    color: var(--ink);
+    background: var(--paper-deep);
+}
+
+.custom-tab-btn.active {
+    color: var(--navy) !important;
+    background: var(--sheet) !important;
+    border-color: var(--line-strong) !important;
+    box-shadow: var(--shadow);
+}
+
+.tab-badge {
+    font-size: 0.72rem;
+    font-weight: 700;
+    padding: 0.15rem 0.55rem;
+    border-radius: 99px;
+    background: var(--navy);
+    color: #fff;
+}
+
+.tab-badge-muted {
+    font-size: 0.72rem;
+    font-weight: 600;
+    padding: 0.15rem 0.55rem;
+    border-radius: 99px;
+    background: var(--paper-deep);
+    color: var(--muted);
+}
+
+.badge-academic {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--navy);
+    background: var(--navy-soft);
+    padding: 0.2rem 0.55rem;
+    border-radius: 4px;
+    letter-spacing: 0.02em;
+}
+
+.card-footer-actions {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    margin-top: auto;
+    padding-top: 0.85rem;
+    border-top: 1px solid var(--line);
+}
+
+.card-footer-actions .card-link {
+    margin-top: 0;
+    padding-top: 0;
+    border-top: 0;
+}
+
+.btn-pin {
+    font-family: var(--sans);
+    font-size: 0.82rem;
+    font-weight: 600;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.3rem 0.65rem;
+    border-radius: var(--radius);
+    background: var(--sheet);
+    border: 1px solid var(--line);
+    color: var(--muted);
+    cursor: pointer;
+    transition: all 0.15s ease;
+    user-select: none;
+}
+
+.btn-pin:hover {
+    color: var(--navy);
+    border-color: var(--navy);
+    background: var(--navy-soft);
+}
+
+.btn-pin.is-pinned {
+    background: var(--navy-soft);
+    border-color: var(--navy);
+    color: var(--navy);
+}
+
+.btn-pin.is-pinned:hover {
+    background: var(--red-soft);
+    border-color: var(--red);
+    color: var(--red);
+}
+
+.catalog-filters {
+    background: var(--sheet);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 1.1rem 1.25rem;
+    margin-bottom: 1.5rem;
+    box-shadow: var(--shadow);
+}
+
+.desk-empty-box {
+    background: var(--sheet);
+    border: 1px dashed var(--line-strong);
+    border-radius: var(--radius);
+    padding: 2.75rem 1.5rem;
+    text-align: center;
+}
+

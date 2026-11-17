@@ -7,11 +7,40 @@ import uuid
 # Create your models here.
 
 class Subject(models.Model):
+    class Branch(models.TextChoices):
+        ALL = 'ALL', 'All Branches / Common'
+        CSE = 'CSE', 'Computer Science & Engineering'
+        AIML = 'AIML', 'Artificial Intelligence & Machine Learning'
+        ISE = 'ISE', 'Information Science & Engineering'
+        ECE = 'ECE', 'Electronics & Communication'
+        EEE = 'EEE', 'Electrical & Electronics'
+        ME = 'ME', 'Mechanical Engineering'
+        CV = 'CV', 'Civil Engineering'
+        OTHER = 'OTHER', 'Other / Interdisciplinary'
+
     name = models.CharField(max_length=150, help_text="Full subject name, e.g. Machine Learning")
     code = models.CharField(max_length=20, help_text="Subject code or abbreviation, e,g. ML, DL, BAI701")
     slug = models.SlugField(max_length=160, unique=True, help_text="URL-Freindly identifier, e.g. machine-learning")
     description = models.TextField(blank=True, help_text="Sjort overview of what this subject covers.")
     order = models.PositiveSmallIntegerField(default=1, help_text="Display order on the homepage")
+    branch = models.CharField(
+        max_length=20,
+        choices=Branch.choices,
+        default=Branch.ALL,
+        blank=True,
+        help_text="Academic engineering branch/department"
+    )
+    semester = models.PositiveSmallIntegerField(
+        null=True,
+        blank=True,
+        help_text="Academic semester (1 to 8), or null for common across semesters"
+    )
+    scheme = models.CharField(
+        max_length=30,
+        default="2022 Scheme",
+        blank=True,
+        help_text="Curriculum scheme (e.g. 2022 Scheme)"
+    )
 
     class Meta:
         ordering = ['order', 'name']
@@ -20,6 +49,76 @@ class Subject(models.Model):
 
     def __str__(self):
         return f"{self.code} - {self.name}"
+
+    @classmethod
+    def infer_branch_and_semester(cls, code, name=""):
+        """
+        Intelligently infers engineering branch and semester number from course code (e.g. VTU scheme) or title.
+        """
+        import re
+        clean_code = (code or "").strip().upper()
+        clean_name = (name or "").strip().lower()
+
+        branch = cls.Branch.ALL
+        semester = None
+
+        # 1. Infer Branch
+        if any(prefix in clean_code for prefix in ('BAI', 'BAD', 'AIML', 'AI', 'ML')) or 'artificial intelligence' in clean_name or 'machine learning' in clean_name:
+            branch = cls.Branch.AIML
+        elif any(prefix in clean_code for prefix in ('BCS', 'CSE', '18CS', '21CS', '22CS')) or 'computer science' in clean_name:
+            branch = cls.Branch.CSE
+        elif any(prefix in clean_code for prefix in ('BIS', 'ISE', '18IS', '21IS')) or 'information science' in clean_name:
+            branch = cls.Branch.ISE
+        elif any(prefix in clean_code for prefix in ('BEC', 'ECE', '18EC', '21EC')) or 'electronics' in clean_name or 'communication' in clean_name:
+            branch = cls.Branch.ECE
+        elif any(prefix in clean_code for prefix in ('BEE', 'EEE', '18EE', '21EE')) or 'electrical' in clean_name:
+            branch = cls.Branch.EEE
+        elif any(prefix in clean_code for prefix in ('BME', 'MECH', '18ME', '21ME')) or 'mechanical' in clean_name or 'machining' in clean_name:
+            branch = cls.Branch.ME
+        elif any(prefix in clean_code for prefix in ('BCV', 'CIVIL', '18CV', '21CV')) or 'civil' in clean_name:
+            branch = cls.Branch.CV
+        elif clean_code.startswith('CS') or ' CS' in clean_code:
+            branch = cls.Branch.CSE
+        elif clean_code.startswith('EC') or ' EC' in clean_code:
+            branch = cls.Branch.ECE
+        elif clean_code.startswith('ME') or ' ME' in clean_code:
+            branch = cls.Branch.ME
+
+        # 2. Infer Semester
+        m_vtu = re.search(r'[A-Za-z]+([1-8])\d{2}', clean_code)
+        if m_vtu:
+            semester = int(m_vtu.group(1))
+        else:
+            m_old_vtu = re.search(r'[A-Za-z]+([1-8])\d', clean_code)
+            if m_old_vtu:
+                semester = int(m_old_vtu.group(1))
+            else:
+                m_sem_name = re.search(r'(?:sem(?:ester)?|sem)\s*([1-8])|([1-8])(?:st|nd|rd|th)\s*sem', clean_name)
+                if m_sem_name:
+                    semester = int(m_sem_name.group(1) or m_sem_name.group(2))
+
+        return branch, semester
+
+    def save(self, *args, **kwargs):
+        if not self.branch or self.branch == self.Branch.ALL or not self.semester:
+            inferred_branch, inferred_sem = self.infer_branch_and_semester(self.code, self.name)
+            if (not self.branch or self.branch == self.Branch.ALL) and inferred_branch != self.Branch.ALL:
+                self.branch = inferred_branch
+            if not self.semester and inferred_sem:
+                self.semester = inferred_sem
+        super().save(*args, **kwargs)
+
+    @property
+    def academic_tag(self):
+        """Returns concise academic badge text, e.g. 'CSE · Sem 7' or 'Sem 7' or 'All Branches'."""
+        parts = []
+        if self.branch and self.branch != self.Branch.ALL:
+            parts.append(self.branch)
+        if self.semester:
+            parts.append(f"Sem {self.semester}")
+        elif not parts:
+            return "General"
+        return " · ".join(parts)
 
 
 class Module(models.Model):
@@ -309,6 +408,8 @@ class GenerationJob(models.Model):
     subject_name = models.CharField(max_length=150, help_text="Full subject name submitted")
     subject_code = models.CharField(max_length=20, blank=True, help_text="Optional subject code")
     syllabus_text = models.TextField(blank=True, help_text="Prescribed syllabus text if provided")
+    branch = models.CharField(max_length=20, blank=True, default='', help_text="Target branch/department")
+    semester = models.PositiveSmallIntegerField(null=True, blank=True, help_text="Target semester (1-8)")
 
     status = models.CharField(
         max_length=20,
