@@ -7,6 +7,9 @@
     <meta name="theme-color" content="#f3f0e8">
     <title>{% block title %}StudyHub — University Curriculum & Study Platform{% endblock %}</title>
 
+    <link rel="icon" type="image/png" href="{% static 'logo/studyhublogo.png' %}">
+    <link rel="apple-touch-icon" href="{% static 'logo/studyhublogo.png' %}">
+
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Source+Sans+3:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Source+Serif+4:opsz,wght@8..60,500;8..60,600;8..60,700&display=swap" rel="stylesheet">
@@ -22,7 +25,10 @@
     <header class="site-header">
         <nav class="navbar navbar-expand-lg">
             <div class="container">
-                <a class="navbar-brand" href="/">Study<span>Hub</span></a>
+                <a class="navbar-brand d-inline-flex align-items-center gap-2" href="/">
+                    <img src="{% static 'logo/studyhublogo.png' %}" alt="StudyHub Logo" class="brand-logo" width="34" height="32">
+                    <span class="brand-name">Study<span>Hub</span></span>
+                </a>
 
                 <button class="navbar-toggler border-0" type="button" data-bs-toggle="collapse" data-bs-target="#studyHubNavbar" aria-controls="studyHubNavbar" aria-expanded="false" aria-label="Toggle navigation" style="min-width: 44px; min-height: 44px;">
                     <span class="navbar-toggler-icon"></span>
@@ -65,8 +71,11 @@
     </main>
 
     <footer class="site-footer mt-auto">
-        <div class="container">
-            <span>StudyHub · Visvesvaraya Technological University</span>
+        <div class="container d-flex flex-wrap justify-content-between align-items-center gap-2">
+            <div class="d-flex align-items-center gap-2">
+                <img src="{% static 'logo/studyhublogo.png' %}" alt="StudyHub" class="footer-logo" width="22" height="21">
+                <span>StudyHub · Visvesvaraya Technological University</span>
+            </div>
             <span>Syllabus, lectures, and articles</span>
         </div>
     </footer>
