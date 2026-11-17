@@ -301,7 +301,14 @@
                                         <p class="text-secondary small mb-0 mt-1">{{ note.description }}</p>
                                     {% endif %}
                                 </div>
-                                <a href="{{ note.file.url }}" target="_blank" rel="noopener noreferrer" class="btn btn-sm btn-outline-secondary">Open</a>
+                                <div class="d-flex align-items-center gap-2">
+                                    <a href="{% url 'curriculum:view_module_note' note.id %}" target="_blank" rel="noopener noreferrer" class="btn btn-sm btn-outline-primary d-inline-flex align-items-center">
+                                        <i class="bi bi-eye me-1"></i>Open
+                                    </a>
+                                    <a href="{% url 'curriculum:download_module_note' note.id %}" class="btn btn-sm btn-outline-secondary d-inline-flex align-items-center" title="Download note file">
+                                        <i class="bi bi-download me-1"></i>Download
+                                    </a>
+                                </div>
                             </div>
                         {% endfor %}
                     </div>

@@ -12,7 +12,8 @@ from datetime import timedelta
 from django.core.management import call_command
 from django.contrib.auth import get_user_model
 from django.utils import timezone
-from curriculum.models import Module, Subject, Topic, TopicKeyword, GenerationJob
+from django.core.files.uploadedfile import SimpleUploadedFile
+from curriculum.models import Module, Subject, Topic, TopicKeyword, GenerationJob, ModuleNote
 from curriculum.services.ai_curriculum import (
     CurriculumParseError,
     CurriculumValidationError,
@@ -2215,6 +2216,125 @@ class GroqIntegrationTests(TestCase):
             data = res.json()
             content = json.loads(data["choices"][0]["message"]["content"])
             self.assertIn("Python is a high-level programming language", content["response"])
+
+
+class ModuleNoteStreamingTests(TestCase):
+    """
+    Tests for internal streaming and downloading of module notes.
+    Verifies that Cloudinary/remote URLs are proxied and masked under clean website routes
+    with branded academic filenames and appropriate MIME/cache headers.
+    """
+
+    def setUp(self):
+        self.client = Client()
+        self.subject = Subject.objects.create(
+            name="Advanced Algorithms",
+            code="CS701",
+            slug="cs701"
+        )
+        self.module = Module.objects.create(
+            subject=self.subject,
+            module_number=1,
+            title="Dynamic Programming"
+        )
+
+    @patch('curriculum.views.requests.get')
+    def test_view_module_note_remote_stream_inline(self, mock_get):
+        """Verifies remote Cloudinary note is streamed inline with masked branding and clean filename."""
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.headers = {'Content-Length': '24'}
+        mock_response.iter_content = MagicMock(return_value=[b"%PDF-1.4 ", b"Sample Note Data"])
+        mock_get.return_value = mock_response
+
+        note = ModuleNote.objects.create(
+            module=self.module,
+            title="Module 1 Notes",
+            file="https://res.cloudinary.com/testcloud/raw/upload/v1234/test_notes.pdf"
+        )
+
+        url = reverse('curriculum:view_module_note', args=[note.id])
+        response = self.client.get(url)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response['Content-Type'], 'application/pdf')
+        self.assertEqual(response['Content-Disposition'], 'inline; filename="CS701_module-1-notes.pdf"')
+        self.assertEqual(response['Cache-Control'], 'public, max-age=86400')
+        mock_get.assert_called_once_with(
+            "https://res.cloudinary.com/testcloud/raw/upload/v1234/test_notes.pdf",
+            stream=True,
+            timeout=20
+        )
+        content = b"".join(response.streaming_content)
+        self.assertEqual(content, b"%PDF-1.4 Sample Note Data")
+
+    @patch('curriculum.views.requests.get')
+    def test_download_module_note_remote_stream_attachment(self, mock_get):
+        """Verifies download note route forces attachment disposition with branded filename."""
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.headers = {'Content-Length': '24'}
+        mock_response.iter_content = MagicMock(return_value=[b"%PDF-1.4 ", b"Download Data"])
+        mock_get.return_value = mock_response
+
+        note = ModuleNote.objects.create(
+            module=self.module,
+            title="Handwritten Formula Sheet",
+            file="https://res.cloudinary.com/testcloud/raw/upload/v1234/sheet.pdf"
+        )
+
+        url = reverse('curriculum:download_module_note', args=[note.id])
+        response = self.client.get(url)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response['Content-Disposition'], 'attachment; filename="CS701_handwritten-formula-sheet.pdf"')
+        content = b"".join(response.streaming_content)
+        self.assertEqual(content, b"%PDF-1.4 Download Data")
+
+    def test_view_module_note_local_file(self):
+        """Verifies local file storage fallback works seamlessly with FileResponse."""
+        dummy_file = SimpleUploadedFile("dp_cheatsheet.pdf", b"%PDF-1.4 Local Content", content_type="application/pdf")
+        note = ModuleNote.objects.create(
+            module=self.module,
+            title="DP Cheatsheet",
+            file=dummy_file
+        )
+
+        url = reverse('curriculum:view_module_note', args=[note.id])
+        response = self.client.get(url)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response['Content-Type'], 'application/pdf')
+        self.assertIn('inline; filename="CS701_dp-cheatsheet.pdf"', response['Content-Disposition'])
+
+        download_url = reverse('curriculum:download_module_note', args=[note.id])
+        dl_response = self.client.get(download_url)
+        self.assertEqual(dl_response.status_code, 200)
+        self.assertIn('attachment; filename="CS701_dp-cheatsheet.pdf"', dl_response['Content-Disposition'])
+
+    def test_view_module_note_nonexistent_returns_404(self):
+        """Requesting a nonexistent note returns HTTP 404."""
+        url = reverse('curriculum:view_module_note', args=[999999])
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, 404)
+
+    @patch('curriculum.views.requests.get')
+    def test_view_module_note_remote_error_returns_404(self, mock_get):
+        """If remote Cloudinary fetch fails (e.g. 404 or connection error), view returns 404."""
+        mock_response = MagicMock()
+        mock_response.status_code = 404
+        mock_get.return_value = mock_response
+
+        note = ModuleNote.objects.create(
+            module=self.module,
+            title="Missing Remote Note",
+            file="https://res.cloudinary.com/testcloud/raw/upload/v1234/missing.pdf"
+        )
+
+        url = reverse('curriculum:view_module_note', args=[note.id])
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, 404)
+
 
 
 

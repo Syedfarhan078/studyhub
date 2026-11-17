@@ -1,11 +1,14 @@
 import logging
+import mimetypes
 import uuid
+import requests
 from django.shortcuts import render, get_object_or_404, redirect
-from django.http import JsonResponse
+from django.http import JsonResponse, Http404, StreamingHttpResponse, FileResponse
 from django.urls import reverse
 from django.contrib import messages
 from django.db import transaction
-from .models import Subject, Module, Topic, TopicProgress, GenerationJob
+from django.utils.text import slugify
+from .models import Subject, Module, Topic, TopicProgress, GenerationJob, ModuleNote
 from .forms import ModuleNoteForm
 from .services.ai_curriculum import (
     generate_curriculum_from_prompt,
@@ -371,3 +374,101 @@ def update_topic_progress(request, topic_id):
         messages.success(request, f"Updated progress for '{topic.title}'!")
     # Redirect back to the syllabus view with this topic selected
     return redirect(f"/subjects/{topic.module.subject.slug}/?topic={topic.slug}")
+
+
+def _serve_note_file(request, note_id, as_attachment=False):
+    """
+    Internal file streamer that masks Cloudinary/storage URLs with clean, branded domain URLs.
+    Delivers custom academic filenames (e.g. 'CS701_Module_1_Notes.pdf') and proper MIME headers.
+    """
+    note = get_object_or_404(
+        ModuleNote.objects.select_related('module__subject'),
+        id=note_id
+    )
+
+    if not note.file:
+        raise Http404("Note file not found.")
+
+    ext = (note.file_extension or 'pdf').lower()
+    subject_code = getattr(note.module.subject, 'code', 'NOTE').strip().upper()
+    title_slug = slugify(note.title) or f"module_{note.module.module_number}_note"
+    clean_filename = f"{subject_code}_{title_slug}.{ext}"
+
+    content_type, _ = mimetypes.guess_type(note.file.name)
+    if not content_type:
+        if ext == 'pdf':
+            content_type = 'application/pdf'
+        elif ext in ('doc', 'docx'):
+            content_type = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+        elif ext in ('ppt', 'pptx'):
+            content_type = 'application/vnd.openxmlformats-officedocument.presentationml.presentation'
+        else:
+            content_type = 'application/octet-stream'
+
+    disposition_type = "attachment" if as_attachment else "inline"
+    content_disposition = f'{disposition_type}; filename="{clean_filename}"'
+
+    file_url = getattr(note.file, 'url', '')
+    raw_name = getattr(note.file, 'name', '')
+
+    # Determine if this file is located on remote storage (Cloudinary or CDN)
+    target_remote_url = None
+    if file_url.startswith(('http://', 'https://')):
+        target_remote_url = file_url
+    elif raw_name.startswith(('http://', 'https://')):
+        target_remote_url = raw_name
+    elif 'res.cloudinary.com' in file_url:
+        idx = file_url.find('http')
+        if idx != -1:
+            target_remote_url = file_url[idx:]
+    elif 'res.cloudinary.com' in raw_name:
+        idx = raw_name.find('http')
+        if idx != -1:
+            target_remote_url = raw_name[idx:]
+
+    # If the file is stored remotely (Cloudinary or CDN), stream it to hide Cloudinary origin
+    if target_remote_url:
+        try:
+            req = requests.get(target_remote_url, stream=True, timeout=20)
+            if req.status_code != 200:
+                logger.error("Failed to fetch remote note file (%s): %s", req.status_code, target_remote_url)
+                raise Http404("Unable to fetch note from cloud storage.")
+
+            def stream_chunks():
+                for chunk in req.iter_content(chunk_size=64 * 1024):
+                    if chunk:
+                        yield chunk
+
+            response = StreamingHttpResponse(stream_chunks(), content_type=content_type)
+            if 'Content-Length' in req.headers:
+                response['Content-Length'] = req.headers['Content-Length']
+            response['Content-Disposition'] = content_disposition
+            response['Cache-Control'] = 'public, max-age=86400'
+            return response
+        except requests.RequestException as e:
+            logger.error("Error streaming note file %s: %s", note_id, e)
+            raise Http404("Error retrieving note file from storage.")
+
+    # Local filesystem storage (development)
+    try:
+        response = FileResponse(note.file.open('rb'), content_type=content_type)
+        response['Content-Disposition'] = content_disposition
+        response['Cache-Control'] = 'public, max-age=86400'
+        return response
+    except Exception as e:
+        logger.error("Error opening local note file %s: %s", note_id, e)
+        raise Http404("Local note file could not be read.")
+
+
+def view_module_note(request, note_id):
+    """
+    Renders note PDF/doc inline in a new tab under the website domain, masking Cloudinary.
+    """
+    return _serve_note_file(request, note_id, as_attachment=False)
+
+
+def download_module_note(request, note_id):
+    """
+    Prompts immediate file download with a clean, branded academic filename.
+    """
+    return _serve_note_file(request, note_id, as_attachment=True)
