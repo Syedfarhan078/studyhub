@@ -27,13 +27,40 @@
     </div>
 </header>
 
-<div class="d-flex flex-wrap align-items-center gap-2 mb-4">
+<div class="d-flex flex-wrap align-items-center gap-2 mb-3">
     <span class="section-label">Keywords</span>
     {% for kw in topic.keywords.all %}
         <span class="keyword">{{ kw.keyword }}</span>
     {% empty %}
         <span class="keyword">{{ topic.title }}</span>
     {% endfor %}
+</div>
+
+<div class="sheet p-3 mb-4">
+    <div class="d-flex flex-wrap align-items-center justify-content-between gap-2">
+        <div class="d-flex align-items-center gap-2">
+            <i class="bi bi-book text-secondary"></i>
+            <span class="small fw-semibold">Direct Technical Portals:</span>
+        </div>
+        <div class="d-flex flex-wrap gap-2">
+            <a href="https://en.wikipedia.org/w/index.php?search={{ topic.title|urlencode }}"
+               target="_blank" rel="noopener noreferrer" class="btn btn-sm btn-outline-secondary">
+                <i class="bi bi-wikipedia me-1"></i> Wikipedia
+            </a>
+            <a href="https://www.geeksforgeeks.org/search/?q={{ topic.title|urlencode }}"
+               target="_blank" rel="noopener noreferrer" class="btn btn-sm btn-outline-success">
+                <i class="bi bi-code-slash me-1"></i> GeeksforGeeks
+            </a>
+            <a href="https://www.google.com/search?q=site:tutorialspoint.com+{{ topic.title|urlencode }}"
+               target="_blank" rel="noopener noreferrer" class="btn btn-sm btn-outline-secondary">
+                <i class="bi bi-journal-text me-1"></i> TutorialsPoint
+            </a>
+            <a href="https://scholar.google.com/scholar?q={{ topic.title|urlencode }}+{{ subject.name|urlencode }}"
+               target="_blank" rel="noopener noreferrer" class="btn btn-sm btn-outline-primary">
+                <i class="bi bi-mortarboard me-1"></i> Google Scholar
+            </a>
+        </div>
+    </div>
 </div>
 
 {% if articles %}

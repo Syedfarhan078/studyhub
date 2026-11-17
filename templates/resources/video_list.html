@@ -27,13 +27,36 @@
     </div>
 </header>
 
-<div class="d-flex flex-wrap align-items-center gap-2 mb-4">
+<div class="d-flex flex-wrap align-items-center gap-2 mb-3">
     <span class="section-label">Keywords</span>
     {% for kw in topic.keywords.all %}
         <span class="keyword">{{ kw.keyword }}</span>
     {% empty %}
         <span class="keyword">{{ topic.title }}</span>
     {% endfor %}
+</div>
+
+<div class="sheet p-3 mb-4">
+    <div class="d-flex flex-wrap align-items-center justify-content-between gap-2">
+        <div class="d-flex align-items-center gap-2">
+            <i class="bi bi-compass text-secondary"></i>
+            <span class="small fw-semibold">Direct Academic Portals:</span>
+        </div>
+        <div class="d-flex flex-wrap gap-2">
+            <a href="https://www.youtube.com/results?search_query={{ topic.title|urlencode }}+{{ subject.name|urlencode }}+lecture"
+               target="_blank" rel="noopener noreferrer" class="btn btn-sm btn-outline-danger">
+                <i class="bi bi-youtube me-1"></i> YouTube Lectures
+            </a>
+            <a href="https://www.google.com/search?q=NPTEL+Gate+Smashers+{{ topic.title|urlencode }}+{{ subject.name|urlencode }}"
+               target="_blank" rel="noopener noreferrer" class="btn btn-sm btn-outline-secondary">
+                <i class="bi bi-mortarboard me-1"></i> NPTEL / Gate
+            </a>
+            <a href="https://www.geeksforgeeks.org/search/?q={{ topic.title|urlencode }}"
+               target="_blank" rel="noopener noreferrer" class="btn btn-sm btn-outline-success">
+                <i class="bi bi-code-slash me-1"></i> GeeksforGeeks
+            </a>
+        </div>
+    </div>
 </div>
 
 {% if videos %}

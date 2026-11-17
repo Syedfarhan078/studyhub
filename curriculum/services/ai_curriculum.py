@@ -1529,7 +1529,10 @@ def generate_curriculum_data(subject_name, subject_code="", syllabus_text=""):
         "   - 'chapter_title': concise chapter title (e.g. 'Key Management Fundamentals', 'Public-Key Management')\n"
         "   - 'title': concise topic title (under 80 characters)\n"
         "   - 'description': 1 sentence explaining key conceptual objective\n"
-        "   - 'keywords': exactly 3 specific, high-intent search phrases for video lectures and technical articles.\n"
+        "   - 'keywords': exactly 3 specific, context-anchored search queries optimized for finding accurate engineering lectures and tutorials:\n"
+        "       1) '<Topic Title> <Subject Name> lecture tutorial'\n"
+        "       2) '<Topic Title> <Subject Name> geeksforgeeks documentation'\n"
+        "       3) '<Topic Title> in <Subject Name> engineering notes review'\n"
         "4. Output MUST strictly be valid JSON matching this schema:\n"
         "{\n"
         '  "code": "string",\n'

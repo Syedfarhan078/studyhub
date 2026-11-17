@@ -250,14 +250,30 @@
                     <div class="sh-card">
                         <h3 class="h5 mb-2">Lectures</h3>
                         <p class="text-secondary small flex-grow-1">Video lectures matched to this topic.</p>
-                        <a href="{% url 'resources:topic_videos' active_topic.id %}" class="btn btn-outline-secondary w-100">Watch videos</a>
+                        <a href="{% url 'resources:topic_videos' active_topic.id %}" class="btn btn-outline-secondary w-100 mb-2">Watch videos</a>
+                        <div class="d-flex flex-wrap gap-1">
+                            <a href="https://www.youtube.com/results?search_query={{ active_topic.title|urlencode }}+{{ subject.name|urlencode }}+lecture" target="_blank" rel="noopener noreferrer" class="badge text-bg-light border text-decoration-none py-1 px-2" title="Search directly on YouTube">
+                                <i class="bi bi-youtube text-danger me-1"></i>YouTube
+                            </a>
+                            <a href="https://www.google.com/search?q=NPTEL+Gate+Smashers+{{ active_topic.title|urlencode }}+{{ subject.name|urlencode }}" target="_blank" rel="noopener noreferrer" class="badge text-bg-light border text-decoration-none py-1 px-2" title="Search NPTEL & GATE lectures">
+                                <i class="bi bi-mortarboard text-secondary me-1"></i>NPTEL / GATE
+                            </a>
+                        </div>
                     </div>
                 </div>
                 <div class="col-12 col-md-6">
                     <div class="sh-card">
                         <h3 class="h5 mb-2">Reading</h3>
                         <p class="text-secondary small flex-grow-1">Articles and documentation for this topic.</p>
-                        <a href="{% url 'resources:topic_articles' active_topic.id %}" class="btn btn-outline-secondary w-100">Read articles</a>
+                        <a href="{% url 'resources:topic_articles' active_topic.id %}" class="btn btn-outline-secondary w-100 mb-2">Read articles</a>
+                        <div class="d-flex flex-wrap gap-1">
+                            <a href="https://en.wikipedia.org/w/index.php?search={{ active_topic.title|urlencode }}" target="_blank" rel="noopener noreferrer" class="badge text-bg-light border text-decoration-none py-1 px-2" title="Open Wikipedia reference">
+                                <i class="bi bi-wikipedia text-dark me-1"></i>Wikipedia
+                            </a>
+                            <a href="https://www.geeksforgeeks.org/search/?q={{ active_topic.title|urlencode }}" target="_blank" rel="noopener noreferrer" class="badge text-bg-light border text-decoration-none py-1 px-2" title="Search GeeksforGeeks">
+                                <i class="bi bi-code-slash text-success me-1"></i>GeeksforGeeks
+                            </a>
+                        </div>
                     </div>
                 </div>
             </div>
