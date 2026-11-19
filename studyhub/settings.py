@@ -238,3 +238,9 @@ LOGGING = {
         },
     },
 }
+
+# Session configuration for anonymous student study progress persistence
+SESSION_COOKIE_AGE = 31536000  # 1 year session persistence for students
+SESSION_SAVE_EVERY_REQUEST = True  # Ensure session cookie is refreshed and persisted
+SESSION_COOKIE_HTTPONLY = True
+SESSION_COOKIE_SAMESITE = 'Lax'

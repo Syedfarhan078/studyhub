@@ -2850,19 +2850,21 @@ class NightBeforeHighYieldTriageTests(TestCase):
             title="Introduction to Distributed Systems",
             description="Basics"
         )
-        # Topic 1: default order 1 -> effective high yield
+        # Topic 1: marked is_high_yield=True
         self.t1 = Topic.objects.create(
             module=self.module,
-            title="System Models",
+            title="System Models & Architecture",
             slug="system-models",
-            order=1
+            order=1,
+            is_high_yield=True
         )
-        # Topic 2: default order 2 -> effective high yield
+        # Topic 2: marked is_high_yield=True
         self.t2 = Topic.objects.create(
             module=self.module,
-            title="Networking and Internetworking",
+            title="Networking Protocols & Sockets",
             slug="networking-internetworking",
-            order=2
+            order=2,
+            is_high_yield=True
         )
         # Topic 3: order 3 -> not high yield
         self.t3 = Topic.objects.create(
@@ -3103,3 +3105,151 @@ class PassingPredictorTests(TestCase):
 
         p3 = TopicProgress.objects.get(topic=self.t3)
         self.assertEqual(p3.status, TopicProgress.Status.COMPLETED)
+
+
+class GuestSessionProgressIsolationTests(TestCase):
+    def setUp(self):
+        self.subject = Subject.objects.create(
+            name="Cloud Computing & Virtualization",
+            code="BCS701",
+            slug="cloud-computing",
+            branch=Subject.Branch.CSE,
+            semester=7,
+            scheme="2022 Scheme"
+        )
+        self.module = Module.objects.create(
+            subject=self.subject,
+            module_number=1,
+            title="Introduction to Cloud Computing",
+            description="Cloud models"
+        )
+        self.t1 = Topic.objects.create(
+            module=self.module,
+            title="Introduction to Cloud Architecture",
+            slug="cloud-architecture",
+            order=1
+        )
+        self.t2 = Topic.objects.create(
+            module=self.module,
+            title="Virtualization & Hypervisor Mechanics",
+            slug="virtualization-hypervisors",
+            order=2
+        )
+
+    def test_anonymous_sessions_are_completely_isolated(self):
+        """
+        Tests that user progress updated on Client A (e.g. laptop) does not leak
+        into Client B (e.g. phone), and each client's progress updates independently.
+        """
+        from django.test import Client
+        client_a = Client()
+        client_b = Client()
+
+        # Client A visits and completes topic 1
+        url_t1 = reverse('curriculum:update_topic_progress', kwargs={'topic_id': self.t1.id})
+        res_a = client_a.post(url_t1, {'status': 'COMPLETED'}, HTTP_X_REQUESTED_WITH='XMLHttpRequest')
+        self.assertEqual(res_a.status_code, 200)
+
+        # Client A views subject detail: t1 is COMPLETED, 1 of 2 completed
+        url_subject = reverse('curriculum:subject_detail', kwargs={'slug': self.subject.slug})
+        detail_a = client_a.get(url_subject)
+        self.assertEqual(detail_a.context['completed_topics'], 1)
+        self.assertEqual(detail_a.context['active_topic'].progress.status, 'COMPLETED')
+
+        # Client B (e.g. phone) visits the subject page: progress MUST BE 0!
+        detail_b = client_b.get(url_subject)
+        self.assertEqual(detail_b.context['completed_topics'], 0)
+        # In client B, t1 has no completed progress
+        t1_in_b = next(t for t in detail_b.context['subject'].modules.first().topics.all() if t.id == self.t1.id)
+        self.assertIsNone(t1_in_b.progress)
+
+        # Client B completes topic 2
+        url_t2 = reverse('curriculum:update_topic_progress', kwargs={'topic_id': self.t2.id})
+        res_b = client_b.post(url_t2, {'status': 'COMPLETED'}, HTTP_X_REQUESTED_WITH='XMLHttpRequest')
+        self.assertEqual(res_b.status_code, 200)
+
+        # Verify Client B has 1 completed topic (topic 2), not topic 1
+        detail_b_after = client_b.get(url_subject)
+        self.assertEqual(detail_b_after.context['completed_topics'], 1)
+
+        # Re-verify Client A: still has ONLY topic 1 completed, completely untouched by Client B!
+        detail_a_after = client_a.get(url_subject)
+        self.assertEqual(detail_a_after.context['completed_topics'], 1)
+        t1_in_a = next(t for t in detail_a_after.context['subject'].modules.first().topics.all() if t.id == self.t1.id)
+        t2_in_a = next(t for t in detail_a_after.context['subject'].modules.first().topics.all() if t.id == self.t2.id)
+        self.assertEqual(t1_in_a.progress.status, 'COMPLETED')
+        self.assertIsNone(t2_in_a.progress)
+
+
+class ExamHighYieldTaggerTests(TestCase):
+    def setUp(self):
+        self.subject = Subject.objects.create(
+            name="Deep Learning Test",
+            code="BAI701T",
+            slug="dl-test",
+            branch=Subject.Branch.AIML,
+            semester=7,
+            scheme="2022 Scheme"
+        )
+        self.module = Module.objects.create(
+            subject=self.subject,
+            module_number=1,
+            title="Foundations of Deep Networks",
+            description="Core mechanics"
+        )
+        self.t_intro = Topic.objects.create(
+            module=self.module,
+            title="Introduction to Machine Learning Approaches and Overview",
+            slug="intro-ml",
+            order=1
+        )
+        self.t_arch = Topic.objects.create(
+            module=self.module,
+            title="Deep Neural Network Architectures and Model Representation",
+            slug="dnn-architectures",
+            order=2
+        )
+        self.t_why = Topic.objects.create(
+            module=self.module,
+            title="Why Use Deep Learning and Industry Applications",
+            slug="why-use-dl",
+            order=3
+        )
+        self.t_backprop = Topic.objects.create(
+            module=self.module,
+            title="How Deep Learning Works: Weights, Loss Functions, and Backpropagation",
+            slug="weights-backprop",
+            order=4
+        )
+
+    def test_score_topic_exam_importance_penalizes_intro_and_rewards_algorithms(self):
+        from curriculum.services.high_yield import score_topic_exam_importance
+        # Intro and "Why Use" get negative scores
+        self.assertLess(score_topic_exam_importance("Introduction to Machine Learning Approaches"), 0)
+        self.assertLess(score_topic_exam_importance("Why Use Deep Learning and Applications"), 0)
+        self.assertLess(score_topic_exam_importance("Overview of Neural Networks"), 0)
+
+        # Core algorithms, architectures, and derivations get strong positive scores
+        self.assertGreater(score_topic_exam_importance("Weights, Loss Functions, and Backpropagation"), 15)
+        self.assertGreater(score_topic_exam_importance("Deep Neural Network Architectures"), 8)
+        self.assertGreater(score_topic_exam_importance("The RSA Algorithm and Computational Aspects"), 15)
+        self.assertGreater(score_topic_exam_importance("Markov Decision Processes and Bellman Equations"), 15)
+
+    def test_tag_module_high_yield_topics_selects_real_exam_concepts(self):
+        from curriculum.services.high_yield import tag_module_high_yield_topics
+        picks = tag_module_high_yield_topics(self.module, max_picks=2)
+
+        # Should pick Backpropagation (order 4) and Architectures (order 2)
+        pick_ids = [p.id for p in picks]
+        self.assertIn(self.t_backprop.id, pick_ids)
+        self.assertIn(self.t_arch.id, pick_ids)
+
+        # Must NOT pick introductory topics (order 1 or 3)
+        self.assertNotIn(self.t_intro.id, pick_ids)
+        self.assertNotIn(self.t_why.id, pick_ids)
+
+        # Verify DB updates
+        self.t_backprop.refresh_from_db()
+        self.t_intro.refresh_from_db()
+        self.assertTrue(self.t_backprop.is_high_yield)
+        self.assertFalse(self.t_intro.is_high_yield)

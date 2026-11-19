@@ -1529,6 +1529,8 @@ def generate_curriculum_data(subject_name, subject_code="", syllabus_text=""):
         "   - 'chapter_title': concise chapter title (e.g. 'Key Management Fundamentals', 'Public-Key Management')\n"
         "   - 'title': concise topic title (under 80 characters)\n"
         "   - 'description': 1 sentence explaining key conceptual objective\n"
+        "   - 'is_high_yield': boolean (CRITICAL EXAM VALUE: set to true ONLY for the top 2-3 most important exam concepts per module that carry 8-10 marks in university exams, such as core algorithms, system architectures, mathematical models, and working principles; set to false for introductory, survey, history, or overview topics)\n"
+        "   - 'vtu_frequency_tag': concise exam frequency tag for high-yield topics (e.g. 'Core VTU Concept (Q1/Q2 Choice)', 'Frequent 8-10M Question', or empty string if is_high_yield is false)\n"
         "   - 'keywords': exactly 3 specific, context-anchored search queries optimized for finding accurate engineering lectures and tutorials:\n"
         "       1) '<Topic Title> <Subject Name> lecture tutorial'\n"
         "       2) '<Topic Title> <Subject Name> geeksforgeeks documentation'\n"
@@ -1549,6 +1551,8 @@ def generate_curriculum_data(subject_name, subject_code="", syllabus_text=""):
         '          "chapter_title": "string",\n'
         '          "title": "string",\n'
         '          "description": "string",\n'
+        '          "is_high_yield": true,\n'
+        '          "vtu_frequency_tag": "string",\n'
         '          "keywords": ["keyword 1", "keyword 2", "keyword 3"]\n'
         "        }\n"
         "      ]\n"
@@ -1869,8 +1873,8 @@ def persist_curriculum_records(
                             t_slug = f"{base_t_slug}-{t_counter}"
                             t_counter += 1
 
-                        is_hy = bool(t_data.get("is_high_yield", t_idx <= 2))
-                        vtu_freq = str(t_data.get("vtu_frequency_tag") or ("Core VTU Concept (Q1/Q2 Choice)" if t_idx <= 2 else "")).strip()
+                        is_hy = bool(t_data.get("is_high_yield", False))
+                        vtu_freq = str(t_data.get("vtu_frequency_tag") or "").strip()
 
                         topic = Topic.objects.create(
                             module=module,
@@ -1892,6 +1896,11 @@ def persist_curriculum_records(
                                     topic=topic,
                                     keyword=kw_clean[:120]
                                 )
+
+                    # Ensure each module has high-yield exam topics intelligently identified
+                    if not module.topics.filter(is_high_yield=True).exists():
+                        from curriculum.services.high_yield import tag_module_high_yield_topics
+                        tag_module_high_yield_topics(module)
 
         # Update GenerationJob status to COMPLETED inside the same atomic transaction
         if job is not None:

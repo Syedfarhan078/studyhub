@@ -306,16 +306,23 @@ def generation_status(request, task_id):
     })
 
 
+def get_user_session_key(request) -> str:
+    """Returns a persistent session key for the current request, initializing it if empty."""
+    if not request.session.session_key:
+        request.session.save()
+    return request.session.session_key or ""
+
+
 def subject_detail(request, slug):
     """
     Renders the syllabus view for a given subject.
-    Prefetches modules, topics, keywords, notes, exam questions, and progress records.
+    Prefetches modules, topics, keywords, notes, and exam questions.
+    Loads progress scoped strictly to the current authenticated user or anonymous session.
     Calculates overall syllabus completion metrics.
     """
     subject = get_object_or_404(
         Subject.objects.prefetch_related(
             'modules__topics__keywords',
-            'modules__topics__progress',  # <-- Prefetches progress records
             'modules__notes',
             'modules__exam_questions__topic'
         ),
@@ -326,6 +333,24 @@ def subject_detail(request, slug):
     active_topic = None
 
     all_topics = [topic for module in subject.modules.all() for topic in module.topics.all()]
+    all_topic_ids = [t.id for t in all_topics]
+
+    # Resolve scoped TopicProgress for current authenticated user or unique session
+    user = request.user if request.user.is_authenticated else None
+    session_key = "" if user else get_user_session_key(request)
+
+    if user:
+        progress_qs = TopicProgress.objects.filter(topic_id__in=all_topic_ids, user=user)
+    elif session_key:
+        progress_qs = TopicProgress.objects.filter(topic_id__in=all_topic_ids, session_key=session_key, user__isnull=True)
+    else:
+        progress_qs = []
+
+    progress_map = {p.topic_id: p for p in progress_qs}
+
+    # Attach scoped progress instance to each topic
+    for t in all_topics:
+        t.progress = progress_map.get(t.id)
 
     if selected_topic_slug:
         active_topic = next((t for t in all_topics if t.slug == selected_topic_slug), None)
@@ -342,7 +367,7 @@ def subject_detail(request, slug):
     completed_topics = 0
     for t in all_topics:
         # Check if topic has a progress record marked COMPLETED
-        if hasattr(t, 'progress') and t.progress.status == TopicProgress.Status.COMPLETED:
+        if getattr(t, 'progress', None) and t.progress.status == TopicProgress.Status.COMPLETED:
             completed_topics += 1
 
     progress_percent = int((completed_topics / total_topics) * 100) if total_topics > 0 else 0
@@ -350,7 +375,7 @@ def subject_detail(request, slug):
     # Calculate High-Yield 80/20 Triage Metrics & Target Marks Gauge
     high_yield_topics = [t for t in all_topics if t.is_high_yield_effective]
     high_yield_total = len(high_yield_topics)
-    high_yield_completed = sum(1 for t in high_yield_topics if hasattr(t, 'progress') and t.progress.status == TopicProgress.Status.COMPLETED)
+    high_yield_completed = sum(1 for t in high_yield_topics if getattr(t, 'progress', None) and t.progress.status == TopicProgress.Status.COMPLETED)
     high_yield_percent = int((high_yield_completed / high_yield_total) * 100) if high_yield_total > 0 else 0
     mod_count = subject.modules.count() or 5
     target_marks_potential = min(100, mod_count * 16)
@@ -422,20 +447,37 @@ def upload_module_note(request, module_id):
 
 def update_topic_progress(request, topic_id):
     """
-    Updates the learning progress status and personal notes for a topic.
+    Updates the learning progress status and personal notes for a topic,
+    scoped strictly to the authenticated user or anonymous session key.
     """
     topic = get_object_or_404(Topic.objects.select_related('module__subject'), id=topic_id)
     if request.method == 'POST':
         new_status = request.POST.get('status')
         notes_content = request.POST.get('personal_notes', '')
-        # Retrieve existing progress or create a new one
-        progress, created = TopicProgress.objects.get_or_create(topic=topic)
-        
+
+        user = request.user if request.user.is_authenticated else None
+        session_key = "" if user else get_user_session_key(request)
+
+        if user:
+            progress, _ = TopicProgress.objects.get_or_create(
+                topic=topic,
+                user=user,
+                defaults={'status': TopicProgress.Status.NOT_STARTED, 'session_key': ''}
+            )
+        else:
+            progress, _ = TopicProgress.objects.get_or_create(
+                topic=topic,
+                session_key=session_key,
+                user=None,
+                defaults={'status': TopicProgress.Status.NOT_STARTED}
+            )
+
         if new_status in TopicProgress.Status.values:
             progress.status = new_status
-        
-        progress.personal_notes = notes_content
+        if 'personal_notes' in request.POST:
+            progress.personal_notes = notes_content
         progress.save()
+
         if request.headers.get('x-requested-with') == 'XMLHttpRequest':
             return JsonResponse({'success': True, 'topic_id': topic.id, 'status': progress.status})
         messages.success(request, f"Updated progress for '{topic.title}'!")
@@ -445,7 +487,8 @@ def update_topic_progress(request, topic_id):
 
 def batch_update_topic_progress(request, slug):
     """
-    Batch updates TopicProgress status for multiple topics in a subject.
+    Batch updates TopicProgress status for multiple topics in a subject,
+    scoped strictly to the authenticated user or anonymous session key.
     Useful for 'Apply Checkmarks to Desk' in the Passing Predictor simulator.
     """
     subject = get_object_or_404(Subject, slug=slug)
@@ -460,11 +503,26 @@ def batch_update_topic_progress(request, slug):
         if status not in TopicProgress.Status.values:
             status = TopicProgress.Status.COMPLETED
 
+        user = request.user if request.user.is_authenticated else None
+        session_key = "" if user else get_user_session_key(request)
+
         valid_topics = Topic.objects.filter(module__subject=subject, id__in=topic_ids)
         updated_count = 0
         with transaction.atomic():
             for topic in valid_topics:
-                prog, _ = TopicProgress.objects.get_or_create(topic=topic)
+                if user:
+                    prog, _ = TopicProgress.objects.get_or_create(
+                        topic=topic,
+                        user=user,
+                        defaults={'status': TopicProgress.Status.NOT_STARTED, 'session_key': ''}
+                    )
+                else:
+                    prog, _ = TopicProgress.objects.get_or_create(
+                        topic=topic,
+                        session_key=session_key,
+                        user=None,
+                        defaults={'status': TopicProgress.Status.NOT_STARTED}
+                    )
                 prog.status = status
                 prog.save()
                 updated_count += 1

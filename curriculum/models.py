@@ -290,10 +290,50 @@ class Topic(models.Model):
 
     @property
     def is_high_yield_effective(self):
-        """Returns True if explicitly marked high-yield or if it's among the module's top 2 foundational topics."""
+        """
+        Returns True if explicitly marked high-yield.
+        If not yet set in database, applies intelligent VTU exam importance heuristics
+        (core algorithms, architectures, derivations, working principles) rather than
+        blindly flagging introductory topics.
+        """
         if self.is_high_yield:
             return True
-        return self.order <= 2
+
+        # If any other topic in this module is explicitly marked high-yield, trust the DB markings
+        module_topics = list(self.module.topics.all()) if self.module_id else []
+        if any(t.is_high_yield for t in module_topics):
+            return False
+
+        # Fallback heuristic: check topic title against exam importance indicators
+        title_lower = (self.title or "").strip().lower()
+        if not title_lower:
+            return False
+
+        # Strong negative indicators: introductory, survey, and high-level overview topics
+        low_yield_prefixes = (
+            "introduction to", "intro to", "overview of", "why use", "need for",
+            "history of", "evolution of", "applications of", "basic concepts",
+            "what is", "background", "summary of", "case studies", "future directions"
+        )
+        if any(title_lower.startswith(p) for p in low_yield_prefixes):
+            return False
+
+        # Strong positive indicators: core university exam questions (8-10 marks)
+        high_yield_keywords = (
+            "algorithm", "architecture", "backpropagation", "convolution", "pooling",
+            "mathematical", "derivation", "working principle", "gradient descent",
+            "optimization", "loss function", "markov decision", "mdp", "bellman",
+            "lstm", "gru", "recurrent", "bptt", "pipeline", "hazard", "cache",
+            "virtual memory", "deadlock", "banker", "rsa", "diffie", "des", "aes",
+            "cipher", "cryptosystem", "security", "privacy", "tree", "heap",
+            "scheduling", "transformation", "matrix", "numerical", "dijkstra",
+            "syntax directed", "parsing", "state machine", "protocol"
+        )
+        if any(k in title_lower for k in high_yield_keywords):
+            return True
+
+        # Fallback: if topic is in the core body (not the intro topic 1)
+        return self.order in (2, 3) and len(module_topics) >= 4
 
 
 class TopicKeyword(models.Model):
@@ -442,11 +482,26 @@ class TopicProgress(models.Model):
         IN_PROGRESS = 'IN_PROGRESS', 'In Progress'
         COMPLETED = 'COMPLETED', 'Completed'
 
-    topic = models.OneToOneField(
+    topic = models.ForeignKey(
         Topic,
         on_delete=models.CASCADE,
-        related_name='progress',
+        related_name='progress_records',
         help_text="The syllabus topic being tracked"
+    )
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name='topic_progress',
+        help_text="The authenticated user tracking this topic, if signed in"
+    )
+    session_key = models.CharField(
+        max_length=64,
+        blank=True,
+        default="",
+        db_index=True,
+        help_text="The anonymous guest session key tracking this progress"
     )
     status = models.CharField(
         max_length=20,
@@ -466,10 +521,27 @@ class TopicProgress(models.Model):
     class Meta:
         verbose_name = "Topic Progress"
         verbose_name_plural = "Topic Progress Records"
+        constraints = [
+            models.UniqueConstraint(
+                fields=['topic', 'user'],
+                condition=models.Q(user__isnull=False),
+                name='unique_user_topic_progress'
+            ),
+            models.UniqueConstraint(
+                fields=['topic', 'session_key'],
+                condition=models.Q(user__isnull=True) & ~models.Q(session_key=''),
+                name='unique_session_topic_progress'
+            ),
+        ]
+        indexes = [
+            models.Index(fields=['topic', 'session_key']),
+            models.Index(fields=['topic', 'user']),
+        ]
 
     def __str__(self):
+        owner = self.user.username if self.user else (f"session:{self.session_key[:8]}" if self.session_key else "global")
         try:
-            return f"{self.topic.title} - {self.get_status_display()}"
+            return f"{self.topic.title} ({owner}) - {self.get_status_display()}"
         except Exception:
             return f"Topic Progress #{self.pk}"
 
