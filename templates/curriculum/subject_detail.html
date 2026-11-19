@@ -171,15 +171,22 @@
                 <h2 class="h3 mb-2">{{ active_topic.title }}</h2>
                 <p class="text-secondary mb-4">{{ active_topic.description|default:"No description for this topic." }}</p>
 
-                <div class="mb-3">
-                    <p class="section-label mb-2">Status</p>
-                    <form action="{% url 'curriculum:update_topic_progress' active_topic.id %}" method="POST" class="status-switch mb-0">
-                        {% csrf_token %}
-                        <input type="hidden" name="personal_notes" value="{{ active_topic.progress.personal_notes|default:'' }}">
-                        <button type="submit" name="status" value="NOT_STARTED" class="btn btn-sm {% if active_topic.progress.status == 'NOT_STARTED' or not active_topic.progress %}btn-secondary{% else %}btn-outline-secondary{% endif %}">Not started</button>
-                        <button type="submit" name="status" value="IN_PROGRESS" class="btn btn-sm {% if active_topic.progress.status == 'IN_PROGRESS' %}btn-warning{% else %}btn-outline-warning{% endif %}">In progress</button>
-                        <button type="submit" name="status" value="COMPLETED" class="btn btn-sm {% if active_topic.progress.status == 'COMPLETED' %}btn-success{% else %}btn-outline-success{% endif %}">Completed</button>
-                    </form>
+                <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3 pb-3 border-bottom border-light-subtle">
+                    <div>
+                        <p class="section-label mb-1">Status</p>
+                        <form action="{% url 'curriculum:update_topic_progress' active_topic.id %}" method="POST" class="status-switch mb-0">
+                            {% csrf_token %}
+                            <input type="hidden" name="personal_notes" value="{{ active_topic.progress.personal_notes|default:'' }}">
+                            <button type="submit" name="status" value="NOT_STARTED" class="btn btn-sm {% if active_topic.progress.status == 'NOT_STARTED' or not active_topic.progress %}btn-secondary{% else %}btn-outline-secondary{% endif %}">Not started</button>
+                            <button type="submit" name="status" value="IN_PROGRESS" class="btn btn-sm {% if active_topic.progress.status == 'IN_PROGRESS' %}btn-warning{% else %}btn-outline-warning{% endif %}">In progress</button>
+                            <button type="submit" name="status" value="COMPLETED" class="btn btn-sm {% if active_topic.progress.status == 'COMPLETED' %}btn-success{% else %}btn-outline-success{% endif %}">Completed</button>
+                        </form>
+                    </div>
+                    <div>
+                        <button type="button" class="btn btn-sm btn-answer-blueprint btn-generate-topic-blueprint" data-topic-id="{{ active_topic.id }}" data-topic-title="{{ active_topic.title }}" title="Generate structured VTU 10-Mark answer format for this topic">
+                            <i class="bi bi-mortarboard-fill text-primary"></i> 10-Mark Answer Architect
+                        </button>
+                    </div>
                 </div>
 
                 <div class="mb-4">
@@ -281,6 +288,80 @@
                 </div>
             </div>
 
+            <!-- VTU Question Bank & PYQ Tracker -->
+            <section class="vtu-exam-section" id="vtuExamBankSection">
+                <div class="d-flex flex-column flex-sm-row justify-content-between align-items-sm-start gap-3 mb-3">
+                    <div>
+                        <p class="eyebrow mb-1">VTU Exam Hub · Module {{ active_topic.module.module_number }}</p>
+                        <h3 class="h5 mb-1 d-flex align-items-center gap-2">
+                            <i class="bi bi-patch-question-fill text-primary"></i> Previous Years' Questions (PYQ Bank)
+                        </h3>
+                        <p class="text-secondary small mb-0">Frequently asked semester exam questions with AI structured answer blueprints.</p>
+                    </div>
+                    <div class="d-flex align-items-center gap-2 flex-wrap">
+                        <button type="button" class="btn btn-sm btn-outline-primary d-inline-flex align-items-center gap-1" id="btnGenerateModuleQuestions" data-module-id="{{ active_topic.module.id }}">
+                            <i class="bi bi-sparkles"></i> Generate VTU Questions
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Filters -->
+                <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3 pb-2 border-bottom">
+                    <div class="d-flex flex-wrap gap-1.5" id="vtuQuestionFilters">
+                        <button type="button" class="vtu-filter-btn active" data-filter="all">All (<span id="countFilterAll">{{ active_module_questions|length }}</span>)</button>
+                        <button type="button" class="vtu-filter-btn" data-filter="10m">10 Marks</button>
+                        <button type="button" class="vtu-filter-btn" data-filter="repeated">🔥 Frequent in VTU (<span id="countFilterRepeated">{{ active_module_repeated_count }}</span>)</button>
+                    </div>
+                    <span class="text-secondary" style="font-size: 0.78rem;">VTU {{ subject.scheme|default:"2022 Scheme" }}</span>
+                </div>
+
+                <!-- Question list container -->
+                <div id="vtuQuestionsList">
+                    {% for q in active_module_questions %}
+                        <div class="vtu-question-item" data-marks="{{ q.marks }}" data-repeated="{{ q.is_repeated|yesno:'true,false' }}">
+                            <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
+                                <span class="badge-marks {% if q.marks >= 10 %}badge-marks-10{% elif q.marks >= 8 %}badge-marks-8{% else %}badge-marks-6{% endif %}">
+                                    {{ q.marks }}M
+                                </span>
+                                {% if q.is_repeated %}
+                                    <span class="badge-vtu-freq">
+                                        <i class="bi bi-fire"></i> Asked {{ q.frequency }}x
+                                    </span>
+                                {% endif %}
+                                {% if q.years_asked %}
+                                    <span class="badge-vtu-year">
+                                        <i class="bi bi-clock-history me-1"></i>{{ q.years_asked }}
+                                    </span>
+                                {% endif %}
+                                {% if q.topic %}
+                                    <span class="text-secondary small ms-auto text-truncate" style="max-width: 220px;" title="{{ q.topic.title }}">
+                                        <i class="bi bi-bookmark me-1"></i>{{ q.topic.title }}
+                                    </span>
+                                {% endif %}
+                            </div>
+                            <h4 class="vtu-question-text">{{ q.question_text }}</h4>
+                            <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mt-2 pt-2 border-top border-light-subtle">
+                                <span class="text-secondary small">
+                                    <i class="bi bi-stopwatch me-1"></i>Target: {% if q.marks >= 10 %}15 mins{% else %}9 mins{% endif %}
+                                </span>
+                                <button type="button" class="btn btn-sm btn-answer-blueprint btn-view-blueprint" data-question-id="{{ q.id }}" data-question-text="{{ q.question_text }}" data-marks="{{ q.marks }}">
+                                    <i class="bi bi-journal-code"></i> VTU Answer Blueprint
+                                </button>
+                            </div>
+                        </div>
+                    {% empty %}
+                        <div class="text-center py-4 px-3" id="noQuestionsNotice">
+                            <i class="bi bi-patch-question text-secondary mb-2" style="font-size: 2rem; display: block;"></i>
+                            <h5 class="h6 mb-1">No exam questions logged for Module {{ active_topic.module.module_number }} yet</h5>
+                            <p class="text-secondary small mb-3">Generate authentic VTU previous year questions with 1 click.</p>
+                            <button type="button" class="btn btn-sm btn-primary d-inline-flex align-items-center gap-1" id="btnGenerateModuleQuestionsEmpty" data-module-id="{{ active_topic.module.id }}">
+                                <i class="bi bi-sparkles"></i> Generate High-Yield Questions
+                            </button>
+                        </div>
+                    {% endfor %}
+                </div>
+            </section>
+
             <section class="sheet p-3 p-md-4">
                 <div class="d-flex flex-column flex-sm-row justify-content-between align-items-sm-start gap-3 mb-3">
                     <div>
@@ -355,6 +436,36 @@
                     </div>
                 </div>
             </div>
+
+            <!-- VTU Answer Blueprint Modal -->
+            <div class="modal fade" id="vtuBlueprintModal" tabindex="-1" aria-labelledby="vtuBlueprintModalLabel" aria-hidden="true">
+                <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable blueprint-modal-dialog">
+                    <div class="modal-content border-0 shadow-lg" style="border-radius: var(--radius);">
+                        <div class="modal-header border-bottom py-3">
+                            <div class="d-flex flex-column">
+                                <span class="eyebrow mb-1 text-primary"><i class="bi bi-award-fill me-1"></i>VTU Examination Evaluator Rubric</span>
+                                <h2 class="h6 modal-title mb-0" id="vtuBlueprintModalLabel">10-Mark Answer Architect Blueprint</h2>
+                            </div>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                        </div>
+                        <div class="modal-body p-3 p-md-4" id="vtuBlueprintModalBody">
+                            <!-- Populated dynamically via JS -->
+                        </div>
+                        <div class="modal-footer d-flex justify-content-between py-2.5 border-top">
+                            <div class="d-flex gap-2">
+                                <button type="button" class="btn btn-sm btn-outline-secondary d-inline-flex align-items-center gap-1" id="btnCopyBlueprint">
+                                    <i class="bi bi-clipboard"></i> Copy Text
+                                </button>
+                                <button type="button" class="btn btn-sm btn-outline-secondary d-inline-flex align-items-center gap-1" id="btnPrintBlueprint">
+                                    <i class="bi bi-printer"></i> Print Format
+                                </button>
+                            </div>
+                            <button type="button" class="btn btn-sm btn-primary" data-bs-dismiss="modal">Close</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
         {% else %}
             <div class="sheet empty-state">
                 <h5>Choose a topic</h5>
@@ -418,6 +529,384 @@ document.addEventListener('DOMContentLoaded', function() {
             body: JSON.stringify({ slug: slug })
         }).catch(e => {});
     });
+
+    // =========================================================================
+    // VTU Question Bank & Answer Architect Engine
+    // =========================================================================
+    const csrfToken = '{{ csrf_token }}';
+    const blueprintModalEl = document.getElementById('vtuBlueprintModal');
+    const blueprintModal = blueprintModalEl ? new bootstrap.Modal(blueprintModalEl) : null;
+    const blueprintBody = document.getElementById('vtuBlueprintModalBody');
+    const blueprintTitle = document.getElementById('vtuBlueprintModalLabel');
+    let lastRenderedBlueprintData = null;
+
+    function escapeHtml(str) {
+        if (!str) return '';
+        const div = document.createElement('div');
+        div.textContent = str;
+        return div.innerHTML;
+    }
+
+    // 1. Filter Questions
+    const filterBtns = document.querySelectorAll('#vtuQuestionFilters .vtu-filter-btn');
+    filterBtns.forEach(btn => {
+        btn.addEventListener('click', function() {
+            filterBtns.forEach(b => b.classList.remove('active'));
+            this.classList.add('active');
+            const filter = this.getAttribute('data-filter');
+            const items = document.querySelectorAll('#vtuQuestionsList .vtu-question-item');
+            items.forEach(item => {
+                const marks = parseInt(item.getAttribute('data-marks'), 10);
+                const isRepeated = item.getAttribute('data-repeated') === 'true';
+                if (filter === 'all') {
+                    item.style.display = '';
+                } else if (filter === '10m') {
+                    item.style.display = marks >= 10 ? '' : 'none';
+                } else if (filter === 'repeated') {
+                    item.style.display = isRepeated ? '' : 'none';
+                }
+            });
+        });
+    });
+
+    // 2. Render Blueprint Structure
+    function renderBlueprintContent(data) {
+        lastRenderedBlueprintData = data;
+        const bp = data.blueprint || {};
+        const qText = data.question_text || bp.question || '';
+        const marks = data.marks || bp.marks || 10;
+        const timeMins = bp.time_budget_mins || (marks >= 10 ? 15 : 9);
+
+        let rubricHtml = '';
+        if (bp.marks_breakdown && bp.marks_breakdown.length) {
+            rubricHtml = bp.marks_breakdown.map(r => `<span class="blueprint-rubric-pill">${escapeHtml(r.component)}: <strong>${r.marks}M</strong></span>`).join('');
+        }
+
+        let conceptsHtml = '';
+        if (bp.core_concepts && bp.core_concepts.length) {
+            conceptsHtml = bp.core_concepts.map(c => `
+                <div class="blueprint-concept-card">
+                    <div class="blueprint-concept-title">${escapeHtml(c.heading)}</div>
+                    <div style="font-size:0.92rem; line-height:1.55; color:var(--ink-soft);">${escapeHtml(c.explanation)}</div>
+                    ${c.formula ? `<div class="blueprint-formula-chip">${escapeHtml(c.formula)}</div>` : ''}
+                </div>
+            `).join('');
+        }
+
+        let stepsHtml = '';
+        if (bp.working_steps && bp.working_steps.length) {
+            stepsHtml = `
+                <div class="blueprint-concept-card mb-3">
+                    <div class="blueprint-concept-title mb-2">Procedural Working Mechanism (Step-by-Step)</div>
+                    <ol class="mb-0 ps-3" style="font-size:0.92rem; line-height:1.6; color:var(--ink-soft);">
+                        ${bp.working_steps.map(s => `<li>${escapeHtml(s)}</li>`).join('')}
+                    </ol>
+                </div>
+            `;
+        }
+
+        let underlinesHtml = '';
+        if (bp.examiner_underlines && bp.examiner_underlines.length) {
+            underlinesHtml = `
+                <div class="mb-3">
+                    <div class="section-label mb-1.5"><i class="bi bi-pencil-fill me-1 text-warning"></i>Crucial Evaluator Underlines (Pencil Underline in Exam)</div>
+                    <div class="examiner-underline-cluster">
+                        ${bp.examiner_underlines.map(u => `<span class="examiner-chip">${escapeHtml(u)}</span>`).join('')}
+                    </div>
+                </div>
+            `;
+        }
+
+        let diagramHtml = '';
+        if (bp.diagram && bp.diagram.ascii_art) {
+            diagramHtml = `
+                <div class="mb-3">
+                    <div class="d-flex justify-content-between align-items-center mb-1">
+                        <span class="section-label mb-0"><i class="bi bi-diagram-3-fill me-1 text-primary"></i>${escapeHtml(bp.diagram.title || 'Neat Labeled Diagram')} (3 Marks)</span>
+                    </div>
+                    <div class="ascii-canvas-wrap">
+                        <pre class="ascii-canvas"><code>${escapeHtml(bp.diagram.ascii_art)}</code></pre>
+                        <button type="button" class="ascii-copy-btn" onclick="navigator.clipboard.writeText(this.previousElementSibling.innerText); this.innerText='Copied!'; setTimeout(()=>this.innerText='Copy Diagram', 1500);">Copy Diagram</button>
+                    </div>
+                    ${bp.diagram.drawing_tips ? `
+                        <div class="drawing-tip-callout">
+                            <i class="bi bi-pencil-square fs-6 text-amber mt-0.5"></i>
+                            <div><strong>Drawing Advice:</strong> ${escapeHtml(bp.diagram.drawing_tips)}</div>
+                        </div>
+                    ` : ''}
+                </div>
+            `;
+        }
+
+        let prosConsHtml = '';
+        if (bp.pros_and_cons && (bp.pros_and_cons.advantages || bp.pros_and_cons.limitations)) {
+            const advs = bp.pros_and_cons.advantages || [];
+            const lims = bp.pros_and_cons.limitations || [];
+            prosConsHtml = `
+                <div class="row g-2 mb-3">
+                    ${advs.length ? `
+                        <div class="col-12 col-md-6">
+                            <div class="blueprint-concept-card h-100">
+                                <div class="blueprint-concept-title text-success"><i class="bi bi-check2-circle me-1"></i>Advantages</div>
+                                <ul class="mb-0 ps-3 small text-secondary">
+                                    ${advs.map(a => `<li>${escapeHtml(a)}</li>`).join('')}
+                                </ul>
+                            </div>
+                        </div>
+                    ` : ''}
+                    ${lims.length ? `
+                        <div class="col-12 col-md-6">
+                            <div class="blueprint-concept-card h-100">
+                                <div class="blueprint-concept-title text-danger"><i class="bi bi-exclamation-circle me-1"></i>Limitations / Trade-offs</div>
+                                <ul class="mb-0 ps-3 small text-secondary">
+                                    ${lims.map(l => `<li>${escapeHtml(l)}</li>`).join('')}
+                                </ul>
+                            </div>
+                        </div>
+                    ` : ''}
+                </div>
+            `;
+        }
+
+        let tipHtml = '';
+        if (bp.exam_hall_tips) {
+            tipHtml = `
+                <div class="blueprint-tip-box mb-2">
+                    <i class="bi bi-lightbulb-fill text-success fs-5 mt-0.5"></i>
+                    <div><strong>VTU Evaluator Pro-Tip:</strong> ${escapeHtml(bp.exam_hall_tips)}</div>
+                </div>
+            `;
+        }
+
+        return `
+            <div class="blueprint-meta-bar">
+                <div>
+                    <span class="badge-marks ${marks >= 10 ? 'badge-marks-10' : 'badge-marks-8'} me-2">${marks} Marks</span>
+                    <span class="text-secondary small"><i class="bi bi-stopwatch me-1"></i>Allocated Time: <strong>${timeMins} Mins</strong></span>
+                </div>
+                <div class="d-flex flex-wrap gap-1">
+                    ${rubricHtml}
+                </div>
+            </div>
+
+            <h3 class="vtu-question-text mb-3" style="font-size:1.15rem;">${escapeHtml(qText)}</h3>
+
+            ${bp.definition ? `
+                <div class="mb-3">
+                    <span class="section-label mb-1.5"><i class="bi bi-file-text-fill me-1 text-primary"></i>1. Core Definition & Principle (1-2 Marks)</span>
+                    <div class="blueprint-def-box">${escapeHtml(bp.definition)}</div>
+                </div>
+            ` : ''}
+
+            ${diagramHtml}
+
+            ${conceptsHtml ? `
+                <div class="mb-3">
+                    <span class="section-label mb-1.5"><i class="bi bi-layers-fill me-1 text-primary"></i>2. Core Architectural Concepts</span>
+                    ${conceptsHtml}
+                </div>
+            ` : ''}
+
+            ${stepsHtml}
+
+            ${prosConsHtml}
+
+            ${underlinesHtml}
+
+            ${tipHtml}
+        `;
+    }
+
+    function showBlueprintLoading(titleText) {
+        if (blueprintTitle) blueprintTitle.innerText = titleText || '10-Mark Answer Architect';
+        if (blueprintBody) {
+            blueprintBody.innerHTML = `
+                <div class="text-center py-5">
+                    <div class="spinner-border text-primary mb-3" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                    <h5 class="h6 mb-1">Architecting VTU Model Answer Format...</h5>
+                    <p class="text-secondary small mb-0">Structuring block diagrams, step-by-step mechanisms, formulas, and evaluator keywords.</p>
+                </div>
+            `;
+        }
+        if (blueprintModal) blueprintModal.show();
+    }
+
+    // 3. Open Blueprint from Question
+    function attachBlueprintClickHandlers() {
+        document.querySelectorAll('.btn-view-blueprint').forEach(btn => {
+            btn.onclick = function() {
+                const qId = this.getAttribute('data-question-id');
+                const marks = this.getAttribute('data-marks') || '10';
+                showBlueprintLoading(`${marks}-Mark VTU Answer Blueprint`);
+
+                fetch(`/subjects/questions/${qId}/blueprint/`, {
+                    headers: { 'X-Requested-With': 'XMLHttpRequest' }
+                })
+                .then(r => r.json())
+                .then(data => {
+                    if (data.success && data.blueprint) {
+                        blueprintBody.innerHTML = renderBlueprintContent(data);
+                    } else {
+                        blueprintBody.innerHTML = `<div class="alert alert-danger">Failed to load blueprint: ${data.error || 'Unknown error'}</div>`;
+                    }
+                })
+                .catch(err => {
+                    blueprintBody.innerHTML = `<div class="alert alert-danger">Network error loading blueprint. Please try again.</div>`;
+                });
+            };
+        });
+    }
+    attachBlueprintClickHandlers();
+
+    // 4. Open Blueprint for Active Topic
+    document.querySelectorAll('.btn-generate-topic-blueprint').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const topicId = this.getAttribute('data-topic-id');
+            const topicTitle = this.getAttribute('data-topic-title') || 'Topic';
+            showBlueprintLoading(`10-Mark Blueprint: ${topicTitle}`);
+
+            fetch(`/subjects/topics/${topicId}/blueprint/`, {
+                headers: { 'X-Requested-With': 'XMLHttpRequest' }
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (data.success && data.blueprint) {
+                    blueprintBody.innerHTML = renderBlueprintContent(data);
+                } else {
+                    blueprintBody.innerHTML = `<div class="alert alert-danger">Failed to architect blueprint: ${data.error || 'Unknown error'}</div>`;
+                }
+            })
+            .catch(err => {
+                blueprintBody.innerHTML = `<div class="alert alert-danger">Network error architecting blueprint. Please try again.</div>`;
+            });
+        });
+    });
+
+    // 5. Generate Module Questions (AJAX)
+    function handleGenerateQuestions(moduleId, btn) {
+        const origHtml = btn.innerHTML;
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Generating...';
+
+        fetch(`/subjects/modules/${moduleId}/questions/generate/`, {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': csrfToken,
+                'X-Requested-With': 'XMLHttpRequest'
+            }
+        })
+        .then(r => r.json())
+        .then(data => {
+            btn.disabled = false;
+            btn.innerHTML = origHtml;
+            if (data.success && data.questions && data.questions.length) {
+                const list = document.getElementById('vtuQuestionsList');
+                let count10m = 0;
+                let countRepeated = 0;
+
+                list.innerHTML = data.questions.map(q => {
+                    if (q.marks >= 10) count10m++;
+                    if (q.is_repeated) countRepeated++;
+                    const badgeCls = q.marks >= 10 ? 'badge-marks-10' : (q.marks >= 8 ? 'badge-marks-8' : 'badge-marks-6');
+                    return `
+                        <div class="vtu-question-item" data-marks="${q.marks}" data-repeated="${q.is_repeated ? 'true' : 'false'}">
+                            <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
+                                <span class="badge-marks ${badgeCls}">${q.marks}M</span>
+                                ${q.is_repeated ? `<span class="badge-vtu-freq"><i class="bi bi-fire"></i> Asked ${q.frequency}x</span>` : ''}
+                                ${q.years_asked ? `<span class="badge-vtu-year"><i class="bi bi-clock-history me-1"></i>${escapeHtml(q.years_asked)}</span>` : ''}
+                            </div>
+                            <h4 class="vtu-question-text">${escapeHtml(q.question_text)}</h4>
+                            <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mt-2 pt-2 border-top border-light-subtle">
+                                <span class="text-secondary small">
+                                    <i class="bi bi-stopwatch me-1"></i>Target: ${q.marks >= 10 ? '15 mins' : '9 mins'}
+                                </span>
+                                <button type="button" class="btn btn-sm btn-answer-blueprint btn-view-blueprint" data-question-id="${q.id}" data-question-text="${escapeHtml(q.question_text)}" data-marks="${q.marks}">
+                                    <i class="bi bi-journal-code"></i> VTU Answer Blueprint
+                                </button>
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+
+                const countAllEl = document.getElementById('countFilterAll');
+                const countRepEl = document.getElementById('countFilterRepeated');
+                if (countAllEl) countAllEl.innerText = data.questions.length;
+                if (countRepEl) countRepEl.innerText = countRepeated;
+
+                attachBlueprintClickHandlers();
+            } else {
+                alert('Could not generate questions: ' + (data.error || 'Please try again.'));
+            }
+        })
+        .catch(err => {
+            btn.disabled = false;
+            btn.innerHTML = origHtml;
+            alert('Network error while generating questions.');
+        });
+    }
+
+    const genBtnHeader = document.getElementById('btnGenerateModuleQuestions');
+    if (genBtnHeader) {
+        genBtnHeader.addEventListener('click', function() {
+            handleGenerateQuestions(this.getAttribute('data-module-id'), this);
+        });
+    }
+    const genBtnEmpty = document.getElementById('btnGenerateModuleQuestionsEmpty');
+    if (genBtnEmpty) {
+        genBtnEmpty.addEventListener('click', function() {
+            handleGenerateQuestions(this.getAttribute('data-module-id'), this);
+        });
+    }
+
+    // 6. Copy Blueprint Text
+    const copyBtn = document.getElementById('btnCopyBlueprint');
+    if (copyBtn) {
+        copyBtn.addEventListener('click', function() {
+            if (!lastRenderedBlueprintData) return;
+            const bp = lastRenderedBlueprintData.blueprint || {};
+            const q = lastRenderedBlueprintData.question_text || bp.question || '';
+            let text = `VTU ANSWER BLUEPRINT\n`;
+            text += `Question: ${q}\nMarks: ${bp.marks || 10}M | Target: ${bp.time_budget_mins || 15} mins\n\n`;
+            if (bp.definition) text += `1. DEFINITION & PRINCIPLE:\n${bp.definition}\n\n`;
+            if (bp.diagram && bp.diagram.ascii_art) text += `2. DIAGRAM:\n${bp.diagram.ascii_art}\nTip: ${bp.diagram.drawing_tips || ''}\n\n`;
+            if (bp.core_concepts) {
+                text += `3. CORE CONCEPTS:\n`;
+                bp.core_concepts.forEach(c => {
+                    text += `- ${c.heading}: ${c.explanation}\n`;
+                    if (c.formula) text += `  Formula: ${c.formula}\n`;
+                });
+                text += `\n`;
+            }
+            if (bp.working_steps) {
+                text += `4. STEP-BY-STEP MECHANISM:\n`;
+                bp.working_steps.forEach(s => text += `- ${s}\n`);
+                text += `\n`;
+            }
+            if (bp.examiner_underlines) {
+                text += `EXAMINER KEYWORDS TO UNDERLINE:\n${bp.examiner_underlines.join(', ')}\n\n`;
+            }
+            if (bp.exam_hall_tips) {
+                text += `EXAMINER TIP: ${bp.exam_hall_tips}\n`;
+            }
+
+            navigator.clipboard.writeText(text).then(() => {
+                const orig = copyBtn.innerHTML;
+                copyBtn.innerHTML = '<i class="bi bi-check2"></i> Copied!';
+                setTimeout(() => copyBtn.innerHTML = orig, 1800);
+            });
+        });
+    }
+
+    // 7. Print Blueprint
+    const printBtn = document.getElementById('btnPrintBlueprint');
+    if (printBtn) {
+        printBtn.addEventListener('click', function() {
+            window.print();
+        });
+    }
+
 });
 </script>
 {% endblock %}

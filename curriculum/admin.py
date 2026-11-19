@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import Subject, Module, Topic, TopicKeyword, ModuleNote, TopicProgress, GenerationJob
+from .models import Subject, Module, Topic, TopicKeyword, ModuleNote, TopicProgress, GenerationJob, ExamQuestion
 # Register your models here.
 
 class TopicKeywordInline(admin.TabularInline):
@@ -63,6 +63,22 @@ class ModuleNoteAdmin(admin.ModelAdmin):
 class TopicProgressAdmin(admin.ModelAdmin):
     list_display = ('topic', 'status', 'updated_at')
     list_filter = ('status', 'topic__module__subject')
+
+
+@admin.register(ExamQuestion)
+class ExamQuestionAdmin(admin.ModelAdmin):
+    list_display = ('question_short', 'module', 'marks', 'frequency', 'years_asked', 'has_blueprint')
+    list_filter = ('marks', 'frequency', 'module__subject', 'module')
+    search_fields = ('question_text', 'years_asked')
+
+    def question_short(self, obj):
+        return obj.question_text[:75] + ("..." if len(obj.question_text) > 75 else "")
+    question_short.short_description = "Question"
+
+    def has_blueprint(self, obj):
+        return bool(obj.answer_blueprint)
+    has_blueprint.boolean = True
+    has_blueprint.short_description = "AI Blueprint"
 
 
 @admin.register(GenerationJob)

@@ -8,7 +8,7 @@ from django.urls import reverse
 from django.contrib import messages
 from django.db import transaction
 from django.utils.text import slugify
-from .models import Subject, Module, Topic, TopicProgress, GenerationJob, ModuleNote
+from .models import Subject, Module, Topic, TopicProgress, GenerationJob, ModuleNote, ExamQuestion
 from .forms import ModuleNoteForm
 from .services.ai_curriculum import (
     generate_curriculum_from_prompt,
@@ -27,6 +27,10 @@ from .services.ai_curriculum import (
     GeminiAuthError,
     GeminiInvalidRequestError,
     GeminiModelNotFoundError,
+)
+from .services.ai_exam import (
+    generate_vtu_questions_for_module,
+    generate_vtu_answer_blueprint,
 )
 from curriculum.worker import notify_new_job, is_worker_accepting_jobs
 
@@ -301,14 +305,15 @@ def generation_status(request, task_id):
 def subject_detail(request, slug):
     """
     Renders the syllabus view for a given subject.
-    Prefetches modules, topics, keywords, notes, and progress records.
+    Prefetches modules, topics, keywords, notes, exam questions, and progress records.
     Calculates overall syllabus completion metrics.
     """
     subject = get_object_or_404(
         Subject.objects.prefetch_related(
             'modules__topics__keywords',
             'modules__topics__progress',  # <-- Prefetches progress records
-            'modules__notes'
+            'modules__notes',
+            'modules__exam_questions__topic'
         ),
         slug=slug
     )
@@ -324,6 +329,10 @@ def subject_detail(request, slug):
     if not active_topic and all_topics:
         active_topic = all_topics[0]
 
+    active_module = active_topic.module if active_topic else (subject.modules.first() if subject.modules.exists() else None)
+    active_module_questions = list(active_module.exam_questions.all()) if active_module else []
+    active_module_repeated_count = sum(1 for q in active_module_questions if q.is_repeated)
+
     # Calculate Syllabus Progress Metrics
     total_topics = len(all_topics)
     completed_topics = 0
@@ -337,6 +346,9 @@ def subject_detail(request, slug):
     context = {
         'subject': subject,
         'active_topic': active_topic,
+        'active_module': active_module,
+        'active_module_questions': active_module_questions,
+        'active_module_repeated_count': active_module_repeated_count,
         'note_form': ModuleNoteForm(),
         'total_topics': total_topics,
         'completed_topics': completed_topics,
@@ -543,3 +555,114 @@ def toggle_subject_pin(request):
         samesite='Lax'
     )
     return response
+
+
+def generate_module_questions_view(request, module_id):
+    """
+    AJAX endpoint to generate or fetch high-yield VTU exam questions for a module.
+    """
+    if request.method != 'POST':
+        return JsonResponse({'success': False, 'error': 'POST method required.'}, status=405)
+
+    module = get_object_or_404(Module.objects.select_related('subject'), id=module_id)
+    try:
+        questions = generate_vtu_questions_for_module(module)
+        return JsonResponse({
+            'success': True,
+            'module_id': module.id,
+            'module_number': module.module_number,
+            'questions': [
+                {
+                    'id': q.id,
+                    'question_text': q.question_text,
+                    'marks': q.marks,
+                    'frequency': q.frequency,
+                    'is_repeated': q.is_repeated,
+                    'years_asked': q.years_asked,
+                    'scheme': q.scheme,
+                    'has_blueprint': bool(q.answer_blueprint)
+                } for q in questions
+            ]
+        })
+    except Exception as e:
+        logger.exception("Error generating questions for module %s: %s", module_id, e)
+        return JsonResponse({'success': False, 'error': str(e)}, status=500)
+
+
+def get_question_blueprint_view(request, question_id):
+    """
+    AJAX endpoint returning the VTU 10-Mark Answer Architect blueprint for an exam question.
+    Generates and caches the blueprint via AI if not previously cached.
+    """
+    question = get_object_or_404(
+        ExamQuestion.objects.select_related('module__subject', 'topic'),
+        id=question_id
+    )
+
+    try:
+        blueprint = generate_vtu_answer_blueprint(
+            question_text=question.question_text,
+            marks=question.marks,
+            subject_name=question.module.subject.name,
+            module_title=question.module.title,
+            topic_title=question.topic.title if question.topic else "",
+            exam_question=question
+        )
+        return JsonResponse({
+            'success': True,
+            'question_id': question.id,
+            'question_text': question.question_text,
+            'marks': question.marks,
+            'blueprint': blueprint
+        })
+    except Exception as e:
+        logger.exception("Error generating blueprint for question %s: %s", question_id, e)
+        return JsonResponse({'success': False, 'error': str(e)}, status=500)
+
+
+def generate_topic_blueprint_view(request, topic_id):
+    """
+    AJAX endpoint to generate a full VTU Answer Blueprint for any given syllabus topic.
+    Allows instant preparation for topics directly from the syllabus tree.
+    """
+    topic = get_object_or_404(
+        Topic.objects.select_related('module__subject'),
+        id=topic_id
+    )
+    raw_marks = request.GET.get('marks') or request.POST.get('marks') or '10'
+    try:
+        marks = int(raw_marks)
+    except (ValueError, TypeError):
+        marks = 10
+
+    # Check if this topic already has an ExamQuestion with a blueprint
+    existing_eq = topic.exam_questions.filter(answer_blueprint__isnull=False).first()
+    if existing_eq and existing_eq.answer_blueprint:
+        return JsonResponse({
+            'success': True,
+            'topic_id': topic.id,
+            'topic_title': topic.title,
+            'question_id': existing_eq.id,
+            'blueprint': existing_eq.answer_blueprint
+        })
+
+    question_prompt = f"Explain {topic.title} in detail with neat labeled diagrams, working mechanism, and practical applications. [{marks}M]"
+    try:
+        blueprint = generate_vtu_answer_blueprint(
+            question_text=question_prompt,
+            marks=marks,
+            subject_name=topic.module.subject.name,
+            module_title=topic.module.title,
+            topic_title=topic.title
+        )
+        return JsonResponse({
+            'success': True,
+            'topic_id': topic.id,
+            'topic_title': topic.title,
+            'question_id': None,
+            'blueprint': blueprint
+        })
+    except Exception as e:
+        logger.exception("Error generating topic blueprint for %s: %s", topic_id, e)
+        return JsonResponse({'success': False, 'error': str(e)}, status=500)
+

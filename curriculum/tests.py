@@ -13,7 +13,7 @@ from django.core.management import call_command
 from django.contrib.auth import get_user_model
 from django.utils import timezone
 from django.core.files.uploadedfile import SimpleUploadedFile
-from curriculum.models import Module, Subject, Topic, TopicKeyword, GenerationJob, ModuleNote
+from curriculum.models import Module, Subject, Topic, TopicKeyword, GenerationJob, ModuleNote, ExamQuestion
 from curriculum.services.ai_curriculum import (
     CurriculumParseError,
     CurriculumValidationError,
@@ -2460,6 +2460,224 @@ class HybridDeskAndCatalogTests(TestCase):
         self.assertIn('University Catalog', html)
         self.assertIn('networks-test', html)
         self.assertIn('cad-test', html)
+
+
+class VTUExamBankAndBlueprintTests(TestCase):
+    def setUp(self):
+        self.subject = Subject.objects.create(
+            name="Cryptography and Network Security",
+            code="BCS701",
+            slug="crypto-security",
+            branch=Subject.Branch.CSE,
+            semester=7,
+            scheme="2022 Scheme"
+        )
+        self.module = Module.objects.create(
+            subject=self.subject,
+            module_number=1,
+            title="Symmetric Ciphers and Classical Encryption",
+            description="Classical encryption techniques and DES"
+        )
+        self.topic = Topic.objects.create(
+            module=self.module,
+            title="Substitution and Transposition Techniques",
+            slug="substitution-transposition",
+            order=1
+        )
+
+    def test_exam_question_model_properties(self):
+        """Tests ExamQuestion model fields and is_repeated property."""
+        q1 = ExamQuestion.objects.create(
+            module=self.module,
+            topic=self.topic,
+            question_text="Explain Feistel cipher structure with neat diagram. [10M]",
+            marks=10,
+            frequency=3,
+            years_asked="Jan 2023, Jul 2022, Dec 2020",
+            scheme="2022 Scheme"
+        )
+        self.assertTrue(q1.is_repeated)
+        self.assertIn("BCS701", str(q1))
+        self.assertIn("[10M]", str(q1))
+
+        q2 = ExamQuestion.objects.create(
+            module=self.module,
+            question_text="Define cryptanalysis and passive attacks. [5M]",
+            marks=5,
+            frequency=1,
+            years_asked="Jan 2024",
+            scheme="2022 Scheme"
+        )
+        self.assertFalse(q2.is_repeated)
+
+    @patch("curriculum.services.ai_exam._call_ai_json")
+    def test_generate_vtu_questions_ai_service(self, mock_ai_call):
+        """Tests question generation via AI service and persistence."""
+        from curriculum.services.ai_exam import generate_vtu_questions_for_module
+
+        mock_ai_call.return_value = {
+            "questions": [
+                {
+                    "question_text": "Explain DES encryption algorithm with neat block diagram. [10M]",
+                    "marks": 10,
+                    "frequency": 3,
+                    "years_asked": "Jan 2023, Jul 2022",
+                    "scheme": "2022 Scheme",
+                    "topic_title": "Substitution and Transposition Techniques"
+                },
+                {
+                    "question_text": "Differentiate between block ciphers and stream ciphers. [6M]",
+                    "marks": 6,
+                    "frequency": 2,
+                    "years_asked": "Feb 2024",
+                    "scheme": "2022 Scheme"
+                }
+            ]
+        }
+
+        questions = generate_vtu_questions_for_module(self.module)
+        self.assertEqual(len(questions), 2)
+        self.assertEqual(ExamQuestion.objects.filter(module=self.module).count(), 2)
+        q = ExamQuestion.objects.get(marks=6)
+        self.assertEqual(q.frequency, 2)
+        self.assertTrue(q.is_repeated)
+
+    @patch("curriculum.services.ai_exam._call_ai_json")
+    def test_generate_vtu_answer_blueprint_caching(self, mock_ai_call):
+        """Tests blueprint generation and automatic caching on ExamQuestion."""
+        from curriculum.services.ai_exam import generate_vtu_answer_blueprint
+
+        mock_ai_call.return_value = {
+            "question": "Explain AES with diagram. [10M]",
+            "marks": 10,
+            "time_budget_mins": 15,
+            "definition": "AES is an iterative symmetric block cipher.",
+            "diagram": {
+                "title": "AES Architecture",
+                "ascii_art": "+-----+\n| AES |\n+-----+",
+                "drawing_tips": "Draw 4 parallel stages."
+            },
+            "core_concepts": [
+                {"heading": "1. SubBytes", "explanation": "Non-linear byte substitution using S-box."}
+            ],
+            "working_steps": ["Step 1: AddRoundKey", "Step 2: SubBytes"],
+            "examiner_underlines": ["S-box Substitution", "ShiftRows", "MixColumns"],
+            "exam_hall_tips": "Always mention the fixed block size is 128 bits."
+        }
+
+        eq = ExamQuestion.objects.create(
+            module=self.module,
+            question_text="Explain AES with diagram. [10M]",
+            marks=10
+        )
+        self.assertIsNone(eq.answer_blueprint)
+
+        bp = generate_vtu_answer_blueprint(
+            question_text=eq.question_text,
+            marks=eq.marks,
+            subject_name=self.subject.name,
+            module_title=self.module.title,
+            exam_question=eq
+        )
+        eq.refresh_from_db()
+        self.assertIsNotNone(eq.answer_blueprint)
+        self.assertEqual(eq.answer_blueprint["time_budget_mins"], 15)
+        self.assertEqual(len(eq.answer_blueprint["examiner_underlines"]), 3)
+
+        # Call again without mock returning anything new — should return cached directly
+        mock_ai_call.side_effect = Exception("Should not call API when cached!")
+        bp2 = generate_vtu_answer_blueprint(
+            question_text=eq.question_text,
+            marks=eq.marks,
+            exam_question=eq
+        )
+        self.assertEqual(bp2["definition"], "AES is an iterative symmetric block cipher.")
+
+    @patch("curriculum.services.ai_exam._call_ai_json")
+    def test_generate_module_questions_ajax_view(self, mock_ai_call):
+        """Tests AJAX endpoint for module question generation."""
+        mock_ai_call.return_value = {
+            "questions": [
+                {
+                    "question_text": "Discuss Modular Arithmetic in Cryptography. [8M]",
+                    "marks": 8,
+                    "frequency": 2,
+                    "years_asked": "Jul 2023",
+                    "scheme": "2022 Scheme"
+                }
+            ]
+        }
+        url = reverse('curriculum:generate_module_questions', kwargs={'module_id': self.module.id})
+        res = self.client.post(url, HTTP_X_REQUESTED_WITH='XMLHttpRequest')
+        self.assertEqual(res.status_code, 200)
+        data = res.json()
+        self.assertTrue(data['success'])
+        self.assertEqual(len(data['questions']), 1)
+        self.assertEqual(data['questions'][0]['marks'], 8)
+
+    @patch("curriculum.services.ai_exam._call_ai_json")
+    def test_get_question_blueprint_view(self, mock_ai_call):
+        """Tests AJAX endpoint for retrieving a question's answer blueprint."""
+        mock_ai_call.return_value = {
+            "question": "Sample Q",
+            "marks": 10,
+            "definition": "Sample definition",
+            "diagram": {"ascii_art": "+---+"},
+            "examiner_underlines": ["Key1", "Key2"]
+        }
+        eq = ExamQuestion.objects.create(
+            module=self.module,
+            question_text="Sample Q",
+            marks=10
+        )
+        url = reverse('curriculum:get_question_blueprint', kwargs={'question_id': eq.id})
+        res = self.client.get(url, HTTP_X_REQUESTED_WITH='XMLHttpRequest')
+        self.assertEqual(res.status_code, 200)
+        data = res.json()
+        self.assertTrue(data['success'])
+        self.assertIn('blueprint', data)
+        self.assertEqual(data['blueprint']['definition'], "Sample definition")
+
+    @patch("curriculum.services.ai_exam._call_ai_json")
+    def test_generate_topic_blueprint_view(self, mock_ai_call):
+        """Tests AJAX endpoint for generating answer blueprint for any topic."""
+        mock_ai_call.return_value = {
+            "question": "Explain Substitution Techniques",
+            "marks": 10,
+            "definition": "Substitution replaces letters with other letters.",
+            "diagram": {"ascii_art": "A -> D"},
+            "examiner_underlines": ["Caesar Cipher", "Monoalphabetic"]
+        }
+        url = reverse('curriculum:generate_topic_blueprint', kwargs={'topic_id': self.topic.id})
+        res = self.client.get(url, HTTP_X_REQUESTED_WITH='XMLHttpRequest')
+        self.assertEqual(res.status_code, 200)
+        data = res.json()
+        self.assertTrue(data['success'])
+        self.assertEqual(data['topic_title'], self.topic.title)
+        self.assertEqual(data['blueprint']['marks'], 10)
+
+    def test_subject_detail_view_exam_questions_context(self):
+        """Tests subject detail view includes active_module_questions and repeated count."""
+        ExamQuestion.objects.create(
+            module=self.module,
+            question_text="Repeated question in detail view. [10M]",
+            marks=10,
+            frequency=3
+        )
+        ExamQuestion.objects.create(
+            module=self.module,
+            question_text="Single question in detail view. [6M]",
+            marks=6,
+            frequency=1
+        )
+        url = reverse('curriculum:subject_detail', kwargs={'slug': self.subject.slug})
+        res = self.client.get(url)
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(len(res.context['active_module_questions']), 2)
+        self.assertEqual(res.context['active_module_repeated_count'], 1)
+        self.assertContains(res, "PYQ Bank")
+        self.assertContains(res, "10-Mark Answer Architect")
+
 
 
 
