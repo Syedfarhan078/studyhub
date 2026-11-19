@@ -93,5 +93,19 @@ class SeoAndSitemapTests(TestCase):
         res = self.client.get('/')
         self.assertEqual(res.status_code, 200)
         self.assertContains(res, 'google-site-verification')
-        self.assertContains(res, '-oL9wlva9KVxpuuwWQQaXgPxkH8SDAGg92wXfekbA6A')
+        self.assertContains(res, 'zhm6-a3OqA9YctRN0cR_CtmOLZzKYo_9mkU60BlLNUM')
         self.assertContains(res, 'name="robots" content="index, follow"')
+
+    def test_admin_button_visibility(self):
+        # Anonymous student does not see admin links
+        res_anon = self.client.get('/')
+        self.assertNotContains(res_anon, 'href="/admin/"')
+        self.assertContains(res_anon, 'VTU All Schemes')
+
+        # Staff user sees admin link
+        from django.contrib.auth import get_user_model
+        User = get_user_model()
+        admin_user = User.objects.create_superuser('admin_tester', 'admin@example.com', 'password123')
+        self.client.force_login(admin_user)
+        res_staff = self.client.get('/')
+        self.assertContains(res_staff, 'href="/admin/"')

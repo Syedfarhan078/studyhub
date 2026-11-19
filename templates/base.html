@@ -58,11 +58,13 @@
                             </button>
                         </li>
                         <li class="nav-item d-none d-lg-block">
-                            <span class="scheme-mark">VTU 2022 scheme</span>
+                            <span class="scheme-mark">VTU All Schemes</span>
                         </li>
+                        {% if request.user.is_staff %}
                         <li class="nav-item">
                             <a class="btn btn-sm btn-outline-secondary" href="/admin/" target="_blank" rel="noopener noreferrer">Admin</a>
                         </li>
+                        {% endif %}
                     </ul>
                 </div>
             </div>

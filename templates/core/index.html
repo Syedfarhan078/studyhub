@@ -5,7 +5,7 @@
 {% block content %}
 <header class="sheet page-head mb-4">
     <div>
-        <p class="eyebrow">VTU 2022 scheme</p>
+        <p class="eyebrow">VTU All Schemes · All Branches &amp; Semesters</p>
         <h1 class="page-title">Curriculum</h1>
         <p class="lede">Open a subject to work through its modules, mark what you have finished, and pull up lectures and articles for the topic in front of you.</p>
     </div>
@@ -232,11 +232,13 @@
                 <div class="col-12">
                     <div class="sheet empty-state">
                         <h5>No subjects yet</h5>
-                        <p class="text-secondary mb-3">Generate a course from a name and syllabus, or add one in the admin.</p>
+                        <p class="text-secondary mb-3">Generate a course from a name and syllabus from any VTU scheme.</p>
                         <button type="button" class="btn btn-primary me-2 mb-2" data-bs-toggle="modal" data-bs-target="#generateSubjectModal">
                             Generate subject
                         </button>
+                        {% if request.user.is_staff %}
                         <a href="/admin/curriculum/subject/add/" class="btn btn-outline-secondary mb-2">Add in admin</a>
+                        {% endif %}
                     </div>
                 </div>
             {% endfor %}
@@ -297,7 +299,7 @@
                         </div>
 
                         <div class="row g-3 mb-3">
-                            <div class="col-md-7">
+                            <div class="col-md-5">
                                 <label class="form-label">Branch / Department</label>
                                 <select name="branch" id="modalBranchSelect" class="form-select">
                                     {% for code, label in branches %}
@@ -305,13 +307,23 @@
                                     {% endfor %}
                                 </select>
                             </div>
-                            <div class="col-md-5">
+                            <div class="col-md-3">
                                 <label class="form-label">Semester</label>
                                 <select name="semester" id="modalSemesterSelect" class="form-select">
-                                    <option value="">Auto-detect from code</option>
+                                    <option value="">Auto-detect</option>
                                     {% for sem in semesters %}
-                                        <option value="{{ sem }}">Semester {{ sem }}</option>
+                                        <option value="{{ sem }}">Sem {{ sem }}</option>
                                     {% endfor %}
+                                </select>
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">VTU Scheme</label>
+                                <select name="scheme" id="modalSchemeSelect" class="form-select">
+                                    <option value="2022 Scheme">2022 Scheme</option>
+                                    <option value="2021 Scheme">2021 Scheme</option>
+                                    <option value="2018 Scheme">2018 Scheme</option>
+                                    <option value="2024 Scheme">2024 Scheme</option>
+                                    <option value="All Schemes">All Schemes / Common</option>
                                 </select>
                             </div>
                         </div>

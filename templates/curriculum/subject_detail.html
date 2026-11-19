@@ -149,7 +149,9 @@
                 {% else %}
                     <div class="sheet empty-state">
                         <p class="text-secondary mb-2">No modules yet.</p>
+                        {% if request.user.is_staff %}
                         <a href="/admin/curriculum/module/add/" class="btn btn-sm btn-outline-primary">Add a module</a>
+                        {% endif %}
                     </div>
                 {% endif %}
             </div>
@@ -329,7 +331,7 @@
                         <button type="button" class="vtu-filter-btn" data-filter="10m">10 Marks</button>
                         <button type="button" class="vtu-filter-btn" data-filter="repeated">🔥 Frequent in VTU (<span id="countFilterRepeated">{{ active_module_repeated_count }}</span>)</button>
                     </div>
-                    <span class="text-secondary" style="font-size: 0.78rem;">VTU {{ subject.scheme|default:"2022 Scheme" }}</span>
+                    <span class="text-secondary" style="font-size: 0.78rem;">VTU {{ subject.scheme|default:"All Schemes" }}</span>
                 </div>
 
                 <!-- Question list container -->
@@ -564,8 +566,10 @@
         {% else %}
             <div class="sheet empty-state">
                 <h5>Choose a topic</h5>
-                <p class="text-secondary">Add modules and topics in the admin, then pick one from the list.</p>
-                <a href="/admin/curriculum/topic/add/" class="btn btn-primary">Add a topic</a>
+                <p class="text-secondary">Select a topic from the sidebar modules to start studying.</p>
+                {% if request.user.is_staff %}
+                <a href="/admin/curriculum/topic/add/" class="btn btn-primary mt-2">Add a topic</a>
+                {% endif %}
             </div>
         {% endif %}
     </div>
