@@ -68,6 +68,39 @@
             </button>
         </div>
 
+        <!-- ACTIVE EXAM SPRINT & PACING BANNER -->
+        <div class="active-exam-sprint-banner d-none mb-4 p-3.5 p-md-4 rounded-3 border bg-white shadow-sm" id="activeExamSprintBanner">
+            <div class="d-flex flex-wrap align-items-center justify-content-between gap-3">
+                <div class="d-flex align-items-center gap-3">
+                    <div class="sprint-timer-icon-wrap d-flex align-items-center justify-content-center rounded-circle bg-danger-subtle text-danger" style="width: 48px; height: 48px; min-width: 48px;">
+                        <i class="bi bi-stopwatch-fill fs-4"></i>
+                    </div>
+                    <div>
+                        <div class="d-flex align-items-center gap-2 flex-wrap mb-1">
+                            <span class="badge bg-danger text-white fw-bold px-2 py-0.5" id="sprintUrgencyBadge" style="font-size: 0.75rem;">CRUNCH MODE</span>
+                            <span class="fw-bold text-ink" id="sprintSubjectName">Subject Name</span>
+                            <span class="text-secondary small" id="sprintExamTimeText">Exam: Tomorrow at 2:00 PM</span>
+                        </div>
+                        <div class="d-flex align-items-center gap-2 flex-wrap">
+                            <span class="h5 mb-0 fw-bold text-danger" id="sprintCountdownDisplay">--</span>
+                            <span class="text-secondary small d-none d-md-inline">· VTU Anti-Panic Pacing Engine Active</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="d-flex align-items-center gap-2 ms-auto">
+                    <button type="button" class="btn btn-sm btn-primary fw-semibold px-3 py-1.5" id="btnOpenSprintDashboard">
+                        <i class="bi bi-speedometer2 me-1.5"></i>Open Pacing Schedule
+                    </button>
+                    <button type="button" class="btn btn-sm btn-outline-secondary px-2.5 py-1.5" id="btnEditSprintExam" title="Change or Clear Exam Date">
+                        <i class="bi bi-pencil"></i>
+                    </button>
+                </div>
+            </div>
+            <div class="mt-3 pt-2.5 border-top d-flex flex-wrap align-items-center justify-content-between gap-2" id="sprintQuickAdvice">
+                <!-- Dynamically populated by JavaScript -->
+            </div>
+        </div>
+
         <div class="row row-cols-1 row-cols-md-2 row-cols-xl-3 g-3" id="myDeskGrid">
             {% for subject in subjects %}
                 <div class="col mydesk-card-item {% if not subject.is_pinned %}d-none{% endif %}"
@@ -92,13 +125,19 @@
                                 <span class="flag flag-ok">Matches the prescribed syllabus</span>
                             {% endif %}
                         </p>
-                        <p class="text-secondary small mb-3 sh-clamp-2">
+                        <p class="text-secondary small mb-2 sh-clamp-2">
                             {% if subject.description %}
                                 {{ subject.description|truncatewords:18 }}
                             {% else %}
                                 Modules, lecture videos, and articles for this course.
                             {% endif %}
                         </p>
+
+                        <!-- Exam Countdown & Pacing Slot -->
+                        <div class="desk-exam-pacing-slot mb-3" data-slug="{{ subject.slug }}" data-name="{{ subject.name }}" data-code="{{ subject.code }}">
+                            <!-- Injected dynamically by JavaScript -->
+                        </div>
+
                         <div class="card-footer-actions">
                             <a href="{% url 'curriculum:subject_detail' subject.slug %}" class="card-link">
                                 Open syllabus <i class="bi bi-arrow-right ms-1"></i>
@@ -350,6 +389,167 @@
         </div>
     </div>
 </div>
+
+<!-- EXAM DAY COUNTDOWN & PACING DASHBOARD MODAL -->
+<div class="modal fade" id="examPacingModal" tabindex="-1" aria-labelledby="examPacingModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable exam-pacing-dialog">
+        <div class="modal-content border-0 shadow-lg" style="border-radius: var(--radius);">
+            <div class="modal-header border-bottom py-3 px-3 px-md-4">
+                <div>
+                    <span class="eyebrow mb-1 text-danger"><i class="bi bi-stopwatch-fill me-1"></i>VTU Exam Countdown &amp; Anti-Panic Pacing</span>
+                    <h2 class="h5 modal-title mb-0" id="examPacingModalLabel">Exam Day Countdown &amp; Pacing Dashboard</h2>
+                </div>
+                <div class="d-flex align-items-center gap-2 ms-auto">
+                    <button type="button" class="btn btn-sm btn-outline-secondary d-none d-sm-inline-flex align-items-center gap-1.5" id="btnPrintPacingStrategy">
+                        <i class="bi bi-printer"></i> Print Schedule
+                    </button>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+            </div>
+
+            <div class="modal-body p-3 p-md-4">
+                <!-- SUBJECT SWITCHER & EXAM DATE-TIME PICKER FORM -->
+                <div class="bg-body-tertiary p-3 p-md-4 rounded-3 border mb-4" id="pacingExamFormWrap">
+                    <div class="row g-3 align-items-end">
+                        <div class="col-12 col-md-4">
+                            <label class="form-label small fw-bold text-secondary text-uppercase mb-1" style="font-size:0.75rem; letter-spacing: 0.05em;">
+                                <i class="bi bi-book me-1"></i>Course on Your Desk:
+                            </label>
+                            <select class="form-select form-select-sm fw-semibold" id="pacingSubjectSelect">
+                                <!-- Populated dynamically from pinned courses -->
+                            </select>
+                        </div>
+                        <div class="col-12 col-md-5">
+                            <label class="form-label small fw-bold text-secondary text-uppercase mb-1" style="font-size:0.75rem; letter-spacing: 0.05em;">
+                                <i class="bi bi-calendar-event me-1"></i>Exam Date &amp; Time:
+                            </label>
+                            <input type="datetime-local" class="form-control form-control-sm" id="pacingDatetimeInput">
+                        </div>
+                        <div class="col-12 col-md-3 d-flex gap-2">
+                            <button type="button" class="btn btn-sm btn-primary flex-grow-1 fw-semibold py-1.5" id="btnSaveExamDateTime">
+                                <i class="bi bi-check2 me-1"></i>Set Exam Time
+                            </button>
+                            <button type="button" class="btn btn-sm btn-outline-danger px-2.5 py-1.5" id="btnClearExamDateTime" title="Clear exam countdown for this course">
+                                <i class="bi bi-trash3"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Quick One-Tap Presets Toolbar -->
+                    <div class="mt-3 pt-2.5 border-top d-flex flex-wrap align-items-center gap-2">
+                        <span class="small text-secondary fw-semibold" style="font-size: 0.78rem;">VTU Exam Presets:</span>
+                        <button type="button" class="btn btn-sm btn-outline-secondary py-1 px-2.5 pacing-preset-btn" data-preset="tomorrow_morning">
+                            ⚡ Tomorrow 9:30 AM (Morning Slot)
+                        </button>
+                        <button type="button" class="btn btn-sm btn-outline-secondary py-1 px-2.5 pacing-preset-btn" data-preset="tomorrow_afternoon">
+                            ⚡ Tomorrow 2:00 PM (Afternoon Slot)
+                        </button>
+                        <button type="button" class="btn btn-sm btn-outline-secondary py-1 px-2.5 pacing-preset-btn" data-preset="day_after_morning">
+                            ⚡ In 2 Days (9:30 AM)
+                        </button>
+                        <button type="button" class="btn btn-sm btn-outline-secondary py-1 px-2.5 pacing-preset-btn" data-preset="in_3_days">
+                            ⚡ In 3 Days
+                        </button>
+                    </div>
+                </div>
+
+                <!-- COUNTDOWN & URGE HERO SECTION -->
+                <div class="pacing-hero-box p-3.5 p-md-4 mb-4 border shadow-sm">
+                    <div class="row g-4 align-items-center">
+                        <div class="col-12 col-md-6 border-end-md">
+                            <div class="small text-uppercase fw-bold text-secondary mb-1" style="font-size:0.75rem; letter-spacing: 0.06em;">
+                                Live Countdown to Exam Hall
+                            </div>
+                            <div class="d-flex align-items-baseline gap-2 mb-2">
+                                <span class="display-6 fw-bold text-danger" id="pacingHeroCountdown">--</span>
+                            </div>
+                            <div class="d-flex align-items-center gap-2 flex-wrap">
+                                <span class="badge py-1.5 px-3 rounded-pill fw-bold" id="pacingUrgencyPill" style="font-size: 0.82rem;">CRUNCH MODE</span>
+                                <span class="text-secondary small fw-medium" id="pacingExamTargetString">Exam: Not set</span>
+                            </div>
+                        </div>
+                        <div class="col-12 col-md-6">
+                            <div class="alert alert-warning border border-warning-subtle mb-0 p-3 rounded-2">
+                                <div class="d-flex align-items-start gap-2.5">
+                                    <i class="bi bi-shield-exclamation text-danger fs-5 flex-shrink-0 mt-0.5"></i>
+                                    <div style="font-size: 0.86rem; line-height: 1.5;">
+                                        <strong>The 4-Hour Module Trap Warning:</strong><br>
+                                        VTU examination papers distribute equal 20 marks to each of the 5 modules. Spending 4 hours reading intro theory in Module 1 leaves zero time for Module 4 &amp; 5! Stick strictly to the allocated time below to guarantee balanced paper choice.
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- PACING CONTROLS (AVAILABLE STUDY HOURS) -->
+                <div class="mb-4 p-3 bg-white border rounded-3">
+                    <div class="d-flex flex-wrap align-items-center justify-content-between gap-3 mb-2.5">
+                        <div class="d-flex align-items-center gap-2">
+                            <i class="bi bi-hourglass-split text-primary fs-5"></i>
+                            <span class="fw-bold text-ink" style="font-size: 0.95rem;">Available Study Time Before Exam:</span>
+                            <span class="badge bg-primary text-white fw-bold px-2.5 py-1" id="pacingSelectedHoursLabel">7.5 Hours</span>
+                        </div>
+                        <div class="d-flex align-items-center gap-1.5 flex-wrap">
+                            <span class="small text-secondary me-1" style="font-size: 0.78rem;">Quick Adjust:</span>
+                            <button type="button" class="btn btn-sm btn-outline-secondary py-0.5 px-2.5 btn-study-hours" data-hours="4">4h Sprint</button>
+                            <button type="button" class="btn btn-sm btn-outline-secondary py-0.5 px-2.5 btn-study-hours" data-hours="6">6h High-Yield</button>
+                            <button type="button" class="btn btn-sm btn-outline-secondary py-0.5 px-2.5 btn-study-hours active" data-hours="8">8h Standard</button>
+                            <button type="button" class="btn btn-sm btn-outline-secondary py-0.5 px-2.5 btn-study-hours" data-hours="10">10h Thorough</button>
+                            <button type="button" class="btn btn-sm btn-outline-secondary py-0.5 px-2.5 btn-study-hours" data-hours="12">12h Full</button>
+                        </div>
+                    </div>
+
+                    <!-- Range Slider -->
+                    <div class="row align-items-center g-3">
+                        <div class="col-8 col-sm-9 col-md-10">
+                            <input type="range" class="form-range" id="pacingHoursRange" min="2" max="16" step="0.5" value="8">
+                        </div>
+                        <div class="col-4 col-sm-3 col-md-2 text-end">
+                            <span class="small text-secondary" id="pacingRemainingSleepHint">~7.5h sleep buffer</span>
+                        </div>
+                    </div>
+
+                    <!-- Visual Segmented Pacing Bar -->
+                    <div class="mt-3">
+                        <div class="small text-secondary fw-semibold mb-1" style="font-size: 0.76rem;">Visual Time Allocation:</div>
+                        <div class="pacing-timeline-bar" id="pacingTimelineBar">
+                            <!-- Injected by JS -->
+                        </div>
+                    </div>
+                </div>
+
+                <!-- SUGGESTED STUDY SCHEDULE CARDS -->
+                <div class="mb-3">
+                    <div class="d-flex align-items-center justify-content-between mb-2.5">
+                        <h6 class="fw-bold mb-0 text-ink" style="font-size: 0.95rem;">
+                            <i class="bi bi-list-check text-success me-1.5"></i>Recommended Pacing &amp; Anti-Panic Study Schedule
+                        </h6>
+                        <span class="badge bg-light text-secondary border px-2 py-1" style="font-size: 0.75rem;" id="pacingTotalAllocatedSummary">
+                            5 Modules + Golden Hour Review
+                        </span>
+                    </div>
+
+                    <div class="d-flex flex-column gap-2.5" id="pacingScheduleCardsContainer">
+                        <!-- Populated dynamically by JS -->
+                    </div>
+                </div>
+            </div>
+
+            <div class="modal-footer d-flex flex-wrap align-items-center justify-content-between py-3 px-3 px-md-4 border-top">
+                <span class="text-secondary small">
+                    <i class="bi bi-shield-lock me-1"></i>Auto-saved locally in browser (no account required)
+                </span>
+                <div class="d-flex align-items-center gap-2">
+                    <button type="button" class="btn btn-sm btn-outline-secondary py-1.5 px-3 fw-semibold" id="btnPrintPacingStrategyFooter">
+                        <i class="bi bi-printer me-1"></i>Print Pacing Checklist
+                    </button>
+                    <button type="button" class="btn btn-sm btn-primary px-4 py-1.5 fw-semibold" data-bs-dismiss="modal">Done</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
 {% endblock %}
 
 {% block extra_js %}
@@ -444,6 +644,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 emptyState.classList.add('d-none');
             }
         }
+
+        renderDeskExamSlotsAndSprintBanner(pinnedSet);
     }
 
     // Handle Pin / Unpin clicks anywhere on page
@@ -501,8 +703,665 @@ document.addEventListener('DOMContentLoaded', function() {
     if (btnSwitchToCatalog) btnSwitchToCatalog.addEventListener('click', activateCatalogTab);
     if (btnExploreCatalogQuick) btnExploreCatalogQuick.addEventListener('click', activateCatalogTab);
 
+    // -------------------------------------------------------------------------
+    // 2. EXAM DAY COUNTDOWN & ANTI-PANIC PACING DASHBOARD
+    // -------------------------------------------------------------------------
+    function escapeHtml(str) {
+        if (!str) return '';
+        return String(str)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#039;');
+    }
+
+    const PACING_CATALOG = {{ pacing_catalog_json|safe }};
+    const EXAM_SCHEDULES_KEY = 'studyhub_exam_schedules';
+
+    function getExamSchedules() {
+        try {
+            const raw = localStorage.getItem(EXAM_SCHEDULES_KEY);
+            return raw ? JSON.parse(raw) : {};
+        } catch (e) {
+            return {};
+        }
+    }
+
+    function saveExamSchedules(data) {
+        try {
+            localStorage.setItem(EXAM_SCHEDULES_KEY, JSON.stringify(data));
+        } catch (e) {}
+    }
+
+    function formatCountdownString(diffMs) {
+        if (diffMs <= 0) return 'Exam In Progress / Ended';
+        const totalSecs = Math.floor(diffMs / 1000);
+        const days = Math.floor(totalSecs / 86400);
+        const hours = Math.floor((totalSecs % 86400) / 3600);
+        const mins = Math.floor((totalSecs % 3600) / 60);
+        const secs = totalSecs % 60;
+
+        if (days > 0) {
+            return `${days}d ${hours}h ${mins}m left`;
+        }
+        return `${hours}h ${mins}m ${secs}s left`;
+    }
+
+    function formatExamDatePretty(isoStr) {
+        if (!isoStr) return '';
+        const d = new Date(isoStr);
+        if (isNaN(d.getTime())) return '';
+        const now = new Date();
+        const isToday = d.toDateString() === now.toDateString();
+        const tomorrow = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+        const isTomorrow = d.toDateString() === tomorrow.toDateString();
+
+        const timeStr = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        if (isToday) return `Today at ${timeStr}`;
+        if (isTomorrow) return `Tomorrow at ${timeStr}`;
+        return d.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' }) + ` at ${timeStr}`;
+    }
+
+    function getPresetDate(presetKey) {
+        const now = new Date();
+        const d = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 9, 30, 0);
+        if (presetKey === 'tomorrow_morning') {
+            d.setDate(d.getDate() + 1);
+            d.setHours(9, 30, 0, 0);
+        } else if (presetKey === 'tomorrow_afternoon') {
+            d.setDate(d.getDate() + 1);
+            d.setHours(14, 0, 0, 0);
+        } else if (presetKey === 'day_after_morning') {
+            d.setDate(d.getDate() + 2);
+            d.setHours(9, 30, 0, 0);
+        } else if (presetKey === 'in_3_days') {
+            d.setDate(d.getDate() + 3);
+            d.setHours(9, 30, 0, 0);
+        }
+        const year = d.getFullYear();
+        const month = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        const hours = String(d.getHours()).padStart(2, '0');
+        const mins = String(d.getMinutes()).padStart(2, '0');
+        return `${year}-${month}-${day}T${hours}:${mins}`;
+    }
+
+    function calculatePacingSchedule(subjectSlug, targetIsoDate, studyHours) {
+        const subject = PACING_CATALOG[subjectSlug];
+        if (!subject) return null;
+
+        const examDate = new Date(targetIsoDate);
+        const now = new Date();
+        const diffMs = examDate - now;
+        const diffHours = diffMs / (1000 * 60 * 60);
+
+        let hoursToStudy = parseFloat(studyHours);
+        if (!hoursToStudy || isNaN(hoursToStudy)) {
+            if (diffHours <= 0) {
+                hoursToStudy = 4;
+            } else if (diffHours > 48) {
+                hoursToStudy = 10;
+            } else if (diffHours > 24) {
+                hoursToStudy = 8;
+            } else if (diffHours > 12) {
+                hoursToStudy = 6.5;
+            } else if (diffHours > 6) {
+                hoursToStudy = 4.5;
+            } else {
+                hoursToStudy = Math.max(1.5, Math.floor(diffHours * 0.75 * 2) / 2);
+            }
+        }
+
+        let urgency = 'CRUNCH';
+        let urgencyBadgeClass = 'bg-danger text-white';
+        let urgencyLabel = 'CRUNCH MODE';
+        if (diffHours <= 0) {
+            urgency = 'EXPIRED';
+            urgencyBadgeClass = 'bg-secondary text-white';
+            urgencyLabel = 'EXAM IN PROGRESS / ENDED';
+        } else if (diffHours < 12) {
+            urgency = 'EMERGENCY';
+            urgencyBadgeClass = 'bg-danger text-white';
+            urgencyLabel = '🔥 EMERGENCY TRIAGE (<12h)';
+        } else if (diffHours <= 48) {
+            urgency = 'CRUNCH';
+            urgencyBadgeClass = 'bg-warning-subtle text-warning-emphasis border border-warning-subtle';
+            urgencyLabel = '⚡ CRUNCH WINDOW (12-48h)';
+        } else {
+            urgency = 'STEADY';
+            urgencyBadgeClass = 'bg-success-subtle text-success border border-success-subtle';
+            urgencyLabel = '🟢 COMFORTABLE PACE';
+        }
+
+        let reviewTimeHours = hoursToStudy >= 5 ? 1.0 : 0.5;
+        let usableModuleHours = Math.max(1.0, hoursToStudy - reviewTimeHours);
+
+        const modules = subject.modules || [];
+        const moduleCount = modules.length || 5;
+        let baseTimePerMod = usableModuleHours / moduleCount;
+
+        const scheduleItems = modules.map(m => {
+            let allocated = Math.round(baseTimePerMod * 4) / 4;
+            allocated = Math.min(allocated, 2.5);
+            allocated = Math.max(allocated, 0.5);
+
+            const hyNames = m.high_yield_topics && m.high_yield_topics.length 
+                ? m.high_yield_topics.slice(0, 2).join(' & ')
+                : 'Core Repeated Concepts';
+
+            let directive = '';
+            if (allocated >= 2.0) {
+                directive = `Master the 2 High-Yield questions: <strong>"${escapeHtml(hyNames)}"</strong>. Solve 1 repeated numerical. Skip low-priority intro history.`;
+            } else if (allocated >= 1.25) {
+                directive = `Lock in main question choice pool: <strong>"${escapeHtml(hyNames)}"</strong>. Memorize primary 8-10 mark architecture diagrams.`;
+            } else {
+                directive = `Rapid high-yield sprint: Read the 1-Page Cheat Sheet summary and bullet-point answer blueprints.`;
+            }
+
+            return {
+                module_number: m.module_number,
+                title: m.title,
+                allocated_hours: allocated,
+                total_topics: m.total_topics,
+                high_yield_topics: m.high_yield_topics || [],
+                directive: directive,
+                module_url: `/subjects/${subject.slug}/?module=${m.module_number}`,
+            };
+        });
+
+        let currentModuleSum = scheduleItems.reduce((acc, it) => acc + it.allocated_hours, 0);
+        const diff = usableModuleHours - currentModuleSum;
+        if (Math.abs(diff) > 0.1 && scheduleItems.length > 0) {
+            scheduleItems[scheduleItems.length - 1].allocated_hours = Math.max(0.5, Math.round((scheduleItems[scheduleItems.length - 1].allocated_hours + diff) * 4) / 4);
+        }
+
+        return {
+            subject_name: subject.name,
+            subject_code: subject.code,
+            subject_slug: subject.slug,
+            exam_date: examDate,
+            diff_hours: diffHours,
+            diff_ms: diffMs,
+            urgency: urgency,
+            urgencyBadgeClass: urgencyBadgeClass,
+            urgencyLabel: urgencyLabel,
+            total_study_hours: hoursToStudy,
+            review_hours: reviewTimeHours,
+            modules: scheduleItems,
+        };
+    }
+
+    function getQuickPacingSummary(schedule) {
+        if (!schedule || !schedule.modules || !schedule.modules.length) return '';
+        const topMods = schedule.modules.slice(0, 2).map(m => `Spend ${m.allocated_hours}h on M${m.module_number}`).join(', ');
+        return `${topMods}, ${schedule.review_hours}h for Visual Sheet`;
+    }
+
+    function renderDeskExamSlotsAndSprintBanner(pinnedSet) {
+        const schedules = getExamSchedules();
+
+        let nearestExam = null;
+        let nearestDiff = Infinity;
+
+        // Render slots on each desk card
+        document.querySelectorAll('.desk-exam-pacing-slot').forEach(slot => {
+            const slug = slot.getAttribute('data-slug');
+            const sched = schedules[slug];
+
+            if (sched && sched.examDateTime) {
+                const examTime = new Date(sched.examDateTime);
+                const diffMs = examTime - new Date();
+
+                const pacing = calculatePacingSchedule(slug, sched.examDateTime, sched.studyHours);
+                const prettyDate = formatExamDatePretty(sched.examDateTime);
+                const countdownStr = formatCountdownString(diffMs);
+                const quickSummary = pacing ? getQuickPacingSummary(pacing) : 'Anti-Panic Pacing Active';
+
+                if (diffMs > -86400000 && diffMs < nearestDiff && pinnedSet.has(slug)) {
+                    nearestDiff = diffMs;
+                    nearestExam = { slug, sched, pacing, prettyDate, countdownStr, quickSummary, diffMs };
+                }
+
+                slot.innerHTML = `
+                    <div class="desk-exam-active-card p-2.5 rounded-2 border">
+                        <div class="d-flex align-items-center justify-content-between gap-2 mb-1.5">
+                            <span class="badge ${pacing ? pacing.urgencyBadgeClass : 'bg-secondary text-white'} fw-bold" style="font-size:0.72rem;">
+                                <i class="bi bi-alarm-fill me-1"></i>${pacing ? pacing.urgencyLabel : 'EXAM SET'}
+                            </span>
+                            <span class="text-danger fw-bold small countdown-live-ticker" data-exam="${sched.examDateTime}" style="font-size:0.75rem;">
+                                ${countdownStr}
+                            </span>
+                        </div>
+                        <div class="small fw-bold text-ink text-truncate mb-1" style="font-size:0.84rem;">
+                            <i class="bi bi-calendar-check me-1 text-primary"></i>Exam: ${escapeHtml(prettyDate)}
+                        </div>
+                        <div class="small text-secondary text-truncate mb-2" style="font-size:0.78rem;" title="${escapeHtml(quickSummary)}">
+                            <i class="bi bi-speedometer2 text-success me-1"></i>${escapeHtml(quickSummary)}
+                        </div>
+                        <div class="d-flex gap-1.5">
+                            <button type="button" class="btn btn-sm btn-outline-danger flex-grow-1 py-1 btn-open-pacing-modal" data-slug="${slug}" style="font-size:0.78rem;">
+                                <i class="bi bi-clock-history me-1"></i>Pacing Dashboard
+                            </button>
+                            <button type="button" class="btn btn-sm btn-light border py-1 px-2 btn-open-pacing-modal" data-slug="${slug}" title="Edit Exam Date">
+                                <i class="bi bi-pencil" data-slug="${slug}"></i>
+                            </button>
+                        </div>
+                    </div>
+                `;
+            } else {
+                slot.innerHTML = `
+                    <button type="button" class="btn-desk-set-exam btn-open-pacing-modal" data-slug="${slug}">
+                        <i class="bi bi-calendar-plus me-1.5 text-danger"></i>Set Exam Date &amp; Pacing
+                    </button>
+                `;
+            }
+        });
+
+        // Top Sprint Banner
+        const sprintBanner = document.getElementById('activeExamSprintBanner');
+        if (sprintBanner) {
+            if (nearestExam && nearestExam.diffMs < 7 * 86400000) {
+                sprintBanner.classList.remove('d-none');
+                const badgeEl = document.getElementById('sprintUrgencyBadge');
+                if (badgeEl) {
+                    badgeEl.className = `badge ${nearestExam.pacing.urgencyBadgeClass} fw-bold px-2 py-0.5`;
+                    badgeEl.textContent = nearestExam.pacing.urgencyLabel;
+                }
+                const nameEl = document.getElementById('sprintSubjectName');
+                if (nameEl) nameEl.textContent = `${nearestExam.pacing.subject_name} (${nearestExam.pacing.subject_code})`;
+                const timeEl = document.getElementById('sprintExamTimeText');
+                if (timeEl) timeEl.textContent = `Exam: ${nearestExam.prettyDate}`;
+                const countEl = document.getElementById('sprintCountdownDisplay');
+                if (countEl) countEl.textContent = nearestExam.countdownStr;
+                const advEl = document.getElementById('sprintQuickAdvice');
+                if (advEl) {
+                    advEl.innerHTML = `
+                        <div class="d-flex align-items-center gap-2 small text-secondary">
+                            <i class="bi bi-lightning-charge-fill text-warning"></i>
+                            <span><strong>Recommended Study Pacing:</strong> ${escapeHtml(nearestExam.quickSummary)}</span>
+                        </div>
+                        <span class="small text-secondary d-none d-lg-inline">VTU Anti-Panic 5-Module Protection</span>
+                    `;
+                }
+                const openBtn = document.getElementById('btnOpenSprintDashboard');
+                if (openBtn) openBtn.setAttribute('data-slug', nearestExam.slug);
+                const editBtn = document.getElementById('btnEditSprintExam');
+                if (editBtn) editBtn.setAttribute('data-slug', nearestExam.slug);
+            } else {
+                sprintBanner.classList.add('d-none');
+            }
+        }
+    }
+
+    let activePacingSlug = null;
+    let pacingModalInstance = null;
+
+    function initPacingModal(slugToSelect) {
+        const modalEl = document.getElementById('examPacingModal');
+        if (!modalEl || !window.bootstrap) return;
+        if (!pacingModalInstance) {
+            pacingModalInstance = bootstrap.Modal.getOrCreateInstance(modalEl);
+        }
+
+        const selectEl = document.getElementById('pacingSubjectSelect');
+        if (selectEl) {
+            selectEl.innerHTML = '';
+            const pinnedList = currentPinned.filter(s => PACING_CATALOG[s]);
+            const otherList = Object.keys(PACING_CATALOG).filter(s => !pinnedList.includes(s));
+
+            if (pinnedList.length > 0) {
+                const optGroup = document.createElement('optgroup');
+                optGroup.label = "Pinned on My Desk";
+                pinnedList.forEach(s => {
+                    const opt = document.createElement('option');
+                    opt.value = s;
+                    opt.textContent = `${PACING_CATALOG[s].name} (${PACING_CATALOG[s].code})`;
+                    optGroup.appendChild(opt);
+                });
+                selectEl.appendChild(optGroup);
+            }
+
+            if (otherList.length > 0) {
+                const optGroup2 = document.createElement('optgroup');
+                optGroup2.label = "University Catalog";
+                otherList.forEach(s => {
+                    const opt = document.createElement('option');
+                    opt.value = s;
+                    opt.textContent = `${PACING_CATALOG[s].name} (${PACING_CATALOG[s].code})`;
+                    optGroup2.appendChild(opt);
+                });
+                selectEl.appendChild(optGroup2);
+            }
+
+            if (slugToSelect && PACING_CATALOG[slugToSelect]) {
+                selectEl.value = slugToSelect;
+                activePacingSlug = slugToSelect;
+            } else if (pinnedList.length > 0) {
+                selectEl.value = pinnedList[0];
+                activePacingSlug = pinnedList[0];
+            } else {
+                selectEl.value = Object.keys(PACING_CATALOG)[0] || '';
+                activePacingSlug = selectEl.value;
+            }
+        }
+
+        renderPacingModalForActiveSubject();
+        pacingModalInstance.show();
+    }
+
+    function renderPacingModalForActiveSubject() {
+        if (!activePacingSlug || !PACING_CATALOG[activePacingSlug]) return;
+        const schedules = getExamSchedules();
+        const currentSched = schedules[activePacingSlug] || {};
+
+        const datetimeInput = document.getElementById('pacingDatetimeInput');
+        if (datetimeInput) {
+            if (currentSched.examDateTime) {
+                datetimeInput.value = currentSched.examDateTime;
+            } else {
+                datetimeInput.value = getPresetDate('tomorrow_afternoon');
+            }
+        }
+
+        const hoursRange = document.getElementById('pacingHoursRange');
+        const selectedStudyHours = currentSched.studyHours || (hoursRange ? hoursRange.value : 8);
+
+        const pacing = calculatePacingSchedule(activePacingSlug, datetimeInput ? datetimeInput.value : '', selectedStudyHours);
+        if (!pacing) return;
+
+        // Update Hero Box
+        const heroCountdown = document.getElementById('pacingHeroCountdown');
+        const heroUrgency = document.getElementById('pacingUrgencyPill');
+        const heroTarget = document.getElementById('pacingExamTargetString');
+
+        if (heroCountdown) {
+            heroCountdown.textContent = formatCountdownString(pacing.diff_ms);
+        }
+        if (heroUrgency) {
+            heroUrgency.className = `badge ${pacing.urgencyBadgeClass} py-1.5 px-3 rounded-pill fw-bold`;
+            heroUrgency.textContent = pacing.urgencyLabel;
+        }
+        if (heroTarget) {
+            heroTarget.textContent = datetimeInput && datetimeInput.value ? `Exam: ${formatExamDatePretty(datetimeInput.value)}` : 'Exam: Not Set';
+        }
+
+        // Update Study Hours Controls
+        if (hoursRange) hoursRange.value = pacing.total_study_hours;
+        const hoursLabel = document.getElementById('pacingSelectedHoursLabel');
+        if (hoursLabel) hoursLabel.textContent = `${pacing.total_study_hours} Hours`;
+
+        const sleepHint = document.getElementById('pacingRemainingSleepHint');
+        if (sleepHint) {
+            const sleepBuffer = Math.max(0, Math.round((pacing.diff_hours - pacing.total_study_hours) * 10) / 10);
+            sleepHint.textContent = `~${sleepBuffer}h buffer/sleep window`;
+        }
+
+        // Highlight matching quick hour button
+        document.querySelectorAll('.btn-study-hours').forEach(btn => {
+            const h = parseFloat(btn.getAttribute('data-hours'));
+            const isMatch = Math.abs(h - pacing.total_study_hours) < 0.2;
+            btn.classList.toggle('active', isMatch);
+            btn.classList.toggle('btn-primary', isMatch);
+            btn.classList.toggle('btn-outline-secondary', !isMatch);
+        });
+
+        // Visual Timeline Segmented Bar
+        const timelineBar = document.getElementById('pacingTimelineBar');
+        if (timelineBar) {
+            const colors = ['#3b82f6', '#10b981', '#f59e0b', '#ec4899', '#06b6d4'];
+            let segmentsHtml = '';
+            const totalHours = pacing.total_study_hours;
+            pacing.modules.forEach((m, idx) => {
+                const pct = Math.max(5, (m.allocated_hours / totalHours) * 100);
+                segmentsHtml += `
+                    <div class="pacing-segment text-white text-center small fw-bold" 
+                         style="width: ${pct}%; background: ${colors[idx % colors.length]}; font-size: 0.72rem; line-height: 14px;" 
+                         title="Module ${m.module_number}: ${m.allocated_hours}h">
+                    </div>
+                `;
+            });
+            const goldenPct = Math.max(5, (pacing.review_hours / totalHours) * 100);
+            segmentsHtml += `
+                <div class="pacing-segment text-white text-center small fw-bold" 
+                     style="width: ${goldenPct}%; background: #8b5cf6; font-size: 0.72rem; line-height: 14px;" 
+                     title="Last 60-Min Visual Sheet: ${pacing.review_hours}h">
+                </div>
+            `;
+            timelineBar.innerHTML = segmentsHtml;
+        }
+
+        // Module Schedule Cards
+        const scheduleContainer = document.getElementById('pacingScheduleCardsContainer');
+        if (scheduleContainer) {
+            let cardsHtml = pacing.modules.map(m => {
+                return `
+                    <div class="pacing-schedule-card p-3 p-md-3.5 mb-2.5">
+                        <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-2">
+                            <div class="d-flex align-items-center gap-2 flex-wrap">
+                                <span class="badge bg-secondary text-white fw-bold px-2 py-0.5" style="font-size:0.75rem;">MODULE ${m.module_number}</span>
+                                <span class="fw-bold text-ink" style="font-size:0.92rem;">${escapeHtml(m.title)}</span>
+                                <span class="badge bg-light text-secondary border d-none d-sm-inline" style="font-size:0.72rem;">20 Marks Choice Pool</span>
+                            </div>
+                            <div class="d-flex align-items-center gap-2 ms-auto">
+                                <span class="badge bg-primary-subtle text-primary border border-primary-subtle fw-bold px-2.5 py-1" style="font-size:0.82rem;">
+                                    ⏳ Allocate: ${m.allocated_hours} Hours
+                                </span>
+                                <a href="${m.module_url}" class="btn btn-sm btn-outline-secondary py-0.5 px-2.5 fw-semibold" style="font-size:0.78rem;">
+                                    Open Module <i class="bi bi-arrow-right ms-1"></i>
+                                </a>
+                            </div>
+                        </div>
+                        <div class="small text-secondary" style="font-size:0.86rem; line-height: 1.5;">
+                            ${m.directive}
+                        </div>
+                    </div>
+                `;
+            }).join('');
+
+            // Golden Hour Card
+            cardsHtml += `
+                <div class="pacing-schedule-card is-golden-hour p-3 p-md-3.5 mb-2.5">
+                    <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-2">
+                        <div class="d-flex align-items-center gap-2 flex-wrap">
+                            <span class="badge text-white fw-bold px-2 py-0.5" style="background:#8b5cf6 !important; font-size:0.75rem;">FINAL SPRINT</span>
+                            <span class="fw-bold text-purple" style="font-size:0.92rem; color:#6b21a8 !important;">⭐ Last 60-Minute Visual Memory Sprint</span>
+                            <span class="badge bg-purple-subtle text-purple border px-2 py-0.5" style="font-size:0.72rem;">Memory Consolidation</span>
+                        </div>
+                        <div class="d-flex align-items-center gap-2 ms-auto">
+                            <span class="badge bg-purple-subtle text-purple border fw-bold px-2.5 py-1" style="font-size:0.82rem;">
+                                ⏳ Allocate: ${pacing.review_hours} Hour
+                            </span>
+                            <a href="/subjects/${pacing.subject_slug}/" class="btn btn-sm text-white py-0.5 px-2.5 fw-semibold" style="background:#7c3aed !important; font-size:0.78rem;">
+                                Launch Visual Sheet <i class="bi bi-images ms-1"></i>
+                            </a>
+                        </div>
+                    </div>
+                    <div class="small" style="font-size:0.86rem; line-height: 1.5; color:#4c1d95;">
+                        <strong>Stop reading paragraphs 60 minutes before leaving!</strong> Open the <strong>60-Min Visual Sheet</strong> to swipe through architecture block diagrams, pin layouts, and the formula bank so they are burned into active visual memory before entering the hall.
+                    </div>
+                </div>
+            `;
+
+            scheduleContainer.innerHTML = cardsHtml;
+        }
+
+        const summaryLabel = document.getElementById('pacingTotalAllocatedSummary');
+        if (summaryLabel) {
+            summaryLabel.textContent = `Total Study: ${pacing.total_study_hours}h (${pacing.modules.length} Modules + Golden Hour Review)`;
+        }
+    }
+
+    // Modal Events Setup
+    const pacingSubjectSelect = document.getElementById('pacingSubjectSelect');
+    if (pacingSubjectSelect) {
+        pacingSubjectSelect.addEventListener('change', function() {
+            activePacingSlug = this.value;
+            renderPacingModalForActiveSubject();
+        });
+    }
+
+    // Presets Toolbar
+    document.querySelectorAll('.pacing-preset-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const preset = this.getAttribute('data-preset');
+            const newIso = getPresetDate(preset);
+            const datetimeInput = document.getElementById('pacingDatetimeInput');
+            if (datetimeInput) datetimeInput.value = newIso;
+
+            // Auto-save and refresh
+            if (activePacingSlug) {
+                const schedules = getExamSchedules();
+                const hoursRange = document.getElementById('pacingHoursRange');
+                schedules[activePacingSlug] = {
+                    examDateTime: newIso,
+                    studyHours: hoursRange ? parseFloat(hoursRange.value) : 8,
+                    updatedAt: Date.now()
+                };
+                saveExamSchedules(schedules);
+                updateDeskUI();
+                renderPacingModalForActiveSubject();
+            }
+        });
+    });
+
+    // Save Button
+    const btnSaveExamDateTime = document.getElementById('btnSaveExamDateTime');
+    if (btnSaveExamDateTime) {
+        btnSaveExamDateTime.addEventListener('click', function() {
+            if (!activePacingSlug) return;
+            const datetimeInput = document.getElementById('pacingDatetimeInput');
+            if (!datetimeInput || !datetimeInput.value) {
+                alert("Please select a date and time for your exam.");
+                return;
+            }
+            const hoursRange = document.getElementById('pacingHoursRange');
+            const schedules = getExamSchedules();
+            schedules[activePacingSlug] = {
+                examDateTime: datetimeInput.value,
+                studyHours: hoursRange ? parseFloat(hoursRange.value) : 8,
+                updatedAt: Date.now()
+            };
+            saveExamSchedules(schedules);
+            updateDeskUI();
+            renderPacingModalForActiveSubject();
+
+            this.innerHTML = '<i class="bi bi-check2 text-white"></i> Saved!';
+            setTimeout(() => {
+                this.innerHTML = '<i class="bi bi-check2 me-1"></i>Set Exam Time';
+            }, 1800);
+        });
+    }
+
+    // Clear Button
+    const btnClearExamDateTime = document.getElementById('btnClearExamDateTime');
+    if (btnClearExamDateTime) {
+        btnClearExamDateTime.addEventListener('click', function() {
+            if (!activePacingSlug) return;
+            const schedules = getExamSchedules();
+            delete schedules[activePacingSlug];
+            saveExamSchedules(schedules);
+            updateDeskUI();
+            renderPacingModalForActiveSubject();
+        });
+    }
+
+    // Study Hours Slider
+    const pacingHoursRange = document.getElementById('pacingHoursRange');
+    if (pacingHoursRange) {
+        pacingHoursRange.addEventListener('input', function() {
+            const hours = parseFloat(this.value);
+            if (activePacingSlug) {
+                const schedules = getExamSchedules();
+                if (schedules[activePacingSlug]) {
+                    schedules[activePacingSlug].studyHours = hours;
+                    saveExamSchedules(schedules);
+                }
+            }
+            renderPacingModalForActiveSubject();
+        });
+    }
+
+    // Study Hours Quick Buttons
+    document.querySelectorAll('.btn-study-hours').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const hours = parseFloat(this.getAttribute('data-hours'));
+            if (pacingHoursRange) pacingHoursRange.value = hours;
+            if (activePacingSlug) {
+                const schedules = getExamSchedules();
+                if (schedules[activePacingSlug]) {
+                    schedules[activePacingSlug].studyHours = hours;
+                    saveExamSchedules(schedules);
+                }
+            }
+            renderPacingModalForActiveSubject();
+        });
+    });
+
+    // Delegated click handler for opening pacing modal
+    document.addEventListener('click', function(e) {
+        const trigger = e.target.closest('.btn-open-pacing-modal, .btn-desk-set-exam, #btnOpenSprintDashboard, #btnEditSprintExam');
+        if (!trigger) return;
+        e.preventDefault();
+        const slug = trigger.getAttribute('data-slug');
+        initPacingModal(slug);
+    });
+
+    // Print Buttons
+    const btnPrint1 = document.getElementById('btnPrintPacingStrategy');
+    const btnPrint2 = document.getElementById('btnPrintPacingStrategyFooter');
+    if (btnPrint1) btnPrint1.addEventListener('click', () => window.print());
+    if (btnPrint2) btnPrint2.addEventListener('click', () => window.print());
+
+    // Second-by-second countdown ticker for both card slots and modal hero
+    setInterval(function() {
+        // Update cards
+        document.querySelectorAll('.countdown-live-ticker').forEach(el => {
+            const iso = el.getAttribute('data-exam');
+            if (iso) {
+                const diffMs = new Date(iso) - new Date();
+                el.textContent = formatCountdownString(diffMs);
+            }
+        });
+
+        // Update modal hero countdown if modal is open
+        const modalEl = document.getElementById('examPacingModal');
+        if (modalEl && modalEl.classList.contains('show')) {
+            const datetimeInput = document.getElementById('pacingDatetimeInput');
+            if (datetimeInput && datetimeInput.value) {
+                const diffMs = new Date(datetimeInput.value) - new Date();
+                const heroCountdown = document.getElementById('pacingHeroCountdown');
+                if (heroCountdown) heroCountdown.textContent = formatCountdownString(diffMs);
+            }
+        }
+
+        // Update top sprint banner countdown
+        const bannerCountdown = document.getElementById('sprintCountdownDisplay');
+        const sprintBanner = document.getElementById('activeExamSprintBanner');
+        if (sprintBanner && !sprintBanner.classList.contains('d-none') && bannerCountdown) {
+            const openBtn = document.getElementById('btnOpenSprintDashboard');
+            const slug = openBtn ? openBtn.getAttribute('data-slug') : null;
+            if (slug) {
+                const schedules = getExamSchedules();
+                if (schedules[slug] && schedules[slug].examDateTime) {
+                    const diffMs = new Date(schedules[slug].examDateTime) - new Date();
+                    bannerCountdown.textContent = formatCountdownString(diffMs);
+                }
+            }
+        }
+    }, 1000);
+
     // Initial Desk UI sync
     updateDeskUI();
+
+    // Check URL parameter e.g. /?pacing=deep-learning
+    const urlParams = new URLSearchParams(window.location.search);
+    const pacingParam = urlParams.get('pacing') || urlParams.get('exam');
+    if (pacingParam) {
+        setTimeout(() => {
+            initPacingModal(pacingParam);
+        }, 300);
+    }
 
     // -------------------------------------------------------------------------
     // 2. UNIVERSITY CATALOG FILTERING (Search + Branch + Semester)

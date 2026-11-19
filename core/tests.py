@@ -111,3 +111,82 @@ class SeoAndSitemapTests(TestCase):
         self.client.force_login(admin_user)
         res_staff = self.client.get('/')
         self.assertContains(res_staff, 'href="/admin/"')
+
+
+class ExamPacingDashboardTests(TestCase):
+    def setUp(self):
+        from curriculum.models import Module, Topic
+        self.subject = Subject.objects.create(
+            name="Operating Systems",
+            code="BCS402",
+            slug="operating-systems",
+            branch=Subject.Branch.CSE,
+            semester=4,
+            order=1
+        )
+        self.m1 = Module.objects.create(
+            subject=self.subject,
+            module_number=1,
+            title="Introduction to OS & Process Management"
+        )
+        self.m2 = Module.objects.create(
+            subject=self.subject,
+            module_number=2,
+            title="Threads & CPU Scheduling"
+        )
+        self.t1 = Topic.objects.create(
+            module=self.m1,
+            title="Process Control Block & State Transitions",
+            slug="pcb-state-transitions",
+            order=1,
+            is_high_yield=True
+        )
+        self.t2 = Topic.objects.create(
+            module=self.m1,
+            title="Inter-Process Communication (IPC)",
+            slug="ipc",
+            order=2,
+            is_high_yield=True
+        )
+        self.t3 = Topic.objects.create(
+            module=self.m2,
+            title="Multithreading Models & Scheduling Algorithms",
+            slug="multithreading-models",
+            order=1,
+            is_high_yield=True
+        )
+
+    def test_home_view_pacing_catalog_context(self):
+        res = self.client.get('/')
+        self.assertEqual(res.status_code, 200)
+        self.assertIn('pacing_catalog_json', res.context)
+        pacing_data = json.loads(res.context['pacing_catalog_json'])
+        self.assertIn(self.subject.slug, pacing_data)
+        subj_entry = pacing_data[self.subject.slug]
+        self.assertEqual(subj_entry['name'], 'Operating Systems')
+        self.assertEqual(subj_entry['code'], 'BCS402')
+        self.assertEqual(len(subj_entry['modules']), 2)
+        m1_data = subj_entry['modules'][0]
+        self.assertEqual(m1_data['module_number'], 1)
+        self.assertEqual(m1_data['total_topics'], 2)
+        self.assertIn('Process Control Block & State Transitions', m1_data['high_yield_topics'])
+
+    def test_home_template_exam_pacing_elements(self):
+        res = self.client.get('/')
+        self.assertEqual(res.status_code, 200)
+        self.assertContains(res, 'activeExamSprintBanner')
+        self.assertContains(res, 'desk-exam-pacing-slot')
+        self.assertContains(res, 'examPacingModal')
+        self.assertContains(res, 'pacingSubjectSelect')
+        self.assertContains(res, 'pacingDatetimeInput')
+        self.assertContains(res, 'pacingHoursRange')
+        self.assertContains(res, 'pacingScheduleCardsContainer')
+        self.assertContains(res, 'The 4-Hour Module Trap Warning')
+        self.assertContains(res, 'Last 60-Minute Visual Memory Sprint')
+
+    def test_subject_detail_exam_countdown_button(self):
+        res = self.client.get(f'/subjects/{self.subject.slug}/')
+        self.assertEqual(res.status_code, 200)
+        self.assertContains(res, 'btnSubjectExamCountdown')
+        self.assertContains(res, f'href="/?pacing={self.subject.slug}"')
+        self.assertContains(res, 'subjectCountdownLabel')
