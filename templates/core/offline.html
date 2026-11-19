@@ -1,0 +1,60 @@
+{% extends 'base.html' %}
+
+{% block title %}Offline Mode — StudyHub{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center py-5">
+    <div class="col-12 col-md-8 col-lg-6 text-center">
+        <div class="sheet p-4 p-md-5">
+            <div class="mb-3">
+                <i class="bi bi-wifi-off text-secondary" style="font-size: 3.5rem; display: inline-block;"></i>
+            </div>
+            <p class="eyebrow text-warning mb-1"><i class="bi bi-lightning-charge-fill me-1"></i>Classroom / Basement Mode</p>
+            <h1 class="h3 page-title mb-2">You're Studying Offline</h1>
+            <p class="text-secondary mb-4">
+                No internet connection detected. StudyHub's offline engine keeps all subjects pinned to <strong>My Desk</strong> and previously viewed module notes ready on your device.
+            </p>
+
+            <div class="d-flex flex-wrap justify-content-center gap-2 mb-4">
+                <a href="/" class="btn btn-primary d-inline-flex align-items-center gap-1.5">
+                    <i class="bi bi-pin-angle-fill"></i> Open My Desk
+                </a>
+                <button type="button" class="btn btn-outline-secondary d-inline-flex align-items-center gap-1.5" onclick="window.location.reload()">
+                    <i class="bi bi-arrow-clockwise"></i> Try Reconnecting
+                </button>
+            </div>
+
+            <!-- Client-side cached subjects list -->
+            <div id="offlinePinnedList" class="text-start mt-4 pt-3 border-top" style="display: none;">
+                <span class="section-label mb-2 d-block"><i class="bi bi-pin-fill text-primary me-1"></i>Cached on Your Desk</span>
+                <div class="list-group list-group-flush" id="offlineLinksContainer"></div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    try {
+        const raw = localStorage.getItem('studyhub_pinned_subjects');
+        const pinned = raw ? JSON.parse(raw) : [];
+        if (pinned && pinned.length > 0) {
+            const container = document.getElementById('offlineLinksContainer');
+            const wrap = document.getElementById('offlinePinnedList');
+            container.innerHTML = pinned.map(slug => {
+                const title = slug.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+                return `
+                    <a href="/subjects/${slug}/" class="list-group-item list-group-item-action d-flex align-items-center justify-content-between py-2 px-2 rounded mb-1">
+                        <span class="fw-semibold text-primary"><i class="bi bi-journal-text me-2"></i>${title}</span>
+                        <span class="badge bg-success-subtle text-success small">Available Offline</span>
+                    </a>
+                `;
+            }).join('');
+            wrap.style.display = 'block';
+        }
+    } catch(e) {}
+});
+</script>
+{% endblock %}

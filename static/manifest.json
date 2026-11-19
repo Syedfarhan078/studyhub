@@ -1,0 +1,19 @@
+{
+  "name": "StudyHub — VTU Curriculum & Study Platform",
+  "short_name": "StudyHub",
+  "description": "VTU Engineering syllabus, handwritten notes, exam blueprints, and revision sheets.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#f3f0e8",
+  "theme_color": "#1e3a5f",
+  "categories": ["education", "productivity", "utilities"],
+  "icons": [
+    {
+      "src": "/static/logo/studyhublogo.png",
+      "sizes": "192x192 512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

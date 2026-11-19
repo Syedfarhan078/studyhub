@@ -1388,6 +1388,21 @@ textarea.form-control { border-radius: var(--radius) !important; border-left: 1p
     }
 }
 
+.badge-offline-pill {
+    font-family: var(--sans);
+    font-size: 0.78rem;
+    font-weight: 700;
+    padding: 0.25rem 0.65rem;
+    border-radius: 999px;
+    background: var(--amber-soft);
+    color: var(--amber);
+    border: 1px solid rgba(138, 90, 16, 0.35);
+    display: inline-flex;
+    align-items: center;
+    letter-spacing: 0.02em;
+}
+
+
 
 
 

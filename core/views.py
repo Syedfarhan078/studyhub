@@ -1,3 +1,6 @@
+import os
+from django.conf import settings
+from django.http import HttpResponse, Http404
 from django.shortcuts import render
 from django.db.models import Count
 from curriculum.models import Subject
@@ -52,3 +55,26 @@ def home(request):
     }
 
     return render(request, 'core/index.html', context)
+
+
+def service_worker(request):
+    """
+    Serves the root-scoped PWA service worker with appropriate headers.
+    """
+    sw_path = os.path.join(settings.BASE_DIR, 'static', 'js', 'sw.js')
+    if not os.path.exists(sw_path):
+        raise Http404("Service worker file not found.")
+    with open(sw_path, 'r', encoding='utf-8') as f:
+        content = f.read()
+    response = HttpResponse(content, content_type='application/javascript')
+    response['Service-Worker-Allowed'] = '/'
+    response['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+    return response
+
+
+def offline_fallback(request):
+    """
+    Renders a friendly offline page if a student navigates to an uncached page while completely offline.
+    """
+    return render(request, 'core/offline.html')
+

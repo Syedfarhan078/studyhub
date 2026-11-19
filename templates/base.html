@@ -5,9 +5,13 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="theme-color" content="#f3f0e8">
-    
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="StudyHub">
+
     <title>{% block title %}StudyHub — University Curriculum & Study Platform{% endblock %}</title>
 
+    <link rel="manifest" href="{% static 'manifest.json' %}">
     <link rel="icon" type="image/png" href="{% static 'logo/studyhublogo.png' %}">
     <link rel="apple-touch-icon" href="{% static 'logo/studyhublogo.png' %}">
 
@@ -42,6 +46,14 @@
                         </li>
                     </ul>
                     <ul class="navbar-nav ms-lg-auto align-items-lg-center gap-lg-3">
+                        <li class="nav-item d-none" id="offlineModeIndicator">
+                            <span class="badge-offline-pill"><i class="bi bi-wifi-off me-1"></i>Offline Mode</span>
+                        </li>
+                        <li class="nav-item d-none" id="pwaInstallWrap">
+                            <button class="btn btn-sm btn-outline-primary d-inline-flex align-items-center gap-1" id="btnPwaInstall" type="button">
+                                <i class="bi bi-download"></i> Install App
+                            </button>
+                        </li>
                         <li class="nav-item d-none d-lg-block">
                             <span class="scheme-mark">VTU 2022 scheme</span>
                         </li>
@@ -82,6 +94,68 @@
     </footer>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz" crossorigin="anonymous"></script>
+    <script>
+    // Register Service Worker and manage offline synchronization
+    if ('serviceWorker' in navigator) {
+        window.addEventListener('load', function() {
+            navigator.serviceWorker.register('/sw.js', { scope: '/' })
+                .then(function(reg) {
+                    // Send pinned subjects from localStorage to Service Worker for background pre-caching
+                    try {
+                        const raw = localStorage.getItem('studyhub_pinned_subjects');
+                        const pinned = raw ? JSON.parse(raw) : [];
+                        if (pinned.length > 0 && navigator.serviceWorker.controller) {
+                            const urls = pinned.map(slug => '/subjects/' + slug + '/');
+                            navigator.serviceWorker.controller.postMessage({ action: 'cache_pinned', urls: urls });
+                        }
+                    } catch(e) {}
+                })
+                .catch(function(err) {
+                    console.debug('[PWA] SW registration failed:', err);
+                });
+        });
+    }
+
+    // Offline / Online Status Indicator
+    function updateOnlineStatus() {
+        const indicator = document.getElementById('offlineModeIndicator');
+        if (!indicator) return;
+        if (!navigator.onLine) {
+            indicator.classList.remove('d-none');
+        } else {
+            indicator.classList.add('d-none');
+        }
+    }
+    window.addEventListener('online', updateOnlineStatus);
+    window.addEventListener('offline', updateOnlineStatus);
+    updateOnlineStatus();
+
+    // PWA Install Prompt Capture
+    let deferredInstallPrompt = null;
+    const installWrap = document.getElementById('pwaInstallWrap');
+    const installBtn = document.getElementById('btnPwaInstall');
+
+    window.addEventListener('beforeinstallprompt', (e) => {
+        e.preventDefault();
+        deferredInstallPrompt = e;
+        if (installWrap) installWrap.classList.remove('d-none');
+    });
+
+    if (installBtn) {
+        installBtn.addEventListener('click', async () => {
+            if (!deferredInstallPrompt) return;
+            deferredInstallPrompt.prompt();
+            const { outcome } = await deferredInstallPrompt.userChoice;
+            deferredInstallPrompt = null;
+            if (installWrap) installWrap.classList.add('d-none');
+        });
+    }
+
+    window.addEventListener('appinstalled', () => {
+        if (installWrap) installWrap.classList.add('d-none');
+        deferredInstallPrompt = null;
+    });
+    </script>
     {% block extra_js %}{% endblock %}
 </body>
 </html>
