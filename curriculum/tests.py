@@ -3253,3 +3253,55 @@ class ExamHighYieldTaggerTests(TestCase):
         self.t_intro.refresh_from_db()
         self.assertTrue(self.t_backprop.is_high_yield)
         self.assertFalse(self.t_intro.is_high_yield)
+
+    def test_ai_generated_curriculum_persists_high_yield_tags(self):
+        """Tests that when AI generation returns is_high_yield in curriculum payload, it is stored in DB."""
+        from curriculum.services.ai_curriculum import persist_curriculum_records
+
+        payload = {
+            "code": "BCS801",
+            "name": "Distributed Systems AI",
+            "description": "Distributed systems syllabus",
+            "modules": [
+                {
+                    "module_number": 1,
+                    "title": "Module 1 Models",
+                    "description": "Models description",
+                    "topics": [
+                        {
+                            "chapter_number": 1,
+                            "chapter_title": "Basics",
+                            "title": "Introduction to Distributed Systems",
+                            "description": "Intro overview",
+                            "is_high_yield": False,
+                            "vtu_frequency_tag": "",
+                            "keywords": ["intro k1", "intro k2", "intro k3"]
+                        },
+                        {
+                            "chapter_number": 1,
+                            "chapter_title": "Consensus",
+                            "title": "Raft Consensus Algorithm & State Machine Replication",
+                            "description": "Core consensus protocol",
+                            "is_high_yield": True,
+                            "vtu_frequency_tag": "Frequent 10M VTU Question",
+                            "keywords": ["raft k1", "raft k2", "raft k3"]
+                        }
+                    ]
+                }
+            ]
+        }
+
+        subj = persist_curriculum_records({
+            "data": payload,
+            "clean_name": "Distributed Systems AI",
+            "clean_code": "BCS801",
+            "is_verified_source": False,
+            "active_model": "groq-test"
+        })
+        m1 = subj.modules.get(module_number=1)
+        t_intro = m1.topics.get(title="Introduction to Distributed Systems")
+        t_raft = m1.topics.get(title__icontains="Raft Consensus")
+
+        self.assertFalse(t_intro.is_high_yield)
+        self.assertTrue(t_raft.is_high_yield)
+        self.assertEqual(t_raft.vtu_frequency_tag, "Frequent 10M VTU Question")

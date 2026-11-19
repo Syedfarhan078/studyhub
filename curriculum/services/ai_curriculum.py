@@ -1588,19 +1588,30 @@ def generate_curriculum_data(subject_name, subject_code="", syllabus_text=""):
             f"2. Each module's 'title' MUST EXACTLY match the prescribed title above.\n"
             f"3. Preserve all prescribed topics and their conceptual meaning without silently omitting any.\n"
             f"4. For each topic, generate a concise title, 1-sentence objective description, and exactly 3 high-intent search keywords.\n"
-            f"5. Do NOT invent alternative modules, and do NOT replace prescribed titles."
+            f"5. EXAM IMPORTANCE (80/20 HIGH-YIELD RULE):\n"
+            f"   - Evaluate each topic from a university exam perspective (e.g. VTU Q1 vs Q2 choice questions).\n"
+            f"   - For every module, pick the top 2-3 most important, high-scoring exam concepts (core algorithms, architectures, derivations, working principles, mathematical models) and set 'is_high_yield': true with a descriptive 'vtu_frequency_tag' (e.g. 'Core 10M Question for Q1/Q2', 'Key Architecture for SEE', 'Frequent Derivation/Algorithm').\n"
+            f"   - Set 'is_high_yield': false for introductory, survey, motivation, historical, or broad overview topics (e.g. 'Introduction to...', 'Overview of...', 'Need for...'). Do NOT blindly mark topics 1 and 2 as high-yield just because they are listed first!\n"
+            f"6. Do NOT invent alternative modules, and do NOT replace prescribed titles."
         )
     elif has_custom_syllabus:
         user_prompt = (
             f"Subject: {clean_name}\n"
             f"Course Code: {clean_code}\n\n"
             f"Extract and organize the following syllabus into exactly 5 modules with topics and search keywords:\n"
-            f"\"\"\"\n{syllabus_text.strip()}\n\"\"\""
+            f"\"\"\"\n{syllabus_text.strip()}\n\"\"\"\n\n"
+            f"EXAM IMPORTANCE RULES (HIGH-YIELD 80/20 ANALYSIS):\n"
+            f"- Evaluate topics from a university exam perspective (e.g. VTU Q1 vs Q2 choices).\n"
+            f"- In every module, identify the top 2-3 core exam concepts (algorithms, architectures, derivations, working principles) and set 'is_high_yield': true with a descriptive 'vtu_frequency_tag'.\n"
+            f"- Set 'is_high_yield': false for introductory, survey, motivation, or high-level overview topics (e.g. 'Introduction to...', 'Overview of...'). Never mark topics 1 and 2 as high-yield merely because they are first in order."
         )
     else:
         user_prompt = (
             f"Generate a comprehensive reference 5-module university curriculum for the subject '{clean_name}' "
-            f"(Course Code: '{clean_code}'). Provide detailed topics and realistic educational search keywords."
+            f"(Course Code: '{clean_code}'). Provide detailed topics and realistic educational search keywords.\n\n"
+            f"EXAM IMPORTANCE RULES (HIGH-YIELD 80/20 ANALYSIS):\n"
+            f"- In every module, identify the top 2-3 core exam concepts (algorithms, architectures, derivations, working principles) and set 'is_high_yield': true with a descriptive 'vtu_frequency_tag' (e.g. 'Core 10M Question for Q1/Q2', 'Frequently Tested Algorithm').\n"
+            f"- Set 'is_high_yield': false for introductory, survey, or high-level overview topics (e.g. 'Introduction to...', 'Overview of...'). Never mark topics 1 and 2 as high-yield merely because they are first in order."
         )
 
     if provider == 'groq':
