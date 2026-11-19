@@ -1589,110 +1589,155 @@ textarea.form-control { border-radius: var(--radius) !important; border-left: 1p
 
 /* ─── Passing Predictor & VTU Paper Strategy Calculator ──────── */
 .passing-predictor-dialog {
-    max-width: 980px;
+    max-width: 1140px !important;
+    width: 95% !important;
+    margin: 1.75rem auto !important;
 }
 
 .predictor-dashboard {
-    background: #fff;
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
+    background: #ffffff;
+    border: 1px solid #ebd9c4;
+    border-radius: 12px;
+    box-shadow: 0 4px 16px rgba(44, 38, 30, 0.05);
+}
+
+.predictor-score-col {
+    padding: 1.5rem;
+}
+
+@media (min-width: 992px) {
+    .predictor-score-col {
+        border-right: 1px solid #ebd9c4;
+        padding-right: 2rem;
+    }
 }
 
 .tactical-advice-box {
     background: #faf7f2;
     border: 1px solid #ebd9c4;
+    border-radius: 10px;
+    padding: 1.5rem;
     transition: all 0.2s ease;
 }
 
+.tactical-advice-box .advice-title {
+    font-size: 1rem;
+    font-weight: 700;
+    color: #1e3a5f;
+}
+
+.tactical-advice-box .advice-body {
+    font-size: 0.92rem;
+    line-height: 1.6;
+    color: #4a443e;
+}
+
 .module-safety-pill {
-    font-size: 0.75rem;
+    font-size: 0.78rem;
     font-weight: 600;
-    padding: 0.25rem 0.65rem;
+    padding: 0.35rem 0.85rem;
     border-radius: 999px;
     display: inline-flex;
     align-items: center;
-    gap: 0.35rem;
+    gap: 0.4rem;
+    letter-spacing: 0.02em;
 }
 
 .safety-pill-safe {
     background: #e8f5e9;
-    color: #2e7d32;
-    border: 1px solid #c8e6c9;
+    color: #1b5e20;
+    border: 1px solid #a5d6a7;
 }
 
 .safety-pill-risk {
     background: #fff8e1;
-    color: #b78103;
+    color: #9a6700;
     border: 1px solid #ffe082;
 }
 
 .safety-pill-skipped {
     background: #ffebee;
-    color: #c62828;
+    color: #b71c1c;
     border: 1px solid #ffcdd2;
 }
 
 .safety-pill-mastered {
     background: #ede7f6;
-    color: #512da8;
+    color: #4a148c;
     border: 1px solid #d1c4e9;
 }
 
 .predictor-module-card {
-    background: #fff;
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
+    background: #ffffff;
+    border: 1px solid #e3dcd0;
+    border-radius: 10px;
     overflow: hidden;
-    transition: border-color 0.15s ease;
+    margin-bottom: 1.25rem;
+    transition: all 0.15s ease;
+    box-shadow: 0 2px 6px rgba(44, 38, 30, 0.03);
 }
 
 .predictor-module-card.status-safe {
-    border-left: 4px solid #2e7d32;
+    border-left: 5px solid #2e7d32;
 }
 
 .predictor-module-card.status-risk {
-    border-left: 4px solid #f59e0b;
+    border-left: 5px solid #f59e0b;
 }
 
 .predictor-module-card.status-skipped {
-    border-left: 4px solid #dc3545;
+    border-left: 5px solid #dc3545;
 }
 
 .predictor-module-card.status-mastered {
-    border-left: 4px solid #6f42c1;
+    border-left: 5px solid #6f42c1;
 }
 
 .predictor-module-header {
     background: #fdfcf9;
-    padding: 0.75rem 1rem;
-    border-bottom: 1px solid var(--border);
+    padding: 0.9rem 1.25rem;
+    border-bottom: 1px solid #ede8de;
 }
 
 .predictor-topic-item {
-    padding: 0.5rem 0.75rem;
-    border-radius: 6px;
-    transition: background 0.12s ease;
+    padding: 0.65rem 0.95rem;
+    border-radius: 8px;
+    border: 1px solid #ede8de;
+    background: #fff;
+    min-height: 52px;
+    transition: all 0.15s ease;
 }
 
 .predictor-topic-item:hover {
-    background: #fbf9f5;
+    background: #fcfbf8;
+    border-color: #d8cebe;
 }
 
 .predictor-topic-item.checked {
-    background: #f0f7f0;
+    background: #f2f8f2;
+    border-color: #a3d9a5;
+}
+
+.predictor-topic-item .pred-topic-checkbox {
+    width: 1.18rem;
+    height: 1.18rem;
+    cursor: pointer;
+    flex-shrink: 0;
+}
+
+.predictor-topic-item label {
+    font-size: 0.88rem;
+    line-height: 1.35;
+    color: #2c261e;
+    cursor: pointer;
 }
 
 .predictor-preset-btn {
     border-radius: 999px;
-    font-size: 0.78rem;
+    font-size: 0.82rem;
     font-weight: 600;
+    padding: 0.4rem 1rem;
     transition: all 0.15s ease;
-}
-
-@media (min-width: 768px) {
-    .border-end-md {
-        border-right: 1px solid var(--border);
-    }
 }
 
 @media print {

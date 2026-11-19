@@ -2943,12 +2943,21 @@ class VisualSheetGalleryTests(TestCase):
 
     def test_get_subject_visual_gallery_all_and_filtered(self):
         from curriculum.services.ai_exam import get_subject_visual_gallery
+        # Subject initially has no visual_sheet in DB
+        self.assertIsNone(self.subject.visual_sheet)
+
         # All modules
         data = get_subject_visual_gallery(self.subject)
         self.assertIn("diagrams", data)
         self.assertIn("formulas", data)
         self.assertTrue(len(data["diagrams"]) > 0)
         self.assertTrue(len(data["formulas"]) > 0)
+
+        # Verify saved in DB
+        self.subject.refresh_from_db()
+        self.assertIsNotNone(self.subject.visual_sheet)
+        self.assertIn("diagrams", self.subject.visual_sheet)
+        self.assertIn("formulas", self.subject.visual_sheet)
 
         diag = data["diagrams"][0]
         self.assertIn("ascii_diagram", diag)
@@ -2963,6 +2972,17 @@ class VisualSheetGalleryTests(TestCase):
         data_m1 = get_subject_visual_gallery(self.subject, module_number=1)
         for d in data_m1["diagrams"]:
             self.assertEqual(d["module_number"], 1)
+
+        # Verify that subsequent calls read directly from the database cache
+        self.subject.visual_sheet = {
+            "diagrams": [{"title": "Cached DB Diagram", "ascii_diagram": "+---+", "drawing_tip": "Draw", "key_labels": [], "exam_relevance": "10M", "module_number": 1}],
+            "formulas": [{"name": "Cached DB Formula", "formula": "E=mc^2", "when_to_use": "Physics", "exam_tip": "High", "module_number": 1}]
+        }
+        self.subject.save(update_fields=["visual_sheet"])
+
+        cached_data = get_subject_visual_gallery(self.subject)
+        self.assertEqual(cached_data["diagrams"][0]["title"], "Cached DB Diagram")
+        self.assertEqual(cached_data["formulas"][0]["name"], "Cached DB Formula")
 
     def test_subject_visual_sheet_view_endpoint(self):
         url = reverse('curriculum:subject_visual_sheet', kwargs={'slug': self.subject.slug})

@@ -41,6 +41,11 @@ class Subject(models.Model):
         blank=True,
         help_text="Curriculum scheme (e.g. 2022 Scheme)"
     )
+    visual_sheet = models.JSONField(
+        null=True,
+        blank=True,
+        help_text="Persisted 60-minute visual sheet (diagrams & formulas) across all modules"
+    )
 
     class Meta:
         ordering = ['order', 'name']

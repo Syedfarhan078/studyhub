@@ -577,29 +577,55 @@ def _generate_fallback_cheat_sheet(module: Module) -> dict:
 
 def get_subject_visual_gallery(subject: Subject, module_number: int = None) -> dict:
     """
-    Assembles a high-contrast visual gallery of architecture diagrams and mathematical
+    Assembles or retrieves a persistent visual gallery of architecture diagrams and mathematical
     formula bank for 60-minute pre-exam memory consolidation.
-    Aggregates across all 5 modules (or a single requested module).
+    When generated once, permanently stores the visual sheet in subject.visual_sheet in PostgreSQL
+    so all future requests across all students load instantly with ZERO external API calls.
     """
-    modules = list(subject.modules.all().order_by('module_number'))
-    if module_number is not None:
-        try:
-            mod_num_int = int(module_number)
-            modules = [m for m in modules if m.module_number == mod_num_int]
-        except (ValueError, TypeError):
-            pass
+    # 1. Check if full visual_sheet is already cached in database
+    cached_sheet = getattr(subject, 'visual_sheet', None)
+    if cached_sheet and isinstance(cached_sheet, dict) and cached_sheet.get("diagrams"):
+        all_diagrams = cached_sheet.get("diagrams", [])
+        all_formulas = cached_sheet.get("formulas", [])
 
-    diagrams = []
-    formulas = []
+        if module_number is not None:
+            try:
+                mod_num_int = int(module_number)
+                filtered_diags = [d for d in all_diagrams if d.get("module_number") == mod_num_int]
+                filtered_forms = [f for f in all_formulas if f.get("module_number") == mod_num_int]
+                return {
+                    "subject_name": subject.name,
+                    "subject_code": subject.code,
+                    "total_diagrams": len(filtered_diags),
+                    "total_formulas": len(filtered_forms),
+                    "diagrams": filtered_diags,
+                    "formulas": filtered_forms
+                }
+            except (ValueError, TypeError):
+                pass
 
-    for mod in modules:
+        return {
+            "subject_name": subject.name,
+            "subject_code": subject.code,
+            "total_diagrams": len(all_diagrams),
+            "total_formulas": len(all_formulas),
+            "diagrams": all_diagrams,
+            "formulas": all_formulas
+        }
+
+    # 2. Not yet cached: assemble across all modules and persist permanently in DB
+    all_modules = list(subject.modules.all().order_by('module_number'))
+    all_diagrams = []
+    all_formulas = []
+
+    for mod in all_modules:
         # Retrieve or generate cheat sheet for module
         cs = mod.cheat_sheet or generate_module_cheat_sheet(mod)
 
         # 1. Architecture diagram
         arch = cs.get("architecture_summary") or {}
         if arch.get("ascii_diagram"):
-            diagrams.append({
+            all_diagrams.append({
                 "id": f"diag-m{mod.module_number}",
                 "module_number": mod.module_number,
                 "module_title": mod.title,
@@ -614,7 +640,7 @@ def get_subject_visual_gallery(subject: Subject, module_number: int = None) -> d
             bp = q.answer_blueprint or {}
             bp_diag = bp.get("ascii_diagram")
             if bp_diag and bp_diag.strip() and len(bp_diag.strip()) > 20:
-                diagrams.append({
+                all_diagrams.append({
                     "id": f"diag-q{q.id}",
                     "module_number": mod.module_number,
                     "module_title": mod.title,
@@ -626,7 +652,7 @@ def get_subject_visual_gallery(subject: Subject, module_number: int = None) -> d
 
         # 2. Formulas & Complexities
         for idx, f in enumerate(cs.get("formulas_and_complexities", []), start=1):
-            formulas.append({
+            all_formulas.append({
                 "id": f"f-{mod.module_number}-{idx}",
                 "module_number": mod.module_number,
                 "module_title": mod.title,
@@ -637,8 +663,8 @@ def get_subject_visual_gallery(subject: Subject, module_number: int = None) -> d
             })
 
     # If no diagrams found, supply fallback diagram
-    if not diagrams:
-        diagrams.append({
+    if not all_diagrams:
+        all_diagrams.append({
             "id": "diag-default",
             "module_number": 1,
             "module_title": subject.name,
@@ -652,13 +678,39 @@ def get_subject_visual_gallery(subject: Subject, module_number: int = None) -> d
             "drawing_tip": "Draw neat boxed stages with directional arrows indicating dataflow."
         })
 
+    # Save to subject.visual_sheet in PostgreSQL database permanently
+    try:
+        subject.visual_sheet = {
+            "diagrams": all_diagrams,
+            "formulas": all_formulas,
+        }
+        subject.save(update_fields=['visual_sheet'])
+    except Exception as e:
+        logger.warning("Failed to persist visual_sheet on subject %s: %s", subject.slug, e)
+
+    if module_number is not None:
+        try:
+            mod_num_int = int(module_number)
+            filtered_diags = [d for d in all_diagrams if d.get("module_number") == mod_num_int]
+            filtered_forms = [f for f in all_formulas if f.get("module_number") == mod_num_int]
+            return {
+                "subject_name": subject.name,
+                "subject_code": subject.code,
+                "total_diagrams": len(filtered_diags),
+                "total_formulas": len(filtered_forms),
+                "diagrams": filtered_diags,
+                "formulas": filtered_forms
+            }
+        except (ValueError, TypeError):
+            pass
+
     return {
         "subject_name": subject.name,
         "subject_code": subject.code,
-        "total_diagrams": len(diagrams),
-        "total_formulas": len(formulas),
-        "diagrams": diagrams,
-        "formulas": formulas
+        "total_diagrams": len(all_diagrams),
+        "total_formulas": len(all_formulas),
+        "diagrams": all_diagrams,
+        "formulas": all_formulas
     }
 
 
