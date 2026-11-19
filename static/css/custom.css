@@ -1172,5 +1172,222 @@ textarea.form-control { border-radius: var(--radius) !important; border-left: 1p
     }
 }
 
+/* --------------------------------------------------------------- Pillar 2: Rapid Revision & Active Recall */
+
+.module-quick-revision-bar {
+    background: var(--paper-deep);
+    border: 1px solid var(--line-strong);
+    box-shadow: 0 1px 3px rgba(28, 25, 21, 0.04);
+}
+
+.bg-navy {
+    background-color: var(--navy) !important;
+}
+
+/* Cheat Sheet Modal */
+.cheat-sheet-dialog {
+    max-width: 920px;
+}
+
+.cheat-sheet-container {
+    background: var(--sheet);
+    color: var(--ink);
+}
+
+.cheat-grid-2 {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 0.75rem;
+}
+
+.cheat-card-sm {
+    background: var(--paper);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 0.75rem 0.9rem;
+    height: 100%;
+}
+
+.cheat-card-term {
+    font-family: var(--sans);
+    font-size: 0.88rem;
+    font-weight: 700;
+    color: var(--navy);
+    margin-bottom: 0.2rem;
+}
+
+.cheat-card-def {
+    font-size: 0.84rem;
+    line-height: 1.45;
+    color: var(--ink-soft);
+    margin-bottom: 0;
+}
+
+.cheat-acronym-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    background: var(--paper);
+    border: 1px solid var(--line);
+    padding: 0.25rem 0.6rem;
+    border-radius: 4px;
+    font-size: 0.8rem;
+}
+
+.cheat-acronym-chip strong {
+    color: var(--navy);
+    font-family: 'JetBrains Mono', 'Consolas', monospace;
+}
+
+.cheat-formula-box {
+    background: var(--paper);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 0.7rem 0.9rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 0.75rem;
+    font-size: 0.86rem;
+}
+
+.cheat-formula-code {
+    font-family: 'JetBrains Mono', 'Consolas', monospace;
+    font-weight: 600;
+    color: var(--navy-deep);
+}
+
+.cheat-pearl-box {
+    background: var(--amber-soft);
+    border: 1px solid rgba(138, 90, 16, 0.25);
+    border-radius: var(--radius);
+    padding: 0.85rem 1.15rem;
+}
+
+.cheat-pearl-list {
+    margin: 0;
+    padding-left: 1.25rem;
+    font-size: 0.88rem;
+    line-height: 1.5;
+    color: #4f3305;
+}
+
+/* Micro-Quiz & Flashcards */
+.quiz-dialog {
+    max-width: 680px;
+}
+
+.quiz-option-btn {
+    width: 100%;
+    text-align: left;
+    padding: 0.85rem 1.15rem;
+    background: var(--sheet);
+    border: 1.5px solid var(--line-strong);
+    border-radius: var(--radius);
+    color: var(--ink);
+    font-family: var(--sans);
+    font-size: 0.95rem;
+    margin-bottom: 0.65rem;
+    transition: all 0.15s ease;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.quiz-option-btn:hover:not(:disabled) {
+    border-color: var(--navy);
+    background: var(--navy-soft);
+    color: var(--navy-deep);
+}
+
+.quiz-option-btn.correct {
+    background: var(--green-soft) !important;
+    border-color: var(--green) !important;
+    color: #0f3b23 !important;
+    font-weight: 600;
+}
+
+.quiz-option-btn.wrong {
+    background: var(--red-soft) !important;
+    border-color: var(--red) !important;
+    color: var(--red) !important;
+}
+
+.quiz-explanation-box {
+    background: var(--paper-deep);
+    border-left: 3px solid var(--navy);
+    padding: 0.75rem 1rem;
+    border-radius: 0 var(--radius) var(--radius) 0;
+    font-size: 0.88rem;
+    color: var(--ink);
+    margin-top: 0.85rem;
+    animation: fadeIn 0.25s ease;
+}
+
+/* Flashcards */
+.flashcard-stage {
+    min-height: 220px;
+    margin: 1.5rem 0;
+    cursor: pointer;
+    user-select: none;
+}
+
+.flashcard-box {
+    background: var(--sheet);
+    border: 2px solid var(--line-strong);
+    border-radius: var(--radius);
+    box-shadow: 0 4px 14px rgba(28, 25, 21, 0.08);
+    padding: 2.25rem 1.75rem;
+    min-height: 220px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.flashcard-box:hover {
+    border-color: var(--navy);
+    box-shadow: 0 6px 18px rgba(30, 58, 95, 0.12);
+}
+
+.flashcard-box.is-flipped {
+    background: var(--paper);
+    border-color: var(--navy);
+}
+
+.flashcard-text {
+    font-family: var(--serif);
+    font-size: 1.25rem;
+    line-height: 1.6;
+    color: var(--ink);
+}
+
+/* Print Overrides for Cheat Sheet */
+@media print {
+    #cheatSheetModal, #cheatSheetModal * {
+        visibility: visible;
+    }
+    #cheatSheetModal {
+        position: absolute;
+        left: 0;
+        top: 0;
+        width: 100%;
+        margin: 0;
+        padding: 0;
+    }
+    .cheat-sheet-dialog {
+        max-width: 100% !important;
+        margin: 0 !important;
+    }
+    .cheat-card-sm, .cheat-formula-box, .cheat-acronym-chip {
+        border: 1px solid #ddd !important;
+        background: #fff !important;
+    }
+}
+
+
 
 

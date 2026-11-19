@@ -140,6 +140,19 @@ class Module(models.Model):
         help_text="Breif summary of the module's scopes"
     )
 
+    cheat_sheet = models.JSONField(
+        null=True,
+        blank=True,
+        help_text="Cached 1-page revision cheat sheet data"
+    )
+    cheat_sheet_generated_at = models.DateTimeField(null=True, blank=True)
+    quiz_data = models.JSONField(
+        null=True,
+        blank=True,
+        help_text="Cached micro-quiz and flashcards data"
+    )
+    quiz_generated_at = models.DateTimeField(null=True, blank=True)
+
     class Meta:
         ordering = ['subject', 'module_number']
         unique_together = ['subject', 'module_number']

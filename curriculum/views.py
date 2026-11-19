@@ -31,6 +31,8 @@ from .services.ai_curriculum import (
 from .services.ai_exam import (
     generate_vtu_questions_for_module,
     generate_vtu_answer_blueprint,
+    generate_module_cheat_sheet,
+    generate_module_quiz,
 )
 from curriculum.worker import notify_new_job, is_worker_accepting_jobs
 
@@ -665,4 +667,41 @@ def generate_topic_blueprint_view(request, topic_id):
     except Exception as e:
         logger.exception("Error generating topic blueprint for %s: %s", topic_id, e)
         return JsonResponse({'success': False, 'error': str(e)}, status=500)
+
+
+def get_module_cheat_sheet_view(request, module_id):
+    """
+    AJAX endpoint to retrieve or generate the 1-page revision cheat sheet for a module.
+    """
+    module = get_object_or_404(Module.objects.select_related('subject'), id=module_id)
+    force_refresh = (request.GET.get('refresh') == '1' or request.POST.get('refresh') == '1')
+    try:
+        data = generate_module_cheat_sheet(module, force_refresh=force_refresh)
+        return JsonResponse({
+            'success': True,
+            'module_id': module.id,
+            'cheat_sheet': data
+        })
+    except Exception as e:
+        logger.exception("Error generating cheat sheet for module %s: %s", module_id, e)
+        return JsonResponse({'success': False, 'error': str(e)}, status=500)
+
+
+def get_module_quiz_view(request, module_id):
+    """
+    AJAX endpoint to retrieve or generate the 5-minute Micro-Quiz and Flashcards for a module.
+    """
+    module = get_object_or_404(Module.objects.select_related('subject'), id=module_id)
+    force_refresh = (request.GET.get('refresh') == '1' or request.POST.get('refresh') == '1')
+    try:
+        data = generate_module_quiz(module, force_refresh=force_refresh)
+        return JsonResponse({
+            'success': True,
+            'module_id': module.id,
+            'quiz_data': data
+        })
+    except Exception as e:
+        logger.exception("Error generating quiz for module %s: %s", module_id, e)
+        return JsonResponse({'success': False, 'error': str(e)}, status=500)
+
 

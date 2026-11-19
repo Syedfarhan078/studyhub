@@ -2679,6 +2679,153 @@ class VTUExamBankAndBlueprintTests(TestCase):
         self.assertContains(res, "10-Mark Answer Architect")
 
 
+class RapidRevisionAndQuizTests(TestCase):
+    def setUp(self):
+        self.subject = Subject.objects.create(
+            name="Deep Learning and Neural Networks",
+            code="BAI702",
+            slug="deep-learning",
+            branch=Subject.Branch.AIML,
+            semester=7,
+            scheme="2022 Scheme"
+        )
+        self.module = Module.objects.create(
+            subject=self.subject,
+            module_number=2,
+            title="Convolutional Neural Networks and Computer Vision",
+            description="CNN architectures, convolutions, pooling, ResNet"
+        )
+        self.topic = Topic.objects.create(
+            module=self.module,
+            title="Convolution and Pooling Operations",
+            slug="convolution-pooling",
+            order=1
+        )
+
+    @patch("curriculum.services.ai_exam._call_ai_json")
+    def test_generate_module_cheat_sheet_caching(self, mock_ai):
+        """Tests that cheat sheet generates via AI and caches on Module record."""
+        from curriculum.services.ai_exam import generate_module_cheat_sheet
+
+        mock_ai.return_value = {
+            "module_number": 2,
+            "module_title": "CNNs",
+            "subject_code": "BAI702",
+            "key_definitions": [{"term": "Stride", "definition": "Step size of filter sliding across input image."}],
+            "acronyms": [{"acronym": "CNN", "stands_for": "Convolutional Neural Network"}],
+            "formulas_and_complexities": [{"name": "Output Size", "formula": "O = ((W - K + 2P)/S) + 1"}],
+            "architecture_summary": {"title": "CNN Pipeline", "ascii_diagram": "+---+"},
+            "last_minute_rules": ["Pooling reduces spatial dimensions without altering channel depth."]
+        }
+
+        self.assertIsNone(self.module.cheat_sheet)
+        cs = generate_module_cheat_sheet(self.module)
+        self.module.refresh_from_db()
+
+        self.assertIsNotNone(self.module.cheat_sheet)
+        self.assertEqual(self.module.cheat_sheet["module_number"], 2)
+        self.assertEqual(cs["acronyms"][0]["acronym"], "CNN")
+
+        # Second call should use cached data without calling AI
+        mock_ai.side_effect = Exception("Should not hit AI API on second call!")
+        cs2 = generate_module_cheat_sheet(self.module)
+        self.assertEqual(cs2["key_definitions"][0]["term"], "Stride")
+
+    @patch("curriculum.services.ai_exam._call_ai_json")
+    def test_generate_module_cheat_sheet_fallback(self, mock_ai):
+        """Tests deterministic fallback cheat sheet generation when AI fails."""
+        from curriculum.services.ai_exam import generate_module_cheat_sheet
+
+        mock_ai.side_effect = Exception("AI Service Unavailable")
+        cs = generate_module_cheat_sheet(self.module)
+
+        self.assertEqual(cs["module_number"], 2)
+        self.assertTrue(len(cs["key_definitions"]) > 0)
+        self.assertIn("formulas_and_complexities", cs)
+        self.assertIn("architecture_summary", cs)
+        self.assertTrue(len(cs["last_minute_rules"]) > 0)
+
+    @patch("curriculum.services.ai_exam._call_ai_json")
+    def test_generate_module_quiz_caching(self, mock_ai):
+        """Tests that micro-quiz generates and caches on Module record."""
+        from curriculum.services.ai_exam import generate_module_quiz
+
+        mock_ai.return_value = {
+            "module_number": 2,
+            "questions": [
+                {
+                    "id": 1,
+                    "question": "What is the primary effect of max pooling?",
+                    "options": ["Reduces spatial resolution", "Increases parameter count", "Slows training", "Adds channels"],
+                    "correct_answer": 0,
+                    "explanation": "Max pooling downsamples spatial height and width."
+                }
+            ],
+            "flashcards": [
+                {
+                    "id": 1,
+                    "front": "What does 1x1 convolution do?",
+                    "back": "Performs cross-channel dimension reduction while preserving spatial dimensions."
+                }
+            ]
+        }
+
+        self.assertIsNone(self.module.quiz_data)
+        qd = generate_module_quiz(self.module)
+        self.module.refresh_from_db()
+
+        self.assertIsNotNone(self.module.quiz_data)
+        self.assertEqual(len(qd["questions"]), 1)
+        self.assertEqual(len(qd["flashcards"]), 1)
+
+        # Second call uses cache
+        mock_ai.side_effect = Exception("Should not hit AI API on second call!")
+        qd2 = generate_module_quiz(self.module)
+        self.assertEqual(qd2["questions"][0]["correct_answer"], 0)
+
+    @patch("curriculum.services.ai_exam._call_ai_json")
+    def test_get_module_cheat_sheet_view(self, mock_ai):
+        """Tests AJAX endpoint for retrieving module cheat sheet."""
+        mock_ai.return_value = {
+            "module_number": 2,
+            "key_definitions": [{"term": "Kernel", "definition": "Convolution filter matrix."}]
+        }
+        url = reverse('curriculum:module_cheat_sheet', kwargs={'module_id': self.module.id})
+        res = self.client.get(url, HTTP_X_REQUESTED_WITH='XMLHttpRequest')
+        self.assertEqual(res.status_code, 200)
+        data = res.json()
+        self.assertTrue(data['success'])
+        self.assertEqual(data['module_id'], self.module.id)
+        self.assertIn('cheat_sheet', data)
+
+    @patch("curriculum.services.ai_exam._call_ai_json")
+    def test_get_module_quiz_view(self, mock_ai):
+        """Tests AJAX endpoint for retrieving module quiz and flashcards."""
+        mock_ai.return_value = {
+            "module_number": 2,
+            "questions": [{"id": 1, "question": "Test Q", "options": ["A", "B"], "correct_answer": 0, "explanation": "Exp"}],
+            "flashcards": [{"id": 1, "front": "F", "back": "B"}]
+        }
+        url = reverse('curriculum:module_quiz', kwargs={'module_id': self.module.id})
+        res = self.client.get(url, HTTP_X_REQUESTED_WITH='XMLHttpRequest')
+        self.assertEqual(res.status_code, 200)
+        data = res.json()
+        self.assertTrue(data['success'])
+        self.assertEqual(data['module_id'], self.module.id)
+        self.assertIn('quiz_data', data)
+
+    def test_subject_detail_view_revision_buttons(self):
+        """Tests that subject detail view renders the quick revision bar and buttons."""
+        url = reverse('curriculum:subject_detail', kwargs={'slug': self.subject.slug})
+        res = self.client.get(url)
+        self.assertEqual(res.status_code, 200)
+        self.assertContains(res, "1-Page Cheat Sheet")
+        self.assertContains(res, "Quiz & Flashcards")
+        self.assertContains(res, "cheatSheetModal")
+        self.assertContains(res, "quizModal")
+
+
+
 
 
 

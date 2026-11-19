@@ -158,6 +158,23 @@
 
     <div class="col-12 col-lg-8">
         {% if active_topic %}
+            <!-- Module Quick Revision Bar -->
+            <div class="module-quick-revision-bar mb-3 p-2.5 px-3 rounded d-flex flex-wrap align-items-center justify-content-between gap-2">
+                <div class="d-flex align-items-center gap-2">
+                    <span class="badge bg-navy text-white px-2 py-1" style="font-size:0.75rem;">MODULE {{ active_topic.module.module_number }} REVISION</span>
+                    <span class="fw-semibold small text-truncate d-none d-sm-inline" style="max-width: 260px;">{{ active_topic.module.title }}</span>
+                </div>
+                <div class="d-flex align-items-center gap-2 flex-wrap">
+                    <button type="button" class="btn btn-sm btn-outline-secondary d-inline-flex align-items-center gap-1.5 btn-open-cheat-sheet" data-module-id="{{ active_topic.module.id }}" data-module-num="{{ active_topic.module.module_number }}" title="View compact 1-page printable revision summary">
+                        <i class="bi bi-file-earmark-text text-primary"></i> 1-Page Cheat Sheet
+                    </button>
+                    <button type="button" class="btn btn-sm btn-outline-secondary d-inline-flex align-items-center gap-1.5 btn-open-quiz" data-module-id="{{ active_topic.module.id }}" data-module-num="{{ active_topic.module.module_number }}" title="Test understanding with 5-minute quiz and flashcards">
+                        <i class="bi bi-lightning-charge-fill text-warning"></i> 5-Min Quiz & Flashcards
+                        <span class="badge bg-secondary-subtle text-secondary ms-1 quiz-score-badge" data-module-id="{{ active_topic.module.id }}" style="display:none;"></span>
+                    </button>
+                </div>
+            </div>
+
             <article class="sheet p-3 p-md-4 mb-3">
                 <p class="eyebrow mb-1">
                     Module {{ active_topic.module.module_number }}
@@ -465,6 +482,84 @@
                     </div>
                 </div>
             </div>
+
+            <!-- 1-Page Cheat Sheet Modal -->
+            <div class="modal fade" id="cheatSheetModal" tabindex="-1" aria-labelledby="cheatSheetModalLabel" aria-hidden="true">
+                <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable cheat-sheet-dialog">
+                    <div class="modal-content border-0 shadow-lg" style="border-radius: var(--radius);">
+                        <div class="modal-header border-bottom py-3">
+                            <div class="d-flex flex-column">
+                                <span class="eyebrow mb-1 text-primary"><i class="bi bi-file-earmark-check-fill me-1"></i>Last-Minute High-Yield Summary</span>
+                                <h2 class="h6 modal-title mb-0" id="cheatSheetModalLabel">1-Page Revision Cheat Sheet</h2>
+                            </div>
+                            <div class="d-flex align-items-center gap-2 ms-auto">
+                                <button type="button" class="btn btn-sm btn-outline-secondary d-none d-sm-inline-flex align-items-center gap-1" id="btnPrintCheatSheet">
+                                    <i class="bi bi-printer"></i> Print (Ctrl+P)
+                                </button>
+                                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                            </div>
+                        </div>
+                        <div class="modal-body p-3 p-md-4" id="cheatSheetModalBody">
+                            <!-- Populated via JS -->
+                        </div>
+                        <div class="modal-footer d-flex justify-content-between py-2.5 border-top">
+                            <button type="button" class="btn btn-sm btn-outline-secondary d-inline-flex align-items-center gap-1" id="btnCopyCheatSheet">
+                                <i class="bi bi-clipboard"></i> Copy Text
+                            </button>
+                            <button type="button" class="btn btn-sm btn-primary" data-bs-dismiss="modal">Close</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Micro-Quiz & Flashcards Modal -->
+            <div class="modal fade" id="quizModal" tabindex="-1" aria-labelledby="quizModalLabel" aria-hidden="true">
+                <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable quiz-dialog">
+                    <div class="modal-content border-0 shadow-lg" style="border-radius: var(--radius);">
+                        <div class="modal-header border-bottom py-3">
+                            <div class="d-flex flex-column">
+                                <span class="eyebrow mb-1 text-warning"><i class="bi bi-lightning-charge-fill me-1"></i>Active Recall & Self-Assessment</span>
+                                <h2 class="h6 modal-title mb-0" id="quizModalLabel">5-Minute Micro-Quiz & Flashcards</h2>
+                            </div>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                        </div>
+                        <div class="bg-body-tertiary px-3 pt-2 border-bottom">
+                            <ul class="nav nav-tabs border-0" id="quizModeTabs" role="tablist">
+                                <li class="nav-item" role="presentation">
+                                    <button class="nav-link active small py-2 px-3 fw-semibold" id="tab-quiz-btn" data-bs-toggle="tab" data-bs-target="#tab-quiz-pane" type="button" role="tab" aria-selected="true">
+                                        <i class="bi bi-question-circle me-1"></i> Micro-Quiz (MCQs)
+                                    </button>
+                                </li>
+                                <li class="nav-item" role="presentation">
+                                    <button class="nav-link small py-2 px-3 fw-semibold" id="tab-flashcards-btn" data-bs-toggle="tab" data-bs-target="#tab-flashcards-pane" type="button" role="tab" aria-selected="false">
+                                        <i class="bi bi-card-text me-1"></i> Flashcards
+                                    </button>
+                                </li>
+                            </ul>
+                        </div>
+                        <div class="modal-body p-3 p-md-4">
+                            <div class="tab-content" id="quizTabContent">
+                                <!-- Quiz Pane -->
+                                <div class="tab-pane fade show active" id="tab-quiz-pane" role="tabpanel">
+                                    <div id="quizContainer">
+                                        <!-- Rendered dynamically -->
+                                    </div>
+                                </div>
+                                <!-- Flashcards Pane -->
+                                <div class="tab-pane fade" id="tab-flashcards-pane" role="tabpanel">
+                                    <div id="flashcardsContainer">
+                                        <!-- Rendered dynamically -->
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="modal-footer py-2.5 border-top">
+                            <button type="button" class="btn btn-sm btn-primary" data-bs-dismiss="modal">Close</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
 
         {% else %}
             <div class="sheet empty-state">
@@ -906,6 +1001,485 @@ document.addEventListener('DOMContentLoaded', function() {
             window.print();
         });
     }
+
+    // =========================================================================
+    // Pillar 2: 1-Page Cheat Sheet & Micro-Quiz Engine
+    // =========================================================================
+    const cheatSheetModalEl = document.getElementById('cheatSheetModal');
+    const cheatSheetModal = cheatSheetModalEl ? new bootstrap.Modal(cheatSheetModalEl) : null;
+    const cheatSheetBody = document.getElementById('cheatSheetModalBody');
+    const cheatSheetTitle = document.getElementById('cheatSheetModalLabel');
+    let lastRenderedCheatSheet = null;
+
+    // A. 1-Page Revision Cheat Sheet
+    function renderCheatSheet(data) {
+        lastRenderedCheatSheet = data;
+        const cs = data.cheat_sheet || {};
+        const defs = cs.key_definitions || [];
+        const acronyms = cs.acronyms || [];
+        const formulas = cs.formulas_and_complexities || [];
+        const arch = cs.architecture_summary || {};
+        const rules = cs.last_minute_rules || [];
+
+        let defsHtml = '';
+        if (defs.length) {
+            defsHtml = `
+                <div class="mb-3">
+                    <span class="section-label mb-1.5"><i class="bi bi-book-half me-1 text-primary"></i>1. Core Definitions & Concepts</span>
+                    <div class="cheat-grid-2">
+                        ${defs.map(d => `
+                            <div class="cheat-card-sm">
+                                <div class="cheat-card-term">${escapeHtml(d.term)}</div>
+                                <p class="cheat-card-def">${escapeHtml(d.definition)}</p>
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+            `;
+        }
+
+        let acronymsHtml = '';
+        if (acronyms.length) {
+            acronymsHtml = `
+                <div class="mb-3">
+                    <span class="section-label mb-1.5"><i class="bi bi-fonts me-1 text-primary"></i>2. Essential Acronyms</span>
+                    <div class="d-flex flex-wrap gap-1.5">
+                        ${acronyms.map(a => `
+                            <div class="cheat-acronym-chip">
+                                <strong>${escapeHtml(a.acronym)}</strong>: ${escapeHtml(a.stands_for)} ${a.context ? `<span class="text-secondary small">(${escapeHtml(a.context)})</span>` : ''}
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+            `;
+        }
+
+        let formulasHtml = '';
+        if (formulas.length) {
+            formulasHtml = `
+                <div class="mb-3">
+                    <span class="section-label mb-1.5"><i class="bi bi-calculator-fill me-1 text-primary"></i>3. Core Formulas & Complexities</span>
+                    <div class="cheat-grid-2">
+                        ${formulas.map(f => `
+                            <div class="cheat-formula-box">
+                                <div>
+                                    <div class="fw-semibold small">${escapeHtml(f.name)}</div>
+                                    <div class="cheat-formula-code">${escapeHtml(f.formula)}</div>
+                                </div>
+                                ${f.complexity ? `<span class="badge bg-secondary-subtle text-secondary font-monospace">${escapeHtml(f.complexity)}</span>` : ''}
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+            `;
+        }
+
+        let archHtml = '';
+        if (arch && arch.ascii_diagram) {
+            archHtml = `
+                <div class="mb-3">
+                    <span class="section-label mb-1.5"><i class="bi bi-diagram-3-fill me-1 text-primary"></i>4. Core Architecture Pipeline</span>
+                    <div class="ascii-canvas-wrap">
+                        <pre class="ascii-canvas"><code>${escapeHtml(arch.ascii_diagram)}</code></pre>
+                    </div>
+                    ${arch.key_takeaway ? `
+                        <div class="drawing-tip-callout mt-1">
+                            <i class="bi bi-key-fill text-amber mt-0.5"></i>
+                            <div><strong>Key Takeaway:</strong> ${escapeHtml(arch.key_takeaway)}</div>
+                        </div>
+                    ` : ''}
+                </div>
+            `;
+        }
+
+        let rulesHtml = '';
+        if (rules.length) {
+            rulesHtml = `
+                <div class="mb-2">
+                    <span class="section-label mb-1.5"><i class="bi bi-star-fill me-1 text-amber"></i>5. Last-Minute Exam Pearls (Crucial Rules)</span>
+                    <div class="cheat-pearl-box">
+                        <ul class="cheat-pearl-list">
+                            ${rules.map(r => `<li>${escapeHtml(r)}</li>`).join('')}
+                        </ul>
+                    </div>
+                </div>
+            `;
+        }
+
+        return `
+            <div class="blueprint-meta-bar mb-3">
+                <div>
+                    <span class="badge bg-navy text-white me-2">Module ${cs.module_number || ''}</span>
+                    <strong class="text-ink">${escapeHtml(cs.module_title || '')}</strong>
+                </div>
+                <span class="text-secondary small font-monospace">${escapeHtml(cs.subject_code || '')} · 1-Page Summary</span>
+            </div>
+            ${defsHtml}
+            ${acronymsHtml}
+            ${formulasHtml}
+            ${archHtml}
+            ${rulesHtml}
+        `;
+    }
+
+    document.querySelectorAll('.btn-open-cheat-sheet').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const moduleId = this.getAttribute('data-module-id');
+            const moduleNum = this.getAttribute('data-module-num');
+            if (cheatSheetTitle) cheatSheetTitle.innerText = `Module ${moduleNum}: 1-Page Revision Cheat Sheet`;
+            if (cheatSheetBody) {
+                cheatSheetBody.innerHTML = `
+                    <div class="text-center py-5">
+                        <div class="spinner-border text-primary mb-3" role="status">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                        <h5 class="h6 mb-1">Synthesizing 1-Page Revision Summary...</h5>
+                        <p class="text-secondary small mb-0">Extracting definitions, acronyms, formulas, and architecture flow.</p>
+                    </div>
+                `;
+            }
+            if (cheatSheetModal) cheatSheetModal.show();
+
+            fetch(`/subjects/modules/${moduleId}/cheat-sheet/`, {
+                headers: { 'X-Requested-With': 'XMLHttpRequest' }
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (data.success && data.cheat_sheet) {
+                    cheatSheetBody.innerHTML = renderCheatSheet(data);
+                } else {
+                    cheatSheetBody.innerHTML = `<div class="alert alert-danger">Failed to generate cheat sheet: ${data.error || 'Unknown error'}</div>`;
+                }
+            })
+            .catch(err => {
+                cheatSheetBody.innerHTML = `<div class="alert alert-danger">Network error loading cheat sheet. Please try again.</div>`;
+            });
+        });
+    });
+
+    const printCsBtn = document.getElementById('btnPrintCheatSheet');
+    if (printCsBtn) {
+        printCsBtn.addEventListener('click', function() {
+            window.print();
+        });
+    }
+
+    const copyCsBtn = document.getElementById('btnCopyCheatSheet');
+    if (copyCsBtn) {
+        copyCsBtn.addEventListener('click', function() {
+            if (!lastRenderedCheatSheet) return;
+            const cs = lastRenderedCheatSheet.cheat_sheet || {};
+            let text = `1-PAGE REVISION CHEAT SHEET\n`;
+            text += `Subject: ${cs.subject_code || ''} - ${cs.subject_name || ''}\nModule ${cs.module_number}: ${cs.module_title}\n\n`;
+            if (cs.key_definitions) {
+                text += `1. KEY DEFINITIONS:\n`;
+                cs.key_definitions.forEach(d => text += `- ${d.term}: ${d.definition}\n`);
+                text += `\n`;
+            }
+            if (cs.acronyms) {
+                text += `2. ACRONYMS:\n`;
+                cs.acronyms.forEach(a => text += `- ${a.acronym}: ${a.stands_for} (${a.context || ''})\n`);
+                text += `\n`;
+            }
+            if (cs.formulas_and_complexities) {
+                text += `3. FORMULAS & COMPLEXITIES:\n`;
+                cs.formulas_and_complexities.forEach(f => text += `- ${f.name}: ${f.formula} [${f.complexity || ''}]\n`);
+                text += `\n`;
+            }
+            if (cs.architecture_summary && cs.architecture_summary.ascii_diagram) {
+                text += `4. ARCHITECTURE PIPELINE:\n${cs.architecture_summary.ascii_diagram}\nTakeaway: ${cs.architecture_summary.key_takeaway || ''}\n\n`;
+            }
+            if (cs.last_minute_rules) {
+                text += `5. LAST-MINUTE EXAM RULES:\n`;
+                cs.last_minute_rules.forEach(r => text += `- ${r}\n`);
+            }
+
+            navigator.clipboard.writeText(text).then(() => {
+                const orig = copyCsBtn.innerHTML;
+                copyCsBtn.innerHTML = '<i class="bi bi-check2"></i> Copied!';
+                setTimeout(() => copyCsBtn.innerHTML = orig, 1800);
+            });
+        });
+    }
+
+    // B. Micro-Quiz & Flashcards Engine
+    const quizModalEl = document.getElementById('quizModal');
+    const quizModal = quizModalEl ? new bootstrap.Modal(quizModalEl) : null;
+    const quizContainer = document.getElementById('quizContainer');
+    const flashcardsContainer = document.getElementById('flashcardsContainer');
+
+    let currentQuizState = {
+        moduleId: null,
+        questions: [],
+        currentQIdx: 0,
+        score: 0,
+        answers: []
+    };
+
+    let currentFlashcardsState = {
+        cards: [],
+        cardIdx: 0,
+        isFlipped: false
+    };
+
+    // Restore cached scores on badges
+    function restoreQuizBadges() {
+        document.querySelectorAll('.quiz-score-badge').forEach(badge => {
+            const mId = badge.getAttribute('data-module-id');
+            const saved = localStorage.getItem('studyhub_quiz_m' + mId);
+            if (saved) {
+                try {
+                    const data = JSON.parse(saved);
+                    badge.style.display = 'inline-block';
+                    badge.innerHTML = `<i class="bi bi-check-circle-fill text-success me-1"></i>Score: ${data.score}/${data.total}`;
+                } catch(e) {}
+            }
+        });
+    }
+    restoreQuizBadges();
+
+    document.querySelectorAll('.btn-open-quiz').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const moduleId = this.getAttribute('data-module-id');
+            const moduleNum = this.getAttribute('data-module-num');
+
+            if (quizContainer) {
+                quizContainer.innerHTML = `
+                    <div class="text-center py-5">
+                        <div class="spinner-border text-warning mb-3" role="status">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                        <h5 class="h6 mb-1">Building 5-Minute Quiz & Flashcards...</h5>
+                        <p class="text-secondary small mb-0">Crafting active-recall conceptual questions and flashcards for Module ${moduleNum}.</p>
+                    </div>
+                `;
+            }
+            if (flashcardsContainer) flashcardsContainer.innerHTML = '';
+            if (quizModal) quizModal.show();
+
+            fetch(`/subjects/modules/${moduleId}/quiz/`, {
+                headers: { 'X-Requested-With': 'XMLHttpRequest' }
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (data.success && data.quiz_data) {
+                    const qData = data.quiz_data;
+                    currentQuizState = {
+                        moduleId: moduleId,
+                        questions: qData.questions || [],
+                        currentQIdx: 0,
+                        score: 0,
+                        answers: []
+                    };
+                    currentFlashcardsState = {
+                        cards: qData.flashcards || [],
+                        cardIdx: 0,
+                        isFlipped: false
+                    };
+                    renderCurrentQuizQuestion();
+                    renderCurrentFlashcard();
+                } else {
+                    quizContainer.innerHTML = `<div class="alert alert-danger">Failed to generate quiz: ${data.error || 'Unknown error'}</div>`;
+                }
+            })
+            .catch(err => {
+                quizContainer.innerHTML = `<div class="alert alert-danger">Network error loading quiz. Please try again.</div>`;
+            });
+        });
+    });
+
+    function renderCurrentQuizQuestion() {
+        if (!quizContainer) return;
+        const qState = currentQuizState;
+        if (!qState.questions.length) {
+            quizContainer.innerHTML = `<div class="alert alert-info">No quiz questions available for this module.</div>`;
+            return;
+        }
+
+        if (qState.currentQIdx >= qState.questions.length) {
+            // Render Quiz Results Summary
+            const total = qState.questions.length;
+            const pct = Math.round((qState.score / total) * 100);
+            try {
+                localStorage.setItem('studyhub_quiz_m' + qState.moduleId, JSON.stringify({
+                    score: qState.score,
+                    total: total,
+                    percent: pct,
+                    timestamp: new Date().toISOString()
+                }));
+                restoreQuizBadges();
+            } catch(e) {}
+
+            quizContainer.innerHTML = `
+                <div class="text-center py-4">
+                    <div class="mb-3">
+                        <i class="bi bi-award-fill text-warning" style="font-size: 3rem;"></i>
+                    </div>
+                    <h3 class="h4 mb-1">Quiz Completed!</h3>
+                    <p class="text-secondary mb-3">You scored <strong>${qState.score} out of ${total}</strong> (${pct}%)</p>
+                    <div class="progress mb-4 mx-auto" style="max-width: 300px; height: 10px;">
+                        <div class="progress-bar ${pct >= 70 ? 'bg-success' : 'bg-warning'}" style="width: ${pct}%;"></div>
+                    </div>
+                    <button type="button" class="btn btn-primary d-inline-flex align-items-center gap-1" id="btnRetryQuiz">
+                        <i class="bi bi-arrow-repeat"></i> Retry Quiz
+                    </button>
+                </div>
+            `;
+            const retryBtn = document.getElementById('btnRetryQuiz');
+            if (retryBtn) {
+                retryBtn.addEventListener('click', function() {
+                    qState.currentQIdx = 0;
+                    qState.score = 0;
+                    qState.answers = [];
+                    renderCurrentQuizQuestion();
+                });
+            }
+            return;
+        }
+
+        const q = qState.questions[qState.currentQIdx];
+        const letters = ['A', 'B', 'C', 'D'];
+
+        quizContainer.innerHTML = `
+            <div class="d-flex justify-content-between align-items-center mb-3 pb-2 border-bottom">
+                <span class="text-secondary small font-monospace">Question ${qState.currentQIdx + 1} of ${qState.questions.length}</span>
+                <span class="badge bg-navy text-white">Score: ${qState.score}</span>
+            </div>
+            <h4 class="vtu-question-text mb-3" style="font-size: 1.12rem;">${escapeHtml(q.question)}</h4>
+            <div class="quiz-options-list">
+                ${q.options.map((opt, i) => `
+                    <button type="button" class="quiz-option-btn" data-opt-idx="${i}">
+                        <span><strong>${letters[i]}.</strong> ${escapeHtml(opt)}</span>
+                        <i class="bi bi-circle text-secondary opt-icon"></i>
+                    </button>
+                `).join('')}
+            </div>
+            <div id="quizExplanationBox" style="display: none;"></div>
+            <div class="mt-3 text-end" id="quizNextBtnWrap" style="display: none;">
+                <button type="button" class="btn btn-primary btn-sm d-inline-flex align-items-center gap-1" id="btnNextQuizQuestion">
+                    ${qState.currentQIdx + 1 === qState.questions.length ? 'View Results <i class="bi bi-trophy"></i>' : 'Next Question <i class="bi bi-arrow-right"></i>'}
+                </button>
+            </div>
+        `;
+
+        const optBtns = quizContainer.querySelectorAll('.quiz-option-btn');
+        const expBox = document.getElementById('quizExplanationBox');
+        const nextWrap = document.getElementById('quizNextBtnWrap');
+
+        optBtns.forEach(btn => {
+            btn.addEventListener('click', function() {
+                const selectedIdx = parseInt(this.getAttribute('data-opt-idx'), 10);
+                const isCorrect = (selectedIdx === q.correct_answer);
+
+                optBtns.forEach(b => {
+                    b.disabled = true;
+                    const bIdx = parseInt(b.getAttribute('data-opt-idx'), 10);
+                    if (bIdx === q.correct_answer) {
+                        b.classList.add('correct');
+                        b.querySelector('.opt-icon').className = 'bi bi-check-circle-fill text-success opt-icon';
+                    }
+                });
+
+                if (isCorrect) {
+                    qState.score++;
+                } else {
+                    this.classList.add('wrong');
+                    this.querySelector('.opt-icon').className = 'bi bi-x-circle-fill text-danger opt-icon';
+                }
+
+                if (expBox && q.explanation) {
+                    expBox.className = 'quiz-explanation-box';
+                    expBox.innerHTML = `<strong>💡 Explanation:</strong> ${escapeHtml(q.explanation)}`;
+                    expBox.style.display = 'block';
+                }
+
+                if (nextWrap) nextWrap.style.display = 'block';
+            });
+        });
+
+        const nextBtn = document.getElementById('btnNextQuizQuestion');
+        if (nextBtn) {
+            nextBtn.addEventListener('click', function() {
+                qState.currentQIdx++;
+                renderCurrentQuizQuestion();
+            });
+        }
+    }
+
+    function renderCurrentFlashcard() {
+        if (!flashcardsContainer) return;
+        const fState = currentFlashcardsState;
+        if (!fState.cards.length) {
+            flashcardsContainer.innerHTML = `<div class="alert alert-info">No flashcards available for this module.</div>`;
+            return;
+        }
+
+        const card = fState.cards[fState.cardIdx];
+        flashcardsContainer.innerHTML = `
+            <div class="d-flex justify-content-between align-items-center mb-2">
+                <span class="text-secondary small font-monospace">Card ${fState.cardIdx + 1} of ${fState.cards.length}</span>
+                <span class="text-secondary small"><i class="bi bi-hand-index-thumb me-1"></i>Click card to flip</span>
+            </div>
+            <div class="flashcard-stage" id="flashcardBoxWrap">
+                <div class="flashcard-box ${fState.isFlipped ? 'is-flipped' : ''}" id="flashcardBox">
+                    <span class="badge ${fState.isFlipped ? 'bg-success-subtle text-success' : 'bg-primary-subtle text-primary'} mb-2">
+                        ${fState.isFlipped ? 'Answer / Solution' : 'Concept / Question'}
+                    </span>
+                    <div class="flashcard-text">
+                        ${escapeHtml(fState.isFlipped ? card.back : card.front)}
+                    </div>
+                    <span class="text-secondary small mt-3 opacity-75">
+                        <i class="bi bi-arrow-repeat me-1"></i>${fState.isFlipped ? 'Click to flip back' : 'Click to reveal answer'}
+                    </span>
+                </div>
+            </div>
+            <div class="d-flex justify-content-between align-items-center mt-3 pt-2 border-top">
+                <button type="button" class="btn btn-sm btn-outline-secondary d-inline-flex align-items-center gap-1" id="btnPrevFlashcard" ${fState.cardIdx === 0 ? 'disabled' : ''}>
+                    <i class="bi bi-arrow-left"></i> Previous
+                </button>
+                <button type="button" class="btn btn-sm btn-outline-primary" id="btnFlipFlashcard">
+                    <i class="bi bi-arrow-repeat me-1"></i>Flip Card
+                </button>
+                <button type="button" class="btn btn-sm btn-outline-secondary d-inline-flex align-items-center gap-1" id="btnNextFlashcard" ${fState.cardIdx === fState.cards.length - 1 ? 'disabled' : ''}>
+                    Next <i class="bi bi-arrow-right"></i>
+                </button>
+            </div>
+        `;
+
+        function toggleFlip() {
+            fState.isFlipped = !fState.isFlipped;
+            renderCurrentFlashcard();
+        }
+
+        const cardBox = document.getElementById('flashcardBoxWrap');
+        if (cardBox) cardBox.addEventListener('click', toggleFlip);
+
+        const flipBtn = document.getElementById('btnFlipFlashcard');
+        if (flipBtn) flipBtn.addEventListener('click', toggleFlip);
+
+        const prevBtn = document.getElementById('btnPrevFlashcard');
+        if (prevBtn) {
+            prevBtn.addEventListener('click', function() {
+                if (fState.cardIdx > 0) {
+                    fState.cardIdx--;
+                    fState.isFlipped = false;
+                    renderCurrentFlashcard();
+                }
+            });
+        }
+
+        const nextCardBtn = document.getElementById('btnNextFlashcard');
+        if (nextCardBtn) {
+            nextCardBtn.addEventListener('click', function() {
+                if (fState.cardIdx < fState.cards.length - 1) {
+                    fState.cardIdx++;
+                    fState.isFlipped = false;
+                    renderCurrentFlashcard();
+                }
+            });
+        }
+    }
+
 
 });
 </script>
