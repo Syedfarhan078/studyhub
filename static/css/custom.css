@@ -1586,3 +1586,125 @@ textarea.form-control { border-radius: var(--radius) !important; border-left: 1p
         border: 1px solid #000 !important;
     }
 }
+
+/* ─── Passing Predictor & VTU Paper Strategy Calculator ──────── */
+.passing-predictor-dialog {
+    max-width: 980px;
+}
+
+.predictor-dashboard {
+    background: #fff;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+}
+
+.tactical-advice-box {
+    background: #faf7f2;
+    border: 1px solid #ebd9c4;
+    transition: all 0.2s ease;
+}
+
+.module-safety-pill {
+    font-size: 0.75rem;
+    font-weight: 600;
+    padding: 0.25rem 0.65rem;
+    border-radius: 999px;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+}
+
+.safety-pill-safe {
+    background: #e8f5e9;
+    color: #2e7d32;
+    border: 1px solid #c8e6c9;
+}
+
+.safety-pill-risk {
+    background: #fff8e1;
+    color: #b78103;
+    border: 1px solid #ffe082;
+}
+
+.safety-pill-skipped {
+    background: #ffebee;
+    color: #c62828;
+    border: 1px solid #ffcdd2;
+}
+
+.safety-pill-mastered {
+    background: #ede7f6;
+    color: #512da8;
+    border: 1px solid #d1c4e9;
+}
+
+.predictor-module-card {
+    background: #fff;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    overflow: hidden;
+    transition: border-color 0.15s ease;
+}
+
+.predictor-module-card.status-safe {
+    border-left: 4px solid #2e7d32;
+}
+
+.predictor-module-card.status-risk {
+    border-left: 4px solid #f59e0b;
+}
+
+.predictor-module-card.status-skipped {
+    border-left: 4px solid #dc3545;
+}
+
+.predictor-module-card.status-mastered {
+    border-left: 4px solid #6f42c1;
+}
+
+.predictor-module-header {
+    background: #fdfcf9;
+    padding: 0.75rem 1rem;
+    border-bottom: 1px solid var(--border);
+}
+
+.predictor-topic-item {
+    padding: 0.5rem 0.75rem;
+    border-radius: 6px;
+    transition: background 0.12s ease;
+}
+
+.predictor-topic-item:hover {
+    background: #fbf9f5;
+}
+
+.predictor-topic-item.checked {
+    background: #f0f7f0;
+}
+
+.predictor-preset-btn {
+    border-radius: 999px;
+    font-size: 0.78rem;
+    font-weight: 600;
+    transition: all 0.15s ease;
+}
+
+@media (min-width: 768px) {
+    .border-end-md {
+        border-right: 1px solid var(--border);
+    }
+}
+
+@media print {
+    .passing-predictor-dialog {
+        max-width: 100% !important;
+        margin: 0 !important;
+    }
+    .modal-backdrop, .btn-close, .modal-footer, .predictor-preset-btn, #btnSyncPredictorWithDesk, #btnClearPredictor {
+        display: none !important;
+    }
+    .predictor-module-card {
+        page-break-inside: avoid;
+        margin-bottom: 1rem;
+    }
+}

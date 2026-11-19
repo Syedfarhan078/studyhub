@@ -1,3 +1,4 @@
+import json
 import logging
 import mimetypes
 import uuid
@@ -355,6 +356,29 @@ def subject_detail(request, slug):
     target_marks_potential = min(100, mod_count * 16)
     marks_secured = int((high_yield_completed / high_yield_total) * target_marks_potential) if high_yield_total > 0 else 0
 
+    # Build Passing Predictor & Paper Strategy Simulator Data
+    simulator_modules = []
+    for mod in subject.modules.all().order_by('module_number'):
+        m_topics = []
+        for t in mod.topics.all().order_by('order', 'id'):
+            is_comp = hasattr(t, 'progress') and t.progress is not None and t.progress.status == TopicProgress.Status.COMPLETED
+            m_topics.append({
+                'id': t.id,
+                'title': t.title,
+                'slug': t.slug,
+                'is_high_yield': bool(t.is_high_yield_effective),
+                'vtu_frequency_tag': t.vtu_frequency_tag or ('Repeated VTU Core' if t.is_high_yield_effective else ''),
+                'is_completed': is_comp,
+            })
+        simulator_modules.append({
+            'module_id': mod.id,
+            'module_number': mod.module_number,
+            'title': mod.title,
+            'q_label': f"Q{mod.module_number * 2 - 1} or Q{mod.module_number * 2}",
+            'topics': m_topics,
+        })
+    simulator_data_json = json.dumps(simulator_modules)
+
     context = {
         'subject': subject,
         'active_topic': active_topic,
@@ -370,6 +394,7 @@ def subject_detail(request, slug):
         'high_yield_percent': high_yield_percent,
         'target_marks_potential': target_marks_potential,
         'marks_secured': marks_secured,
+        'simulator_data_json': simulator_data_json,
     }
     return render(request, 'curriculum/subject_detail.html', context)
 
@@ -411,9 +436,46 @@ def update_topic_progress(request, topic_id):
         
         progress.personal_notes = notes_content
         progress.save()
+        if request.headers.get('x-requested-with') == 'XMLHttpRequest':
+            return JsonResponse({'success': True, 'topic_id': topic.id, 'status': progress.status})
         messages.success(request, f"Updated progress for '{topic.title}'!")
     # Redirect back to the syllabus view with this topic selected
     return redirect(f"/subjects/{topic.module.subject.slug}/?topic={topic.slug}")
+
+
+def batch_update_topic_progress(request, slug):
+    """
+    Batch updates TopicProgress status for multiple topics in a subject.
+    Useful for 'Apply Checkmarks to Desk' in the Passing Predictor simulator.
+    """
+    subject = get_object_or_404(Subject, slug=slug)
+    if request.method == 'POST':
+        try:
+            data = json.loads(request.body.decode('utf-8'))
+        except Exception:
+            data = {}
+
+        topic_ids = data.get('topic_ids', [])
+        status = data.get('status', TopicProgress.Status.COMPLETED)
+        if status not in TopicProgress.Status.values:
+            status = TopicProgress.Status.COMPLETED
+
+        valid_topics = Topic.objects.filter(module__subject=subject, id__in=topic_ids)
+        updated_count = 0
+        with transaction.atomic():
+            for topic in valid_topics:
+                prog, _ = TopicProgress.objects.get_or_create(topic=topic)
+                prog.status = status
+                prog.save()
+                updated_count += 1
+
+        return JsonResponse({
+            'success': True,
+            'updated_count': updated_count,
+            'status': status,
+            'message': f"Successfully marked {updated_count} topics as {status} on your Study Desk."
+        })
+    return JsonResponse({'success': False, 'error': 'Method not allowed'}, status=405)
 
 
 def _serve_note_file(request, note_id, as_attachment=False):

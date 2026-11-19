@@ -26,6 +26,9 @@
         </p>
     </div>
     <div class="page-actions mt-3 mt-lg-0 d-flex flex-wrap align-items-center gap-2">
+        <button type="button" class="btn btn-sm btn-outline-success d-inline-flex align-items-center gap-1.5" id="btnOpenPassingPredictor" data-bs-toggle="modal" data-bs-target="#passingPredictorModal" title="Simulate VTU paper choice, calculate minimum guaranteed marks and avoid paired-question traps">
+            <i class="bi bi-calculator"></i> Passing Predictor
+        </button>
         <button type="button" class="btn btn-sm btn-outline-primary d-inline-flex align-items-center gap-1.5 btn-open-visual-gallery" data-subject-slug="{{ subject.slug }}" title="Last 60-min visual review: swipeable diagrams & 1-tap copyable formulas">
             <i class="bi bi-images"></i> 60-Min Visual Sheet
         </button>
@@ -79,7 +82,10 @@
             </div>
             <div class="d-flex justify-content-between align-items-center small text-secondary" style="font-size: 0.75rem;">
                 <span>Secured: <strong class="text-ink" id="gaugeSecuredMarks">{{ marks_secured }} Marks</strong> ({{ high_yield_completed }}/{{ high_yield_total }} done)</span>
-                <button type="button" class="btn btn-link btn-sm text-secondary p-0 text-decoration-none" id="btnExitHighYieldBanner" title="Show all topics">Exit</button>
+                <div class="d-flex align-items-center gap-2">
+                    <button type="button" class="btn btn-link btn-sm text-success p-0 text-decoration-none fw-semibold" data-bs-toggle="modal" data-bs-target="#passingPredictorModal" title="Simulate exam score with current topics">Simulate Paper →</button>
+                    <button type="button" class="btn btn-link btn-sm text-secondary p-0 text-decoration-none" id="btnExitHighYieldBanner" title="Show all topics">Exit</button>
+                </div>
             </div>
         </div>
     </div>
@@ -701,6 +707,127 @@
                         <div class="modal-footer d-flex justify-content-between py-2.5 border-top">
                             <span class="text-secondary small" id="visualFooterHint"><i class="bi bi-arrows me-1"></i>Swipe or click Previous/Next to flip diagrams</span>
                             <button type="button" class="btn btn-sm btn-primary" data-bs-dismiss="modal">Close</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Interactive Passing Predictor & VTU Paper Strategy Calculator Modal -->
+            <div class="modal fade" id="passingPredictorModal" tabindex="-1" aria-labelledby="passingPredictorModalLabel" aria-hidden="true">
+                <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable passing-predictor-dialog">
+                    <div class="modal-content border-0 shadow-lg" style="border-radius: var(--radius);">
+                        <div class="modal-header border-bottom py-3">
+                            <div class="d-flex flex-column">
+                                <span class="eyebrow mb-1 text-success"><i class="bi bi-calculator me-1"></i>VTU Paper Choice Simulator</span>
+                                <h2 class="h6 modal-title mb-0" id="passingPredictorModalLabel">Interactive Passing Predictor &amp; Paper Strategy Calculator</h2>
+                            </div>
+                            <div class="d-flex align-items-center gap-2 ms-auto">
+                                <button type="button" class="btn btn-sm btn-outline-secondary d-none d-sm-inline-flex align-items-center gap-1" id="btnPrintPredictorStrategy">
+                                    <i class="bi bi-printer"></i> Print Strategy
+                                </button>
+                                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                            </div>
+                        </div>
+
+                        <!-- Target Preset Strategy Bar -->
+                        <div class="bg-body-tertiary px-3 py-2 border-bottom d-flex flex-wrap align-items-center justify-content-between gap-2">
+                            <div class="d-flex align-items-center gap-1.5 flex-wrap">
+                                <span class="small text-secondary fw-semibold me-1"><i class="bi bi-sliders me-1"></i>Strategy Presets:</span>
+                                <button type="button" class="btn btn-sm btn-outline-success py-1 px-2.5 predictor-preset-btn" data-preset="pass">
+                                    <i class="bi bi-check-circle me-1"></i>Target Pass (35M)
+                                </button>
+                                <button type="button" class="btn btn-sm btn-outline-primary py-1 px-2.5 predictor-preset-btn" data-preset="first-class">
+                                    <i class="bi bi-award me-1"></i>First Class (60M)
+                                </button>
+                                <button type="button" class="btn btn-sm btn-outline-secondary py-1 px-2.5 predictor-preset-btn" data-preset="topper">
+                                    <i class="bi bi-trophy me-1"></i>Distinction / Topper (85M+)
+                                </button>
+                            </div>
+                            <div class="d-flex align-items-center gap-1.5 ms-auto">
+                                <button type="button" class="btn btn-sm btn-light border py-1 px-2 text-secondary" id="btnSyncPredictorWithDesk" title="Populate checkboxes from your current Study Desk progress">
+                                    <i class="bi bi-arrow-repeat me-1"></i>Sync Desk
+                                </button>
+                                <button type="button" class="btn btn-sm btn-light border py-1 px-2 text-danger" id="btnClearPredictor" title="Reset all checkboxes to test blank scenarios">
+                                    <i class="bi bi-trash3 me-1"></i>Reset
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="modal-body p-3 p-md-4" id="passingPredictorModalBody">
+                            <!-- SCOREBOARD DASHBOARD -->
+                            <div class="predictor-dashboard mb-4 p-3 p-md-3.5 rounded-3 border bg-white shadow-sm">
+                                <div class="row g-3 align-items-center">
+                                    <div class="col-12 col-md-5 border-end-md">
+                                        <div class="d-flex align-items-center justify-content-between mb-1">
+                                            <span class="small text-uppercase fw-bold text-secondary" style="font-size: 0.72rem; letter-spacing: 0.05em;">Minimum Guaranteed Marks</span>
+                                            <span class="badge" id="predStatusBadge">CALCULATING...</span>
+                                        </div>
+                                        <div class="d-flex align-items-baseline gap-2 mb-1">
+                                            <span class="display-6 fw-bold" id="predMarksDisplay" style="color: var(--primary);">0</span>
+                                            <span class="text-secondary fs-5">/ 100 Marks</span>
+                                        </div>
+                                        <div class="d-flex justify-content-between align-items-center small text-secondary mb-2">
+                                            <span id="predScaledScore">~0 / 50 Scaled</span>
+                                            <span class="fw-semibold text-danger" style="font-size: 0.75rem;">VTU Pass: 35 / 100M</span>
+                                        </div>
+
+                                        <!-- Progress Bar with 35M Pass Line Indicator -->
+                                        <div class="position-relative mb-2">
+                                            <div class="progress" style="height: 10px; border-radius: 999px;">
+                                                <div class="progress-bar transition-all" id="predScoreProgressBar" role="progressbar" style="width: 0%;" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100"></div>
+                                            </div>
+                                            <!-- 35M Passing Threshold Line -->
+                                            <div class="position-absolute" style="left: 35%; top: -3px; bottom: -3px; width: 2px; background: #dc3545; z-index: 2;" title="35 Marks Passing Threshold"></div>
+                                        </div>
+                                        <div class="d-flex justify-content-between align-items-center" style="font-size: 0.72rem; color: #8c827a;">
+                                            <span>0</span>
+                                            <span class="fw-bold text-danger">▲ 35M Passing Line</span>
+                                            <span>100</span>
+                                        </div>
+                                    </div>
+
+                                    <!-- TACTICAL ADVICE BOX -->
+                                    <div class="col-12 col-md-7 ps-md-3">
+                                        <div class="tactical-advice-box p-2.5 px-3 rounded-2 h-100" id="predTacticalAdviceBox">
+                                            <div class="d-flex align-items-center gap-1.5 mb-1.5 text-ink fw-bold small">
+                                                <i class="bi bi-shield-check text-success" id="predAdviceIcon"></i>
+                                                <span id="predAdviceTitle">Tactical Exam Strategy</span>
+                                            </div>
+                                            <div class="small text-secondary" id="predAdviceText" style="line-height: 1.45;">
+                                                Select the topics you know in each module below to view your paper choice safety and tactical passing plan.
+                                            </div>
+                                            <div class="mt-2 pt-2 border-top d-flex flex-wrap gap-2 align-items-center justify-content-between small" id="predSafetySummaryPills">
+                                                <!-- Dynamic module safety mini pills will render here -->
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- VTU PAPER EXPLAINER BANNER -->
+                            <div class="alert alert-light border small text-secondary py-2 px-3 mb-3 d-flex align-items-center gap-2">
+                                <i class="bi bi-info-circle text-primary fs-6"></i>
+                                <div>
+                                    <strong>VTU Exam Choice Rule:</strong> Each module gives you an OR choice between two 20-mark questions (e.g. Q1 OR Q2). Sub-questions cannot be split. Covering only 1 topic risks losing the paired sub-question (7M vs 15M).
+                                </div>
+                            </div>
+
+                            <!-- 5 MODULE CARDS / ACCORDIONS -->
+                            <div class="predictor-modules-container d-flex flex-column gap-3" id="predictorModulesContainer">
+                                <!-- Populated dynamically via JS -->
+                            </div>
+                        </div>
+
+                        <div class="modal-footer d-flex flex-wrap align-items-center justify-content-between py-2.5 border-top">
+                            <span class="text-secondary small">
+                                <i class="bi bi-save2 me-1"></i>Auto-saved locally in browser
+                            </span>
+                            <div class="d-flex align-items-center gap-2">
+                                <button type="button" class="btn btn-sm btn-outline-success" id="btnApplyPredictorToDesk" title="Mark selected topics as Completed on your Study Desk">
+                                    <i class="bi bi-check2-all me-1"></i>Apply Checkmarks to Desk
+                                </button>
+                                <button type="button" class="btn btn-sm btn-primary px-3" data-bs-dismiss="modal">Done</button>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -2024,6 +2151,448 @@ document.addEventListener('DOMContentLoaded', function() {
 
     if (btnPrintVisualGallery) {
         btnPrintVisualGallery.addEventListener('click', () => window.print());
+    }
+
+    // ─── Passing Predictor & VTU Paper Strategy Simulator ────────────────
+    const predictorModalEl = document.getElementById('passingPredictorModal');
+    const predMarksDisplay = document.getElementById('predMarksDisplay');
+    const predScaledScore = document.getElementById('predScaledScore');
+    const predStatusBadge = document.getElementById('predStatusBadge');
+    const predScoreProgressBar = document.getElementById('predScoreProgressBar');
+    const predAdviceTitle = document.getElementById('predAdviceTitle');
+    const predAdviceText = document.getElementById('predAdviceText');
+    const predAdviceIcon = document.getElementById('predAdviceIcon');
+    const predSafetySummaryPills = document.getElementById('predSafetySummaryPills');
+    const predictorModulesContainer = document.getElementById('predictorModulesContainer');
+    const btnPrintPredictorStrategy = document.getElementById('btnPrintPredictorStrategy');
+    const btnApplyPredictorToDesk = document.getElementById('btnApplyPredictorToDesk');
+    const btnSyncPredictorWithDesk = document.getElementById('btnSyncPredictorWithDesk');
+    const btnClearPredictor = document.getElementById('btnClearPredictor');
+
+    let simulatorModules = [];
+    try {
+        simulatorModules = JSON.parse('{{ simulator_data_json|escapejs }}');
+    } catch(e) {
+        console.error("Failed to parse simulator_data_json", e);
+        simulatorModules = [];
+    }
+
+    const PREDICTOR_STORAGE_KEY = 'studyhub_predictor_{{ subject.slug }}';
+    const checkedTopicIds = new Set();
+
+    function loadPredictorState() {
+        checkedTopicIds.clear();
+        let loaded = false;
+        try {
+            const saved = localStorage.getItem(PREDICTOR_STORAGE_KEY);
+            if (saved) {
+                const arr = JSON.parse(saved);
+                if (Array.isArray(arr) && arr.length > 0) {
+                    arr.forEach(id => checkedTopicIds.add(Number(id)));
+                    loaded = true;
+                }
+            }
+        } catch(e) {}
+
+        if (!loaded) {
+            syncWithDeskProgress();
+        }
+    }
+
+    function savePredictorState() {
+        try {
+            localStorage.setItem(PREDICTOR_STORAGE_KEY, JSON.stringify(Array.from(checkedTopicIds)));
+        } catch(e) {}
+    }
+
+    function syncWithDeskProgress() {
+        checkedTopicIds.clear();
+        simulatorModules.forEach(mod => {
+            mod.topics.forEach(t => {
+                if (t.is_completed) {
+                    checkedTopicIds.add(Number(t.id));
+                }
+            });
+        });
+    }
+
+    function renderPredictorModules() {
+        if (!predictorModulesContainer) return;
+        predictorModulesContainer.innerHTML = simulatorModules.map(mod => {
+            return `
+                <div class="predictor-module-card status-skipped" data-mod-id="${mod.module_id}" data-mod-num="${mod.module_number}">
+                    <div class="predictor-module-header d-flex flex-wrap align-items-center justify-content-between gap-2">
+                        <div class="d-flex align-items-center gap-2">
+                            <span class="badge bg-secondary text-white fw-bold">MODULE ${mod.module_number}</span>
+                            <span class="fw-bold text-ink small">${escapeHtml(mod.title)}</span>
+                            <span class="badge bg-light text-secondary border d-none d-sm-inline" style="font-size:0.72rem;">${escapeHtml(mod.q_label)} (20M)</span>
+                        </div>
+                        <div class="d-flex align-items-center gap-2">
+                            <span class="module-safety-pill safety-pill-skipped" id="safetyPill_mod_${mod.module_number}">
+                                🔴 Skipped (0/20M)
+                            </span>
+                            <div class="btn-group btn-group-sm">
+                                <button type="button" class="btn btn-outline-secondary py-0.5 px-2 text-decoration-none btn-mod-action" data-action="all" data-mod-num="${mod.module_number}" style="font-size:0.75rem;">All</button>
+                                <button type="button" class="btn btn-outline-warning py-0.5 px-2 text-decoration-none btn-mod-action" data-action="high-yield" data-mod-num="${mod.module_number}" style="font-size:0.75rem;">High-Yield</button>
+                                <button type="button" class="btn btn-outline-secondary py-0.5 px-2 text-decoration-none btn-mod-action" data-action="clear" data-mod-num="${mod.module_number}" style="font-size:0.75rem;">Clear</button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="p-3 bg-white">
+                        <div class="row g-2">
+                            ${mod.topics.map(t => {
+                                const isChecked = checkedTopicIds.has(Number(t.id));
+                                return `
+                                    <div class="col-12 col-md-6">
+                                        <div class="predictor-topic-item d-flex align-items-center gap-2 border rounded-1 ${isChecked ? 'checked' : ''}">
+                                            <input class="form-check-input mt-0 pred-topic-checkbox" type="checkbox" id="pred_t_${t.id}" data-topic-id="${t.id}" data-mod-num="${mod.module_number}" ${isChecked ? 'checked' : ''}>
+                                            <label class="form-check-label flex-grow-1 small text-truncate cursor-pointer" for="pred_t_${t.id}" title="${escapeHtml(t.title)}">
+                                                ${escapeHtml(t.title)}
+                                            </label>
+                                            ${t.is_high_yield ? `
+                                                <span class="badge bg-danger-subtle text-danger border border-danger-subtle d-inline-flex align-items-center gap-1 ms-auto" style="font-size:0.7rem;" title="${escapeHtml(t.vtu_frequency_tag || 'Frequently tested VTU Question')}">
+                                                    <i class="bi bi-fire"></i> High Yield
+                                                </span>
+                                            ` : ''}
+                                        </div>
+                                    </div>
+                                `;
+                            }).join('')}
+                        </div>
+                    </div>
+                </div>
+            `;
+        }).join('');
+
+        // Attach checkbox event listeners
+        predictorModulesContainer.querySelectorAll('.pred-topic-checkbox').forEach(cb => {
+            cb.addEventListener('change', function() {
+                const topicId = Number(this.getAttribute('data-topic-id'));
+                if (this.checked) {
+                    checkedTopicIds.add(topicId);
+                } else {
+                    checkedTopicIds.delete(topicId);
+                }
+                savePredictorState();
+                calculateAndRenderScores();
+            });
+        });
+
+        // Attach module action listeners (All / High-Yield / Clear)
+        predictorModulesContainer.querySelectorAll('.btn-mod-action').forEach(btn => {
+            btn.addEventListener('click', function() {
+                const modNum = Number(this.getAttribute('data-mod-num'));
+                const action = this.getAttribute('data-action');
+                const mod = simulatorModules.find(m => m.module_number === modNum);
+                if (!mod) return;
+
+                if (action === 'all') {
+                    mod.topics.forEach(t => checkedTopicIds.add(Number(t.id)));
+                } else if (action === 'high-yield') {
+                    mod.topics.forEach(t => {
+                        if (t.is_high_yield) checkedTopicIds.add(Number(t.id));
+                        else checkedTopicIds.delete(Number(t.id));
+                    });
+                } else if (action === 'clear') {
+                    mod.topics.forEach(t => checkedTopicIds.delete(Number(t.id)));
+                }
+
+                savePredictorState();
+                calculateAndRenderScores();
+            });
+        });
+    }
+
+    function calculateAndRenderScores() {
+        let totalGuaranteedMarks = 0;
+        let safeCount = 0;
+        let riskCount = 0;
+        let skippedCount = 0;
+        let masteredCount = 0;
+        const moduleDiagnoses = [];
+
+        simulatorModules.forEach(mod => {
+            const totalModTopics = mod.topics.length;
+            const checkedTopicsInMod = mod.topics.filter(t => checkedTopicIds.has(Number(t.id)));
+            const checkedCount = checkedTopicsInMod.length;
+
+            let modScore = 0;
+            let status = 'skipped';
+            let label = '🔴 Skipped (0/20M)';
+            let pillClass = 'safety-pill-skipped';
+
+            if (checkedCount === 0) {
+                modScore = 0;
+                status = 'skipped';
+                label = '🔴 Skipped (0/20M)';
+                pillClass = 'safety-pill-skipped';
+                skippedCount++;
+                moduleDiagnoses.push({
+                    modNum: mod.module_number,
+                    status: 'skipped',
+                    advice: `Module ${mod.module_number} is completely skipped (0/20M). No questions answerable.`
+                });
+            } else if (checkedCount === 1) {
+                modScore = 7;
+                status = 'risk';
+                label = '🟡 Paired Question Risk (~7/20M)';
+                pillClass = 'safety-pill-risk';
+                riskCount++;
+                const tName = checkedTopicsInMod[0].title;
+                moduleDiagnoses.push({
+                    modNum: mod.module_number,
+                    status: 'risk',
+                    topic: tName,
+                    advice: `Module ${mod.module_number} has only 1 topic checked ("${tName}"). If the exam pairs it with an unread sub-question, you forfeit ~13 marks. Cover 1 more topic to unlock 15M!`
+                });
+            } else if (checkedCount >= 2 && (checkedCount / totalModTopics < 0.7 && checkedCount < 3)) {
+                modScore = 15;
+                status = 'safe';
+                label = '🟢 Safe Choice (~15/20M)';
+                pillClass = 'safety-pill-safe';
+                safeCount++;
+            } else {
+                modScore = checkedCount === totalModTopics ? 20 : 19;
+                status = 'mastered';
+                label = '⭐ Mastered (~19/20M)';
+                pillClass = 'safety-pill-mastered';
+                masteredCount++;
+            }
+
+            totalGuaranteedMarks += modScore;
+
+            // Update live card styling & pill without full DOM re-render
+            const card = predictorModulesContainer ? predictorModulesContainer.querySelector(`.predictor-module-card[data-mod-num="${mod.module_number}"]`) : null;
+            if (card) {
+                card.className = `predictor-module-card status-${status}`;
+                const pill = document.getElementById(`safetyPill_mod_${mod.module_number}`);
+                if (pill) {
+                    pill.className = `module-safety-pill ${pillClass}`;
+                    pill.innerHTML = label;
+                }
+                // Update topic items checked highlight
+                mod.topics.forEach(t => {
+                    const item = card.querySelector(`#pred_t_${t.id}`);
+                    if (item) {
+                        item.checked = checkedTopicIds.has(Number(t.id));
+                        const itemWrapper = item.closest('.predictor-topic-item');
+                        if (itemWrapper) {
+                            itemWrapper.classList.toggle('checked', item.checked);
+                        }
+                    }
+                });
+            }
+        });
+
+        // Clamping marks
+        totalGuaranteedMarks = Math.min(100, Math.max(0, totalGuaranteedMarks));
+        const scaled50 = Math.round(totalGuaranteedMarks * 0.5);
+
+        // Update scoreboard
+        if (predMarksDisplay) predMarksDisplay.textContent = totalGuaranteedMarks;
+        if (predScaledScore) predScaledScore.textContent = `~${scaled50} / 50 Scaled (50M scheme)`;
+        if (predScoreProgressBar) {
+            predScoreProgressBar.style.width = `${totalGuaranteedMarks}%`;
+            predScoreProgressBar.setAttribute('aria-valuenow', totalGuaranteedMarks);
+            if (totalGuaranteedMarks >= 70) {
+                predScoreProgressBar.className = 'progress-bar bg-primary transition-all';
+            } else if (totalGuaranteedMarks >= 50) {
+                predScoreProgressBar.className = 'progress-bar bg-success transition-all';
+            } else if (totalGuaranteedMarks >= 35) {
+                predScoreProgressBar.className = 'progress-bar bg-warning transition-all';
+            } else {
+                predScoreProgressBar.className = 'progress-bar bg-danger transition-all';
+            }
+        }
+
+        // Status badge & Tactical advice
+        let statusBadgeText = '';
+        let statusBadgeClass = '';
+        let adviceTitle = '';
+        let adviceIcon = 'bi-shield-check text-success';
+        let adviceText = '';
+
+        if (totalGuaranteedMarks < 35) {
+            const shortMarks = 35 - totalGuaranteedMarks;
+            statusBadgeText = 'CRITICAL (< 35M PASS)';
+            statusBadgeClass = 'bg-danger text-white';
+            adviceTitle = `⚠️ Critical: You are ${shortMarks} Marks Below Passing Line`;
+            adviceIcon = 'bi-exclamation-triangle-fill text-danger';
+
+            const firstRisk = moduleDiagnoses.find(d => d.status === 'risk');
+            const firstSkipped = moduleDiagnoses.find(d => d.status === 'skipped');
+
+            if (firstRisk) {
+                adviceText = `You are guaranteed ${totalGuaranteedMarks}/100M. <strong>Fastest fix:</strong> Study 1 more high-yield topic in <strong>Module ${firstRisk.modNum}</strong> to upgrade it from 7M to 15M (+8 Marks), bridging your gap to pass!`;
+            } else if (firstSkipped) {
+                adviceText = `You are guaranteed ${totalGuaranteedMarks}/100M. <strong>Fastest fix:</strong> Master 2 high-yield core topics in <strong>Module ${firstSkipped.modNum}</strong> to instantly unlock +15 guaranteed marks and cross the 35-mark passing threshold.`;
+            } else {
+                adviceText = `You need ${shortMarks} more marks to pass. Click the <strong>"Target Pass (35M)"</strong> preset above to see the fastest 5-topic survival roadmap!`;
+            }
+        } else if (totalGuaranteedMarks < 50) {
+            statusBadgeText = 'BARE PASS (35-49M)';
+            statusBadgeClass = 'bg-warning text-dark';
+            adviceTitle = '⚡ Passing Threshold Cleared — Guard Against Evaluator Variance';
+            adviceIcon = 'bi-shield-exclamation text-warning';
+
+            const firstRisk = moduleDiagnoses.find(d => d.status === 'risk');
+            if (firstRisk) {
+                adviceText = `You have secured ${totalGuaranteedMarks}/100M, passing VTU's 35-mark requirement. However, <strong>Module ${firstRisk.modNum}</strong> has a paired sub-question gamble. If university valuation is strict, your buffer is tight. Adding 1 topic in Module ${firstRisk.modNum} locks in a safe 50M+ buffer.`;
+            } else {
+                adviceText = `You have secured ${totalGuaranteedMarks}/100M and cleared passing. Review 1-2 more high-yield formulas to enter the First Class zone (50M+).`;
+            }
+        } else if (totalGuaranteedMarks < 70) {
+            statusBadgeText = 'SAFE FIRST CLASS (50-69M)';
+            statusBadgeClass = 'bg-success text-white';
+            adviceTitle = '🛡️ Safe First Class Zone (Solid Passing Buffer)';
+            adviceIcon = 'bi-shield-check text-success';
+            adviceText = `You have guaranteed ${totalGuaranteedMarks}/100M. You have an impenetrable safety cushion well above the 35M passing line. Even under strict evaluation, your First Class is secure.`;
+        } else if (totalGuaranteedMarks < 85) {
+            statusBadgeText = 'DISTINCTION BUFFER (70-84M)';
+            statusBadgeClass = 'bg-primary text-white';
+            adviceTitle = '🎖️ Distinction Tier Confirmed';
+            adviceIcon = 'bi-award text-primary';
+            adviceText = `Outstanding preparation (${totalGuaranteedMarks}/100M)! Your question choice safety gives you full command over the paper. You can confidently skip tricky numericals and write top-scoring theory/diagrams.`;
+        } else {
+            statusBadgeText = 'TOPPER TIER (85-100M)';
+            statusBadgeClass = 'bg-secondary text-white';
+            adviceTitle = '👑 Topper Tier / Near Full Marks';
+            adviceIcon = 'bi-trophy text-warning';
+            adviceText = `Complete syllabus mastery (${totalGuaranteedMarks}/100M)! You have full choice freedom on both Q1 and Q2 across every single module. VTU surprise questions cannot faze you.`;
+        }
+
+        if (predStatusBadge) {
+            predStatusBadge.textContent = statusBadgeText;
+            predStatusBadge.className = `badge ${statusBadgeClass}`;
+        }
+        if (predAdviceTitle) predAdviceTitle.textContent = adviceTitle;
+        if (predAdviceIcon) predAdviceIcon.className = `bi ${adviceIcon}`;
+        if (predAdviceText) predAdviceText.innerHTML = adviceText;
+
+        if (predSafetySummaryPills) {
+            predSafetySummaryPills.innerHTML = `
+                <span class="badge bg-success-subtle text-success border border-success-subtle py-1 px-2">${safeCount + masteredCount} Safe Choice</span>
+                <span class="badge bg-warning-subtle text-warning border border-warning-subtle py-1 px-2">${riskCount} Paired Risk</span>
+                <span class="badge bg-danger-subtle text-danger border border-danger-subtle py-1 px-2">${skippedCount} Skipped</span>
+            `;
+        }
+    }
+
+    // Presets Click Handlers
+    document.querySelectorAll('.predictor-preset-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const preset = this.getAttribute('data-preset');
+            checkedTopicIds.clear();
+
+            if (preset === 'pass') {
+                // Select top 2 high-yield topics in the first 3 modules (~37-45M)
+                simulatorModules.slice(0, 3).forEach(mod => {
+                    const hy = mod.topics.filter(t => t.is_high_yield);
+                    const picks = hy.length >= 2 ? hy.slice(0, 2) : mod.topics.slice(0, 2);
+                    picks.forEach(t => checkedTopicIds.add(Number(t.id)));
+                });
+            } else if (preset === 'first-class') {
+                // Select top 2 high-yield topics across first 4 modules (~60-65M)
+                simulatorModules.slice(0, 4).forEach(mod => {
+                    const hy = mod.topics.filter(t => t.is_high_yield);
+                    const picks = hy.length >= 2 ? hy.slice(0, 2) : mod.topics.slice(0, 2);
+                    picks.forEach(t => checkedTopicIds.add(Number(t.id)));
+                });
+            } else if (preset === 'topper') {
+                // Select all high-yield + core topics across all 5 modules (~85-95M)
+                simulatorModules.forEach(mod => {
+                    mod.topics.forEach(t => {
+                        if (t.is_high_yield || mod.topics.indexOf(t) < 3) {
+                            checkedTopicIds.add(Number(t.id));
+                        }
+                    });
+                });
+            }
+
+            savePredictorState();
+            calculateAndRenderScores();
+        });
+    });
+
+    if (btnSyncPredictorWithDesk) {
+        btnSyncPredictorWithDesk.addEventListener('click', function() {
+            syncWithDeskProgress();
+            savePredictorState();
+            calculateAndRenderScores();
+        });
+    }
+
+    if (btnClearPredictor) {
+        btnClearPredictor.addEventListener('click', function() {
+            checkedTopicIds.clear();
+            savePredictorState();
+            calculateAndRenderScores();
+        });
+    }
+
+    if (btnPrintPredictorStrategy) {
+        btnPrintPredictorStrategy.addEventListener('click', () => window.print());
+    }
+
+    // Apply Checkmarks to Desk Handler
+    if (btnApplyPredictorToDesk) {
+        btnApplyPredictorToDesk.addEventListener('click', function() {
+            const topicIdList = Array.from(checkedTopicIds);
+            if (topicIdList.length === 0) {
+                alert("Please check at least one topic in the simulator to apply to your Study Desk.");
+                return;
+            }
+
+            const origHtml = this.innerHTML;
+            this.innerHTML = '<span class="spinner-border spinner-border-sm me-1" role="status"></span>Applying...';
+            this.disabled = true;
+
+            fetch('{% url "curriculum:batch_update_topic_progress" subject.slug %}', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': '{{ csrf_token }}',
+                    'X-Requested-With': 'XMLHttpRequest'
+                },
+                body: JSON.stringify({
+                    topic_ids: topicIdList,
+                    status: 'COMPLETED'
+                })
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) {
+                    this.innerHTML = '<i class="bi bi-check2 text-white"></i> Applied to Desk!';
+                    this.classList.remove('btn-outline-success');
+                    this.classList.add('btn-success', 'text-white');
+                    setTimeout(() => {
+                        window.location.reload();
+                    }, 800);
+                } else {
+                    alert(data.error || 'Failed to update progress.');
+                    this.innerHTML = origHtml;
+                    this.disabled = false;
+                }
+            })
+            .catch(err => {
+                alert('Network error updating progress.');
+                this.innerHTML = origHtml;
+                this.disabled = false;
+            });
+        });
+    }
+
+    // Modal show handler: initialize modules and scores on first open
+    let predictorInitialized = false;
+    if (predictorModalEl) {
+        predictorModalEl.addEventListener('show.bs.modal', function() {
+            if (!predictorInitialized) {
+                loadPredictorState();
+                renderPredictorModules();
+                calculateAndRenderScores();
+                predictorInitialized = true;
+            }
+        });
     }
 
 });

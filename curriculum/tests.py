@@ -13,7 +13,7 @@ from django.core.management import call_command
 from django.contrib.auth import get_user_model
 from django.utils import timezone
 from django.core.files.uploadedfile import SimpleUploadedFile
-from curriculum.models import Module, Subject, Topic, TopicKeyword, GenerationJob, ModuleNote, ExamQuestion
+from curriculum.models import Module, Subject, Topic, TopicKeyword, GenerationJob, ModuleNote, ExamQuestion, TopicProgress
 from curriculum.services.ai_curriculum import (
     CurriculumParseError,
     CurriculumValidationError,
@@ -2988,3 +2988,118 @@ class VisualSheetGalleryTests(TestCase):
         self.assertContains(res, 'Diagrams Story-Gallery')
         self.assertContains(res, 'Formula Bank')
         self.assertContains(res, '60-Min Visual Sheet')
+
+
+class PassingPredictorTests(TestCase):
+    def setUp(self):
+        self.subject = Subject.objects.create(
+            name="Microcontroller and Embedded Systems",
+            code="BCS401",
+            slug="embedded-systems",
+            branch=Subject.Branch.CSE,
+            semester=4,
+            scheme="2022 Scheme"
+        )
+        self.mod1 = Module.objects.create(
+            subject=self.subject,
+            module_number=1,
+            title="ARM Cortex-M0 Architecture",
+            description="Core registers and pipeline"
+        )
+        self.mod2 = Module.objects.create(
+            subject=self.subject,
+            module_number=2,
+            title="Embedded C and Assembly",
+            description="Instructions and interfacing"
+        )
+        self.t1 = Topic.objects.create(
+            module=self.mod1,
+            title="ARM Core Registers & Pipeline",
+            slug="arm-registers",
+            order=1,
+            is_high_yield=True,
+            vtu_frequency_tag="Repeated 4+ yrs"
+        )
+        self.t2 = Topic.objects.create(
+            module=self.mod1,
+            title="Memory Map and Bus Architecture",
+            slug="memory-map",
+            order=2,
+            is_high_yield=False
+        )
+        self.t3 = Topic.objects.create(
+            module=self.mod2,
+            title="GPIO Interfacing and Registers",
+            slug="gpio-interfacing",
+            order=1,
+            is_high_yield=True
+        )
+
+    def test_simulator_data_in_subject_detail_context(self):
+        """Tests that subject_detail view provides serialized simulator_data_json."""
+        url = reverse('curriculum:subject_detail', kwargs={'slug': self.subject.slug})
+        res = self.client.get(url)
+        self.assertEqual(res.status_code, 200)
+
+        # Context has simulator_data_json
+        self.assertIn('simulator_data_json', res.context)
+        import json
+        data = json.loads(res.context['simulator_data_json'])
+        self.assertEqual(len(data), 2)
+        self.assertEqual(data[0]['module_number'], 1)
+        self.assertEqual(data[0]['q_label'], 'Q1 or Q2')
+        self.assertEqual(len(data[0]['topics']), 2)
+
+        topic_1_data = next(t for t in data[0]['topics'] if t['id'] == self.t1.id)
+        self.assertTrue(topic_1_data['is_high_yield'])
+        self.assertEqual(topic_1_data['vtu_frequency_tag'], 'Repeated 4+ yrs')
+        self.assertFalse(topic_1_data['is_completed'])
+
+    def test_subject_detail_renders_passing_predictor_modal_and_controls(self):
+        """Tests that HTML contains the predictor modal, trigger buttons, and scoreboard elements."""
+        url = reverse('curriculum:subject_detail', kwargs={'slug': self.subject.slug})
+        res = self.client.get(url)
+        self.assertEqual(res.status_code, 200)
+
+        # Buttons and modal
+        self.assertContains(res, 'btnOpenPassingPredictor')
+        self.assertContains(res, 'passingPredictorModal')
+        self.assertContains(res, 'predMarksDisplay')
+        self.assertContains(res, 'predScoreProgressBar')
+        self.assertContains(res, 'predTacticalAdviceBox')
+        self.assertContains(res, 'predictor-preset-btn')
+        self.assertContains(res, 'Target Pass (35M)')
+        self.assertContains(res, 'First Class (60M)')
+        self.assertContains(res, 'btnApplyPredictorToDesk')
+        self.assertContains(res, 'btnSyncPredictorWithDesk')
+
+    def test_batch_update_topic_progress_endpoint(self):
+        """Tests /subjects/<slug>/batch-progress/ updates multiple topic progress records."""
+        url = reverse('curriculum:batch_update_topic_progress', kwargs={'slug': self.subject.slug})
+
+        # Method not allowed for GET
+        res_get = self.client.get(url)
+        self.assertEqual(res_get.status_code, 405)
+
+        # POST batch update
+        payload = {
+            'topic_ids': [self.t1.id, self.t3.id],
+            'status': TopicProgress.Status.COMPLETED
+        }
+        res_post = self.client.post(
+            url,
+            data=json.dumps(payload),
+            content_type='application/json',
+            HTTP_X_REQUESTED_WITH='XMLHttpRequest'
+        )
+        self.assertEqual(res_post.status_code, 200)
+        data = res_post.json()
+        self.assertTrue(data['success'])
+        self.assertEqual(data['updated_count'], 2)
+
+        # Verify DB records
+        p1 = TopicProgress.objects.get(topic=self.t1)
+        self.assertEqual(p1.status, TopicProgress.Status.COMPLETED)
+
+        p3 = TopicProgress.objects.get(topic=self.t3)
+        self.assertEqual(p3.status, TopicProgress.Status.COMPLETED)
