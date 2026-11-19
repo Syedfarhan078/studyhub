@@ -1469,3 +1469,120 @@ textarea.form-control { border-radius: var(--radius) !important; border-left: 1p
 .chapter-block.chapter-hidden-by-yield {
     display: none !important;
 }
+
+
+/* ─── 60-Minute Visual Sheet: Diagram & Formula Flash-Gallery ──────── */
+.visual-gallery-dialog {
+    max-width: 960px;
+}
+
+.story-bar-wrapper {
+    display: flex;
+    gap: 4px;
+    width: 100%;
+    margin-bottom: 0.75rem;
+}
+
+.story-bar {
+    height: 4px;
+    flex-grow: 1;
+    background: #e3dcd0;
+    border-radius: 2px;
+    transition: background 0.25s ease;
+}
+
+.story-bar.completed {
+    background: #1e3a5f;
+}
+
+.story-bar.active {
+    background: #dc3545;
+}
+
+.visual-diagram-card {
+    background: #fffcf7;
+    border: 1px solid #e3dcd0;
+    border-radius: 10px;
+    padding: 1.5rem;
+    box-shadow: 0 4px 14px rgba(0,0,0,0.04);
+}
+
+.visual-diagram-terminal {
+    background: #161b22;
+    color: #58a6ff;
+    border: 1px solid #30363d;
+    border-radius: 8px;
+    padding: 1.25rem;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+    font-size: 0.88rem;
+    line-height: 1.45;
+    overflow-x: auto;
+    white-space: pre;
+    box-shadow: inset 0 2px 8px rgba(0,0,0,0.3);
+}
+
+.visual-drawing-tip-box {
+    background: #fdf6e7;
+    border-left: 4px solid #8a5a10;
+    border-radius: 0 6px 6px 0;
+    padding: 0.75rem 1rem;
+    font-size: 0.85rem;
+    color: #4a3410;
+}
+
+.formula-card {
+    background: #fffcf7;
+    border: 1px solid #e3dcd0;
+    border-radius: 8px;
+    padding: 1rem 1.25rem;
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.formula-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+}
+
+.formula-equation-box {
+    background: #f7f4ec;
+    border: 1px dashed #d6ccbe;
+    border-radius: 6px;
+    padding: 0.75rem 1rem;
+    font-family: "Source Serif 4", Georgia, serif;
+    font-size: 1.15rem;
+    font-weight: 600;
+    color: #1c1915;
+    word-break: break-word;
+}
+
+.module-pill-btn {
+    border-radius: 999px;
+    font-size: 0.78rem;
+    font-weight: 600;
+    padding: 0.25rem 0.75rem;
+    border: 1px solid #e3dcd0;
+    background: #fff;
+    color: #6d655c;
+    transition: all 0.15s ease;
+}
+
+.module-pill-btn.active {
+    background: #1e3a5f;
+    color: #fff;
+    border-color: #1e3a5f;
+}
+
+@media print {
+    .visual-gallery-dialog {
+        max-width: 100% !important;
+        margin: 0 !important;
+    }
+    .modal-backdrop, .btn-close, .modal-footer, .story-nav-btn {
+        display: none !important;
+    }
+    .visual-diagram-terminal {
+        background: #fff !important;
+        color: #000 !important;
+        border: 1px solid #000 !important;
+    }
+}

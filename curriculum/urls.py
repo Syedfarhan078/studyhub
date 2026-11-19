@@ -16,5 +16,6 @@ urlpatterns = [
     path('questions/<int:question_id>/blueprint/', views.get_question_blueprint_view, name='get_question_blueprint'),
     path('topics/<int:topic_id>/blueprint/', views.generate_topic_blueprint_view, name='generate_topic_blueprint'),
     path('topics/<int:topic_id>/update-progress/', views.update_topic_progress, name='update_topic_progress'),
+    path('<slug:slug>/visual-sheet/', views.get_subject_visual_sheet_view, name='subject_visual_sheet'),
     path('<slug:slug>/', views.subject_detail, name='subject_detail'),
 ]

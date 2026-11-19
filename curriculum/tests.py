@@ -2911,3 +2911,80 @@ class NightBeforeHighYieldTriageTests(TestCase):
         self.assertContains(res, 'data-high-yield="true"')
         self.assertContains(res, 'data-high-yield="false"')
         self.assertContains(res, 'Night-Before 80/20')
+
+
+class VisualSheetGalleryTests(TestCase):
+    def setUp(self):
+        self.subject = Subject.objects.create(
+            name="Computer Graphics",
+            code="BCS601",
+            slug="computer-graphics",
+            branch=Subject.Branch.CSE,
+            semester=6,
+            order=1
+        )
+        self.module1 = Module.objects.create(
+            subject=self.subject,
+            module_number=1,
+            title="Introduction to Graphics",
+            description="Graphics pipeline"
+        )
+        self.module2 = Module.objects.create(
+            subject=self.subject,
+            module_number=2,
+            title="2D Transformations",
+            description="Matrix math"
+        )
+        # Add topics
+        Topic.objects.create(module=self.module1, title="Pipeline Stages", slug="pipeline-stages", order=1)
+        Topic.objects.create(module=self.module2, title="Rotation Matrices", slug="rotation-matrices", order=1)
+
+    def test_get_subject_visual_gallery_all_and_filtered(self):
+        from curriculum.services.ai_exam import get_subject_visual_gallery
+        # All modules
+        data = get_subject_visual_gallery(self.subject)
+        self.assertIn("diagrams", data)
+        self.assertIn("formulas", data)
+        self.assertTrue(len(data["diagrams"]) > 0)
+        self.assertTrue(len(data["formulas"]) > 0)
+
+        diag = data["diagrams"][0]
+        self.assertIn("ascii_diagram", diag)
+        self.assertIn("drawing_tip", diag)
+        self.assertIn("title", diag)
+
+        form = data["formulas"][0]
+        self.assertIn("formula", form)
+        self.assertIn("name", form)
+
+        # Filtered to Module 1
+        data_m1 = get_subject_visual_gallery(self.subject, module_number=1)
+        for d in data_m1["diagrams"]:
+            self.assertEqual(d["module_number"], 1)
+
+    def test_subject_visual_sheet_view_endpoint(self):
+        url = reverse('curriculum:subject_visual_sheet', kwargs={'slug': self.subject.slug})
+        res = self.client.get(url, HTTP_X_REQUESTED_WITH='XMLHttpRequest')
+        self.assertEqual(res.status_code, 200)
+        data = res.json()
+        self.assertTrue(data['success'])
+        self.assertEqual(data['subject_slug'], 'computer-graphics')
+        self.assertTrue(len(data['diagrams']) > 0)
+        self.assertTrue(len(data['formulas']) > 0)
+
+        # Filter query parameter
+        res_m2 = self.client.get(f"{url}?module=2", HTTP_X_REQUESTED_WITH='XMLHttpRequest')
+        self.assertEqual(res_m2.status_code, 200)
+        data_m2 = res_m2.json()
+        self.assertTrue(data_m2['success'])
+        self.assertEqual(data_m2['active_module_filter'], 2)
+
+    def test_subject_detail_view_visual_gallery_ui(self):
+        url = reverse('curriculum:subject_detail', kwargs={'slug': self.subject.slug})
+        res = self.client.get(url)
+        self.assertEqual(res.status_code, 200)
+        self.assertContains(res, 'btn-open-visual-gallery')
+        self.assertContains(res, 'visualGalleryModal')
+        self.assertContains(res, 'Diagrams Story-Gallery')
+        self.assertContains(res, 'Formula Bank')
+        self.assertContains(res, '60-Min Visual Sheet')

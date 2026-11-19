@@ -26,6 +26,9 @@
         </p>
     </div>
     <div class="page-actions mt-3 mt-lg-0 d-flex flex-wrap align-items-center gap-2">
+        <button type="button" class="btn btn-sm btn-outline-primary d-inline-flex align-items-center gap-1.5 btn-open-visual-gallery" data-subject-slug="{{ subject.slug }}" title="Last 60-min visual review: swipeable diagrams & 1-tap copyable formulas">
+            <i class="bi bi-images"></i> 60-Min Visual Sheet
+        </button>
         <button type="button" class="btn btn-sm btn-outline-warning btn-toggle-high-yield d-inline-flex align-items-center gap-1.5" id="btnToggleHighYield" title="Filter to core topics covering ~70% of exam paper marks">
             <i class="bi bi-fire text-danger"></i>
             <span id="highYieldBtnText">Night-Before 80/20</span>
@@ -220,6 +223,9 @@
                     <span class="fw-semibold small text-truncate d-none d-sm-inline" style="max-width: 260px;">{{ active_topic.module.title }}</span>
                 </div>
                 <div class="d-flex align-items-center gap-2 flex-wrap">
+                    <button type="button" class="btn btn-sm btn-outline-secondary d-inline-flex align-items-center gap-1.5 btn-open-visual-gallery" data-subject-slug="{{ subject.slug }}" data-module-num="{{ active_topic.module.module_number }}" title="Last 60-min visual review: swipeable diagrams & 1-tap copyable formulas">
+                        <i class="bi bi-images text-purple"></i> 60-Min Visual Sheet
+                    </button>
                     <button type="button" class="btn btn-sm btn-outline-secondary d-inline-flex align-items-center gap-1.5 btn-open-cheat-sheet" data-module-id="{{ active_topic.module.id }}" data-module-num="{{ active_topic.module.module_number }}" title="View compact 1-page printable revision summary">
                         <i class="bi bi-file-earmark-text text-primary"></i> 1-Page Cheat Sheet
                     </button>
@@ -612,6 +618,88 @@
                             </div>
                         </div>
                         <div class="modal-footer py-2.5 border-top">
+                            <button type="button" class="btn btn-sm btn-primary" data-bs-dismiss="modal">Close</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 60-Minute Visual Sheet: Diagram & Formula Flash-Gallery Modal -->
+            <div class="modal fade" id="visualGalleryModal" tabindex="-1" aria-labelledby="visualGalleryModalLabel" aria-hidden="true">
+                <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable visual-gallery-dialog">
+                    <div class="modal-content border-0 shadow-lg" style="border-radius: var(--radius);">
+                        <div class="modal-header border-bottom py-3">
+                            <div class="d-flex flex-column">
+                                <span class="eyebrow mb-1 text-purple"><i class="bi bi-images me-1"></i>Last 60-Minute Visual Memory Sprint</span>
+                                <h2 class="h6 modal-title mb-0" id="visualGalleryModalLabel">Visual Sheet: Architecture Diagrams &amp; Formula Bank</h2>
+                            </div>
+                            <div class="d-flex align-items-center gap-2 ms-auto">
+                                <button type="button" class="btn btn-sm btn-outline-secondary d-none d-sm-inline-flex align-items-center gap-1" id="btnPrintVisualGallery">
+                                    <i class="bi bi-printer"></i> Print Handout
+                                </button>
+                                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                            </div>
+                        </div>
+
+                        <!-- Sub-header with Module Switcher Pills & Tab Switcher -->
+                        <div class="bg-body-tertiary px-3 pt-2 pb-2 border-bottom">
+                            <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-2">
+                                <!-- Mode Tabs -->
+                                <ul class="nav nav-pills" id="visualModePills" role="tablist">
+                                    <li class="nav-item" role="presentation">
+                                        <button class="nav-link active small py-1.5 px-3 fw-semibold" id="tab-diagrams-btn" data-bs-toggle="tab" data-bs-target="#tab-diagrams-pane" type="button" role="tab" aria-selected="true">
+                                            <i class="bi bi-diagram-3-fill me-1"></i> Diagrams Story-Gallery (<span id="countDiagrams">0</span>)
+                                        </button>
+                                    </li>
+                                    <li class="nav-item" role="presentation">
+                                        <button class="nav-link small py-1.5 px-3 fw-semibold" id="tab-formulas-btn" data-bs-toggle="tab" data-bs-target="#tab-formulas-pane" type="button" role="tab" aria-selected="false">
+                                            <i class="bi bi-calculator-fill me-1"></i> Formula Bank (<span id="countFormulas">0</span>)
+                                        </button>
+                                    </li>
+                                </ul>
+
+                                <!-- Module Filter Pills -->
+                                <div class="d-flex align-items-center gap-1.5 flex-wrap" id="visualModuleFilterPills">
+                                    <button type="button" class="module-pill-btn active" data-mod="all">All Modules</button>
+                                    <button type="button" class="module-pill-btn" data-mod="1">M1</button>
+                                    <button type="button" class="module-pill-btn" data-mod="2">M2</button>
+                                    <button type="button" class="module-pill-btn" data-mod="3">M3</button>
+                                    <button type="button" class="module-pill-btn" data-mod="4">M4</button>
+                                    <button type="button" class="module-pill-btn" data-mod="5">M5</button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="modal-body p-3 p-md-4" id="visualGalleryModalBody">
+                            <div class="tab-content" id="visualGalleryTabContent">
+                                <!-- 1. DIAGRAMS STORY-GALLERY PANE -->
+                                <div class="tab-pane fade show active" id="tab-diagrams-pane" role="tabpanel">
+                                    <!-- Story progress bar indicators -->
+                                    <div class="story-bar-wrapper" id="diagramStoryBars"></div>
+
+                                    <!-- Diagram Card Container -->
+                                    <div id="diagramStageContainer">
+                                        <div class="text-center py-5">
+                                            <div class="spinner-border text-primary" role="status"></div>
+                                            <p class="text-secondary small mt-2">Loading architecture diagrams...</p>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- 2. FORMULA BANK PANE -->
+                                <div class="tab-pane fade" id="tab-formulas-pane" role="tabpanel">
+                                    <div id="formulaBankContainer">
+                                        <div class="text-center py-5">
+                                            <div class="spinner-border text-primary" role="status"></div>
+                                            <p class="text-secondary small mt-2">Loading formula bank...</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="modal-footer d-flex justify-content-between py-2.5 border-top">
+                            <span class="text-secondary small" id="visualFooterHint"><i class="bi bi-arrows me-1"></i>Swipe or click Previous/Next to flip diagrams</span>
                             <button type="button" class="btn btn-sm btn-primary" data-bs-dismiss="modal">Close</button>
                         </div>
                     </div>
@@ -1628,6 +1716,315 @@ document.addEventListener('DOMContentLoaded', function() {
             setHighYieldMode(true);
         }
     } catch (e) {}
+
+    // ── 60-Minute Visual Sheet: Diagrams Story-Gallery & Formula Bank ──
+    const visualModalEl = document.getElementById('visualGalleryModal');
+    const visualModal = visualModalEl ? new bootstrap.Modal(visualModalEl) : null;
+    const diagramStageContainer = document.getElementById('diagramStageContainer');
+    const formulaBankContainer = document.getElementById('formulaBankContainer');
+    const diagramStoryBars = document.getElementById('diagramStoryBars');
+    const countDiagrams = document.getElementById('countDiagrams');
+    const countFormulas = document.getElementById('countFormulas');
+    const visualModuleFilterPills = document.querySelectorAll('#visualModuleFilterPills .module-pill-btn');
+    const btnPrintVisualGallery = document.getElementById('btnPrintVisualGallery');
+
+    let visualSheetCache = null;
+    let visualState = {
+        activeFilterMod: 'all',
+        currentDiagIdx: 0,
+        diagrams: [],
+        formulas: []
+    };
+
+    function filterVisualData() {
+        if (!visualSheetCache) return;
+        const mod = visualState.activeFilterMod;
+        if (mod === 'all') {
+            visualState.diagrams = visualSheetCache.diagrams || [];
+            visualState.formulas = visualSheetCache.formulas || [];
+        } else {
+            const num = parseInt(mod, 10);
+            visualState.diagrams = (visualSheetCache.diagrams || []).filter(d => d.module_number === num);
+            visualState.formulas = (visualSheetCache.formulas || []).filter(f => f.module_number === num);
+        }
+        visualState.currentDiagIdx = 0;
+        if (countDiagrams) countDiagrams.textContent = visualState.diagrams.length;
+        if (countFormulas) countFormulas.textContent = visualState.formulas.length;
+        renderActiveDiagram();
+        renderFormulaBank();
+    }
+
+    function renderActiveDiagram() {
+        if (!diagramStageContainer) return;
+        const diags = visualState.diagrams;
+        if (!diags.length) {
+            if (diagramStoryBars) diagramStoryBars.innerHTML = '';
+            diagramStageContainer.innerHTML = `
+                <div class="text-center py-5">
+                    <i class="bi bi-diagram-3 text-secondary fs-1 d-block mb-2"></i>
+                    <p class="text-secondary small">No architecture diagrams available for this filter.</p>
+                </div>
+            `;
+            return;
+        }
+
+        const idx = Math.min(Math.max(0, visualState.currentDiagIdx), diags.length - 1);
+        visualState.currentDiagIdx = idx;
+        const d = diags[idx];
+
+        // Render Story Bars
+        if (diagramStoryBars) {
+            diagramStoryBars.innerHTML = diags.map((_, i) => {
+                let cls = 'story-bar';
+                if (i < idx) cls += ' completed';
+                else if (i === idx) cls += ' active';
+                return `<div class="${cls}" data-idx="${i}" style="cursor: pointer;" title="Jump to diagram ${i + 1}"></div>`;
+            }).join('');
+
+            diagramStoryBars.querySelectorAll('.story-bar').forEach(bar => {
+                bar.addEventListener('click', function() {
+                    const jumpIdx = parseInt(this.getAttribute('data-idx'), 10);
+                    visualState.currentDiagIdx = jumpIdx;
+                    renderActiveDiagram();
+                });
+            });
+        }
+
+        diagramStageContainer.innerHTML = `
+            <div class="visual-diagram-card">
+                <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-2 pb-2 border-bottom">
+                    <div>
+                        <span class="badge bg-navy text-white px-2 py-0.5" style="font-size:0.75rem;">MODULE ${d.module_number}</span>
+                        <span class="text-secondary small ms-1">${escapeHtml(d.module_title || '')}</span>
+                    </div>
+                    <span class="text-secondary small font-monospace">Diagram ${idx + 1} of ${diags.length}</span>
+                </div>
+
+                <h5 class="fw-bold text-ink mb-3">${escapeHtml(d.title)}</h5>
+
+                <div class="position-relative mb-3">
+                    <pre class="visual-diagram-terminal mb-0" id="currentDiagramAscii">${escapeHtml(d.ascii_diagram)}</pre>
+                    <button type="button" class="btn btn-sm btn-dark position-absolute top-0 end-0 m-2 opacity-75" id="btnCopyDiagramText" title="Copy ASCII diagram">
+                        <i class="bi bi-clipboard"></i> Copy
+                    </button>
+                </div>
+
+                ${d.drawing_tip ? `
+                    <div class="visual-drawing-tip-box mb-2.5">
+                        <i class="bi bi-pencil-fill me-1 text-amber"></i><strong>VTU Drawing Tip:</strong> ${escapeHtml(d.drawing_tip)}
+                    </div>
+                ` : ''}
+
+                ${d.key_takeaway ? `
+                    <div class="p-2.5 px-3 rounded-2 bg-light border small text-secondary">
+                        <i class="bi bi-lightbulb-fill text-warning me-1"></i><strong>Key Architectural Principle:</strong> ${escapeHtml(d.key_takeaway)}
+                    </div>
+                ` : ''}
+
+                <div class="d-flex justify-content-between align-items-center mt-3 pt-2 border-top">
+                    <button type="button" class="btn btn-sm btn-outline-secondary d-inline-flex align-items-center gap-1" id="btnPrevDiagram" ${idx === 0 ? 'disabled' : ''}>
+                        <i class="bi bi-chevron-left"></i> Previous
+                    </button>
+                    <span class="small text-muted d-none d-sm-inline">Tap story bar or arrows to flip</span>
+                    <button type="button" class="btn btn-sm btn-primary d-inline-flex align-items-center gap-1" id="btnNextDiagram" ${idx === diags.length - 1 ? 'disabled' : ''}>
+                        Next <i class="bi bi-chevron-right"></i>
+                    </button>
+                </div>
+            </div>
+        `;
+
+        const prevBtn = document.getElementById('btnPrevDiagram');
+        const nextBtn = document.getElementById('btnNextDiagram');
+        if (prevBtn) {
+            prevBtn.addEventListener('click', () => {
+                if (visualState.currentDiagIdx > 0) {
+                    visualState.currentDiagIdx--;
+                    renderActiveDiagram();
+                }
+            });
+        }
+        if (nextBtn) {
+            nextBtn.addEventListener('click', () => {
+                if (visualState.currentDiagIdx < visualState.diagrams.length - 1) {
+                    visualState.currentDiagIdx++;
+                    renderActiveDiagram();
+                }
+            });
+        }
+
+        const copyDiagBtn = document.getElementById('btnCopyDiagramText');
+        if (copyDiagBtn) {
+            copyDiagBtn.addEventListener('click', function() {
+                if (d.ascii_diagram) {
+                    navigator.clipboard.writeText(d.ascii_diagram).then(() => {
+                        this.innerHTML = '<i class="bi bi-check2"></i> Copied!';
+                        setTimeout(() => { this.innerHTML = '<i class="bi bi-clipboard"></i> Copy'; }, 2000);
+                    });
+                }
+            });
+        }
+    }
+
+    function renderFormulaBank() {
+        if (!formulaBankContainer) return;
+        const formulas = visualState.formulas;
+        if (!formulas.length) {
+            formulaBankContainer.innerHTML = `
+                <div class="text-center py-5">
+                    <i class="bi bi-calculator text-secondary fs-1 d-block mb-2"></i>
+                    <p class="text-secondary small">No mathematical formulas logged for this filter.</p>
+                </div>
+            `;
+            return;
+        }
+
+        formulaBankContainer.innerHTML = `
+            <div class="row g-3">
+                ${formulas.map(f => `
+                    <div class="col-12 col-md-6">
+                        <div class="formula-card h-100 d-flex flex-column justify-content-between">
+                            <div>
+                                <div class="d-flex align-items-center justify-content-between gap-2 mb-2">
+                                    <span class="badge bg-secondary-subtle text-secondary" style="font-size:0.72rem;">MODULE ${f.module_number}</span>
+                                    ${f.complexity ? `<span class="badge bg-warning-subtle text-warning border border-warning-subtle" style="font-size:0.72rem;">${escapeHtml(f.complexity)}</span>` : ''}
+                                </div>
+                                <h6 class="fw-bold text-ink mb-2">${escapeHtml(f.name)}</h6>
+                                <div class="formula-equation-box mb-2">
+                                    <code>${escapeHtml(f.formula)}</code>
+                                </div>
+                                ${f.exam_context ? `<p class="text-muted small mb-3" style="font-size:0.8rem;">${escapeHtml(f.exam_context)}</p>` : ''}
+                            </div>
+                            <div class="pt-2 border-top d-flex justify-content-end">
+                                <button type="button" class="btn btn-sm btn-outline-secondary btn-copy-formula d-inline-flex align-items-center gap-1" data-formula="${escapeHtml(f.formula)}">
+                                    <i class="bi bi-clipboard"></i> Copy Formula
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                `).join('')}
+            </div>
+        `;
+
+        formulaBankContainer.querySelectorAll('.btn-copy-formula').forEach(btn => {
+            btn.addEventListener('click', function() {
+                const text = this.getAttribute('data-formula');
+                if (text) {
+                    navigator.clipboard.writeText(text).then(() => {
+                        const orig = this.innerHTML;
+                        this.innerHTML = '<i class="bi bi-check2 text-success"></i> Copied!';
+                        this.classList.add('btn-success', 'text-white');
+                        this.classList.remove('btn-outline-secondary');
+                        setTimeout(() => {
+                            this.innerHTML = orig;
+                            this.classList.remove('btn-success', 'text-white');
+                            this.classList.add('btn-outline-secondary');
+                        }, 2000);
+                    });
+                }
+            });
+        });
+    }
+
+    // Module Filter Pills click handler
+    visualModuleFilterPills.forEach(btn => {
+        btn.addEventListener('click', function() {
+            visualModuleFilterPills.forEach(b => b.classList.remove('active'));
+            this.classList.add('active');
+            visualState.activeFilterMod = this.getAttribute('data-mod');
+            filterVisualData();
+        });
+    });
+
+    // Open Visual Sheet Click Handler
+    document.querySelectorAll('.btn-open-visual-gallery').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const subjectSlug = this.getAttribute('data-subject-slug');
+            const modNum = this.getAttribute('data-module-num');
+
+            if (modNum) {
+                visualState.activeFilterMod = String(modNum);
+                visualModuleFilterPills.forEach(b => {
+                    b.classList.toggle('active', b.getAttribute('data-mod') === String(modNum));
+                });
+            } else {
+                visualState.activeFilterMod = 'all';
+                visualModuleFilterPills.forEach(b => {
+                    b.classList.toggle('active', b.getAttribute('data-mod') === 'all');
+                });
+            }
+
+            if (visualModal) visualModal.show();
+
+            // Fetch visual sheet data
+            fetch(`/subjects/${subjectSlug}/visual-sheet/`, {
+                headers: { 'X-Requested-With': 'XMLHttpRequest' }
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) {
+                    visualSheetCache = data;
+                    filterVisualData();
+                } else {
+                    if (diagramStageContainer) {
+                        diagramStageContainer.innerHTML = `<div class="alert alert-danger">Failed to load visual sheet: ${data.error || 'Unknown error'}</div>`;
+                    }
+                }
+            })
+            .catch(err => {
+                if (diagramStageContainer) {
+                    diagramStageContainer.innerHTML = `<div class="alert alert-danger">Network error loading visual sheet. Please try again.</div>`;
+                }
+            });
+        });
+    });
+
+    // Touch swipe support for mobile
+    let touchStartX = 0;
+    let touchEndX = 0;
+    if (visualModalEl) {
+        visualModalEl.addEventListener('touchstart', e => {
+            touchStartX = e.changedTouches[0].screenX;
+        }, { passive: true });
+
+        visualModalEl.addEventListener('touchend', e => {
+            touchEndX = e.changedTouches[0].screenX;
+            handleSwipeGesture();
+        }, { passive: true });
+    }
+
+    function handleSwipeGesture() {
+        const diff = touchEndX - touchStartX;
+        if (Math.abs(diff) > 50) {
+            if (diff < 0 && visualState.currentDiagIdx < visualState.diagrams.length - 1) {
+                // Swipe Left -> Next
+                visualState.currentDiagIdx++;
+                renderActiveDiagram();
+            } else if (diff > 0 && visualState.currentDiagIdx > 0) {
+                // Swipe Right -> Prev
+                visualState.currentDiagIdx--;
+                renderActiveDiagram();
+            }
+        }
+    }
+
+    // Keyboard navigation (← and →)
+    document.addEventListener('keydown', e => {
+        if (!visualModalEl || !visualModalEl.classList.contains('show')) return;
+        const diagramsTab = document.getElementById('tab-diagrams-pane');
+        if (diagramsTab && diagramsTab.classList.contains('active')) {
+            if (e.key === 'ArrowRight' && visualState.currentDiagIdx < visualState.diagrams.length - 1) {
+                visualState.currentDiagIdx++;
+                renderActiveDiagram();
+            } else if (e.key === 'ArrowLeft' && visualState.currentDiagIdx > 0) {
+                visualState.currentDiagIdx--;
+                renderActiveDiagram();
+            }
+        }
+    });
+
+    if (btnPrintVisualGallery) {
+        btnPrintVisualGallery.addEventListener('click', () => window.print());
+    }
 
 });
 </script>

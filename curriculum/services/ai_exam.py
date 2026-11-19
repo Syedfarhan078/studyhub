@@ -3,7 +3,7 @@ import logging
 import re
 from django.utils import timezone
 from django.utils.text import slugify
-from curriculum.models import Module, Topic, ExamQuestion
+from curriculum.models import Subject, Module, Topic, ExamQuestion
 from curriculum.services.ai_curriculum import (
     resolve_ai_provider,
     resolve_groq_models,
@@ -572,6 +572,93 @@ def _generate_fallback_cheat_sheet(module: Module) -> dict:
             "Write the formal mathematical expression before explaining procedural steps.",
             "Highlight boundary conditions and edge cases to score full technical marks."
         ]
+    }
+
+
+def get_subject_visual_gallery(subject: Subject, module_number: int = None) -> dict:
+    """
+    Assembles a high-contrast visual gallery of architecture diagrams and mathematical
+    formula bank for 60-minute pre-exam memory consolidation.
+    Aggregates across all 5 modules (or a single requested module).
+    """
+    modules = list(subject.modules.all().order_by('module_number'))
+    if module_number is not None:
+        try:
+            mod_num_int = int(module_number)
+            modules = [m for m in modules if m.module_number == mod_num_int]
+        except (ValueError, TypeError):
+            pass
+
+    diagrams = []
+    formulas = []
+
+    for mod in modules:
+        # Retrieve or generate cheat sheet for module
+        cs = mod.cheat_sheet or generate_module_cheat_sheet(mod)
+
+        # 1. Architecture diagram
+        arch = cs.get("architecture_summary") or {}
+        if arch.get("ascii_diagram"):
+            diagrams.append({
+                "id": f"diag-m{mod.module_number}",
+                "module_number": mod.module_number,
+                "module_title": mod.title,
+                "title": arch.get("title") or f"Module {mod.module_number} Core Architecture",
+                "ascii_diagram": arch.get("ascii_diagram", ""),
+                "key_takeaway": arch.get("key_takeaway", "Core structural relationship to reproduce in 10-mark answers."),
+                "drawing_tip": f"Examiner Tip: Always write clear port/signal labels and block boundaries for Module {mod.module_number} diagrams."
+            })
+
+        # Check blueprints for extra diagrams
+        for q in mod.exam_questions.all()[:3]:
+            bp = q.answer_blueprint or {}
+            bp_diag = bp.get("ascii_diagram")
+            if bp_diag and bp_diag.strip() and len(bp_diag.strip()) > 20:
+                diagrams.append({
+                    "id": f"diag-q{q.id}",
+                    "module_number": mod.module_number,
+                    "module_title": mod.title,
+                    "title": f"M{mod.module_number} ({q.marks}M): {q.question_text[:50]}...",
+                    "ascii_diagram": bp_diag,
+                    "key_takeaway": bp.get("working_principle", "")[:140] or "Key exam question diagram",
+                    "drawing_tip": "Draw neat boxes using a pencil and ruler, labeling inputs on left and outputs on right."
+                })
+
+        # 2. Formulas & Complexities
+        for idx, f in enumerate(cs.get("formulas_and_complexities", []), start=1):
+            formulas.append({
+                "id": f"f-{mod.module_number}-{idx}",
+                "module_number": mod.module_number,
+                "module_title": mod.title,
+                "name": f.get("name") or f"Module {mod.module_number} Formula",
+                "formula": f.get("formula") or "T(n) = O(n log n)",
+                "complexity": f.get("complexity", ""),
+                "exam_context": f"Crucial for Module {mod.module_number} numerical and derivation questions."
+            })
+
+    # If no diagrams found, supply fallback diagram
+    if not diagrams:
+        diagrams.append({
+            "id": "diag-default",
+            "module_number": 1,
+            "module_title": subject.name,
+            "title": f"{subject.name} End-to-End Pipeline",
+            "ascii_diagram": (
+                "+-----------------+      +--------------------+      +-----------------+\n"
+                "|   Input / Raw   | ---> |  Transform Engine  | ---> |   Result / Sink |\n"
+                "+-----------------+      +--------------------+      +-----------------+"
+            ),
+            "key_takeaway": "Maintain strict separation between input preparation, core processing, and result presentation.",
+            "drawing_tip": "Draw neat boxed stages with directional arrows indicating dataflow."
+        })
+
+    return {
+        "subject_name": subject.name,
+        "subject_code": subject.code,
+        "total_diagrams": len(diagrams),
+        "total_formulas": len(formulas),
+        "diagrams": diagrams,
+        "formulas": formulas
     }
 
 

@@ -33,6 +33,7 @@ from .services.ai_exam import (
     generate_vtu_answer_blueprint,
     generate_module_cheat_sheet,
     generate_module_quiz,
+    get_subject_visual_gallery,
 )
 from curriculum.worker import notify_new_job, is_worker_accepting_jobs
 
@@ -717,5 +718,39 @@ def get_module_quiz_view(request, module_id):
     except Exception as e:
         logger.exception("Error generating quiz for module %s: %s", module_id, e)
         return JsonResponse({'success': False, 'error': str(e)}, status=500)
+
+
+def get_subject_visual_sheet_view(request, slug):
+    """
+    AJAX endpoint to retrieve the Last 60-Minute Visual Sheet: Diagrams Story-Gallery and Formula Bank
+    for rapid pre-exam visual consolidation. Supports optional ?module=1..5 filter.
+    """
+    subject = get_object_or_404(
+        Subject.objects.prefetch_related('modules__topics', 'modules__exam_questions'),
+        slug=slug
+    )
+    module_num = request.GET.get('module')
+    try:
+        mod_num_int = int(module_num) if module_num else None
+    except (ValueError, TypeError):
+        mod_num_int = None
+
+    try:
+        data = get_subject_visual_gallery(subject, module_number=mod_num_int)
+        return JsonResponse({
+            'success': True,
+            'subject_name': subject.name,
+            'subject_code': subject.code,
+            'subject_slug': subject.slug,
+            'active_module_filter': mod_num_int,
+            'total_diagrams': data['total_diagrams'],
+            'total_formulas': data['total_formulas'],
+            'diagrams': data['diagrams'],
+            'formulas': data['formulas'],
+        })
+    except Exception as e:
+        logger.exception("Error generating visual sheet for subject %s: %s", slug, e)
+        return JsonResponse({'success': False, 'error': str(e)}, status=500)
+
 
 
