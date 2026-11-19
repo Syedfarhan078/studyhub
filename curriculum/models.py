@@ -50,6 +50,10 @@ class Subject(models.Model):
     def __str__(self):
         return f"{self.code} - {self.name}"
 
+    def get_absolute_url(self):
+        from django.urls import reverse
+        return reverse('curriculum:subject_detail', kwargs={'slug': self.slug})
+
     @classmethod
     def infer_branch_and_semester(cls, code, name=""):
         """

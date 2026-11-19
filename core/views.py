@@ -78,3 +78,22 @@ def offline_fallback(request):
     """
     return render(request, 'core/offline.html')
 
+
+def robots_txt(request):
+    """
+    Dynamically generates robots.txt, directing web crawlers to the sitemap
+    and disallowing private or mutating paths.
+    """
+    sitemap_url = request.build_absolute_uri('/sitemap.xml')
+    lines = [
+        "User-agent: *",
+        "Allow: /",
+        "Disallow: /admin/",
+        "Disallow: /subjects/generate-ai/",
+        "Disallow: /subjects/generation-status/",
+        "Disallow: /subjects/toggle-pin/",
+        f"Sitemap: {sitemap_url}",
+    ]
+    return HttpResponse("\n".join(lines), content_type="text/plain")
+
+

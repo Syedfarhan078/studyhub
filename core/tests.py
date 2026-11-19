@@ -3,6 +3,7 @@ import os
 from django.test import TestCase
 from django.urls import reverse
 from django.conf import settings
+from curriculum.models import Subject
 
 
 class OfflinePWATests(TestCase):
@@ -52,3 +53,45 @@ class OfflinePWATests(TestCase):
         self.assertContains(res, 'navigator.serviceWorker.register')
         self.assertContains(res, 'offlineModeIndicator')
         self.assertContains(res, 'btnPwaInstall')
+
+
+class SeoAndSitemapTests(TestCase):
+    def setUp(self):
+        self.subject = Subject.objects.create(
+            name="Computer Networks",
+            code="BCS502",
+            slug="computer-networks",
+            branch=Subject.Branch.CSE,
+            semester=5,
+            order=1
+        )
+
+    def test_subject_get_absolute_url(self):
+        self.assertEqual(self.subject.get_absolute_url(), '/subjects/computer-networks/')
+
+    def test_robots_txt(self):
+        res = self.client.get('/robots.txt')
+        self.assertEqual(res.status_code, 200)
+        self.assertIn('text/plain', res['Content-Type'])
+        content = res.content.decode('utf-8')
+        self.assertIn('User-agent: *', content)
+        self.assertIn('Allow: /', content)
+        self.assertIn('Disallow: /admin/', content)
+        self.assertIn('Disallow: /subjects/generate-ai/', content)
+        self.assertIn('Sitemap: http://testserver/sitemap.xml', content)
+
+    def test_sitemap_xml(self):
+        res = self.client.get('/sitemap.xml')
+        self.assertEqual(res.status_code, 200)
+        self.assertIn('xml', res['Content-Type'])
+        content = res.content.decode('utf-8')
+        self.assertIn('<urlset', content)
+        self.assertIn('/subjects/computer-networks/', content)
+        self.assertIn('http://testserver/', content)
+
+    def test_base_template_seo_and_gsc(self):
+        res = self.client.get('/')
+        self.assertEqual(res.status_code, 200)
+        self.assertContains(res, 'google-site-verification')
+        self.assertContains(res, '-oL9wlva9KVxpuuwWQQaXgPxkH8SDAGg92wXfekbA6A')
+        self.assertContains(res, 'name="robots" content="index, follow"')
