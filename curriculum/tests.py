@@ -2832,3 +2832,82 @@ class RapidRevisionAndQuizTests(TestCase):
 
 
 
+
+
+class NightBeforeHighYieldTriageTests(TestCase):
+    def setUp(self):
+        self.subject = Subject.objects.create(
+            name="Distributed Systems",
+            code="BCS702",
+            slug="distributed-systems",
+            branch=Subject.Branch.CSE,
+            semester=7,
+            order=1
+        )
+        self.module = Module.objects.create(
+            subject=self.subject,
+            module_number=1,
+            title="Introduction to Distributed Systems",
+            description="Basics"
+        )
+        # Topic 1: default order 1 -> effective high yield
+        self.t1 = Topic.objects.create(
+            module=self.module,
+            title="System Models",
+            slug="system-models",
+            order=1
+        )
+        # Topic 2: default order 2 -> effective high yield
+        self.t2 = Topic.objects.create(
+            module=self.module,
+            title="Networking and Internetworking",
+            slug="networking-internetworking",
+            order=2
+        )
+        # Topic 3: order 3 -> not high yield
+        self.t3 = Topic.objects.create(
+            module=self.module,
+            title="Interprocess Communication",
+            slug="interprocess-communication",
+            order=3
+        )
+        # Topic 4: order 4 but explicitly marked is_high_yield=True
+        self.t4 = Topic.objects.create(
+            module=self.module,
+            title="Remote Method Invocation",
+            slug="remote-method-invocation",
+            order=4,
+            is_high_yield=True,
+            vtu_frequency_tag="Asked in Q1 (10M)"
+        )
+
+    def test_effective_high_yield_properties(self):
+        self.assertTrue(self.t1.is_high_yield_effective)
+        self.assertTrue(self.t2.is_high_yield_effective)
+        self.assertFalse(self.t3.is_high_yield_effective)
+        self.assertTrue(self.t4.is_high_yield_effective)
+
+        hy_topics = self.module.high_yield_topics
+        self.assertEqual(len(hy_topics), 3)
+        self.assertIn(self.t1, hy_topics)
+        self.assertIn(self.t2, hy_topics)
+        self.assertIn(self.t4, hy_topics)
+        self.assertNotIn(self.t3, hy_topics)
+
+    def test_subject_detail_view_high_yield_elements(self):
+        url = reverse('curriculum:subject_detail', kwargs={'slug': self.subject.slug})
+        res = self.client.get(url)
+        self.assertEqual(res.status_code, 200)
+
+        # Context assertions
+        self.assertEqual(res.context['high_yield_total'], 3)
+        self.assertIn('target_marks_potential', res.context)
+        self.assertIn('marks_secured', res.context)
+
+        # HTML assertions
+        self.assertContains(res, 'btnToggleHighYield')
+        self.assertContains(res, 'highYieldTriageCard')
+        self.assertContains(res, 'Target Marks Gauge')
+        self.assertContains(res, 'data-high-yield="true"')
+        self.assertContains(res, 'data-high-yield="false"')
+        self.assertContains(res, 'Night-Before 80/20')

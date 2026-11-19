@@ -167,6 +167,11 @@ class Module(models.Model):
         return f"{self.subject.code} - Module {self.module_number}: {self.title}"
 
     @property
+    def high_yield_topics(self):
+        """Returns list of high-yield exam topics for this module."""
+        return [t for t in self.topics.all() if t.is_high_yield_effective]
+
+    @property
     def has_multiple_chapters(self):
         """Returns True if this module contains topics divided into distinct chapters or named chapters."""
         topics = list(self.topics.all())
@@ -256,6 +261,19 @@ class Topic(models.Model):
         help_text = "Display order within the module"
     )
 
+    is_high_yield = models.BooleanField(
+        default=False,
+        db_index=True,
+        help_text="Flagged as a high-yield core exam concept (80/20 rule)"
+    )
+
+    vtu_frequency_tag = models.CharField(
+        max_length=100,
+        blank=True,
+        default="",
+        help_text="Exam recurrence note, e.g. 'Must-know for Q1/Q2', 'Repeated in 2022 & 2023'"
+    )
+
     description = models.TextField(
         blank=True,
         help_text="Breif notes or syllabus details for this topic"
@@ -269,6 +287,13 @@ class Topic(models.Model):
 
     def __str__(self):
         return f"{self.module.subject.code} - M{self.module.module_number}: {self.title}"
+
+    @property
+    def is_high_yield_effective(self):
+        """Returns True if explicitly marked high-yield or if it's among the module's top 2 foundational topics."""
+        if self.is_high_yield:
+            return True
+        return self.order <= 2
 
 
 class TopicKeyword(models.Model):

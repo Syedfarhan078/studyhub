@@ -1406,3 +1406,66 @@ textarea.form-control { border-radius: var(--radius) !important; border-left: 1p
 
 
 
+
+
+/* ─── Night-Before 80/20 High-Yield Triage Mode ─────────────────────── */
+.high-yield-triage-card {
+    background: linear-gradient(135deg, #fffcf5 0%, #fdf6e7 100%);
+    border: 1.5px solid #e8c887;
+    box-shadow: 0 4px 12px rgba(138, 90, 16, 0.08);
+    position: relative;
+    overflow: hidden;
+    animation: fadeInSlideDown 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes fadeInSlideDown {
+    from { opacity: 0; transform: translateY(-8px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.triage-icon-badge {
+    width: 44px;
+    height: 44px;
+    border-radius: 12px;
+    background: linear-gradient(135deg, #dc3545, #fd7e14);
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.35rem;
+    flex-shrink: 0;
+    box-shadow: 0 3px 8px rgba(220, 53, 69, 0.28);
+}
+
+.target-marks-box {
+    background: #fff;
+    border: 1px solid #e6ded1;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.04);
+}
+
+.btn-toggle-high-yield.active {
+    background-color: #8a5a10 !important;
+    border-color: #8a5a10 !important;
+    color: #fff !important;
+    box-shadow: 0 0 0 3px rgba(220, 53, 69, 0.25);
+}
+
+.badge-high-yield-fire {
+    font-size: 0.85rem;
+    display: inline-flex;
+    align-items: center;
+    animation: pulseFlame 2.5s infinite ease-in-out;
+}
+
+@keyframes pulseFlame {
+    0%, 100% { transform: scale(1); opacity: 0.9; }
+    50% { transform: scale(1.15); opacity: 1; }
+}
+
+.topic-item-link.topic-hidden-by-yield {
+    display: none !important;
+}
+
+.chapter-block.chapter-hidden-by-yield {
+    display: none !important;
+}

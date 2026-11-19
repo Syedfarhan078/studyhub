@@ -345,6 +345,15 @@ def subject_detail(request, slug):
 
     progress_percent = int((completed_topics / total_topics) * 100) if total_topics > 0 else 0
 
+    # Calculate High-Yield 80/20 Triage Metrics & Target Marks Gauge
+    high_yield_topics = [t for t in all_topics if t.is_high_yield_effective]
+    high_yield_total = len(high_yield_topics)
+    high_yield_completed = sum(1 for t in high_yield_topics if hasattr(t, 'progress') and t.progress.status == TopicProgress.Status.COMPLETED)
+    high_yield_percent = int((high_yield_completed / high_yield_total) * 100) if high_yield_total > 0 else 0
+    mod_count = subject.modules.count() or 5
+    target_marks_potential = min(100, mod_count * 16)
+    marks_secured = int((high_yield_completed / high_yield_total) * target_marks_potential) if high_yield_total > 0 else 0
+
     context = {
         'subject': subject,
         'active_topic': active_topic,
@@ -355,6 +364,11 @@ def subject_detail(request, slug):
         'total_topics': total_topics,
         'completed_topics': completed_topics,
         'progress_percent': progress_percent,
+        'high_yield_total': high_yield_total,
+        'high_yield_completed': high_yield_completed,
+        'high_yield_percent': high_yield_percent,
+        'target_marks_potential': target_marks_potential,
+        'marks_secured': marks_secured,
     }
     return render(request, 'curriculum/subject_detail.html', context)
 

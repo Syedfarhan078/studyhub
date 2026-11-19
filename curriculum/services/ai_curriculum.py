@@ -1869,6 +1869,9 @@ def persist_curriculum_records(
                             t_slug = f"{base_t_slug}-{t_counter}"
                             t_counter += 1
 
+                        is_hy = bool(t_data.get("is_high_yield", t_idx <= 2))
+                        vtu_freq = str(t_data.get("vtu_frequency_tag") or ("Core VTU Concept (Q1/Q2 Choice)" if t_idx <= 2 else "")).strip()
+
                         topic = Topic.objects.create(
                             module=module,
                             chapter_number=t_chp_num,
@@ -1876,6 +1879,8 @@ def persist_curriculum_records(
                             title=t_title[:200],
                             slug=t_slug[:220],
                             order=t_idx,
+                            is_high_yield=is_hy,
+                            vtu_frequency_tag=vtu_freq[:100],
                             description=t_desc
                         )
 
