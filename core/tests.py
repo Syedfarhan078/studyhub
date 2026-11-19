@@ -95,6 +95,8 @@ class SeoAndSitemapTests(TestCase):
         self.assertContains(res, 'google-site-verification')
         self.assertContains(res, 'zhm6-a3OqA9YctRN0cR_CtmOLZzKYo_9mkU60BlLNUM')
         self.assertContains(res, 'name="robots" content="index, follow"')
+        self.assertContains(res, 'All rights reserved 2026')
+        self.assertContains(res, '2025 Scheme')
 
     def test_admin_button_visibility(self):
         # Anonymous student does not see admin links
