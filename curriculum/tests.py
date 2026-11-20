@@ -3376,3 +3376,113 @@ class VtuSyllabusCatalogAndLookupTests(TestCase):
         data_missing = resp_missing.json()
         self.assertFalse(data_missing.get("found"))
 
+
+class VTUCircleScraperAndIntegrationTests(TestCase):
+    def test_parse_vtucircle_page_with_syllabus_boxes(self):
+        from curriculum.services.vtucircle_scraper import parse_vtucircle_page
+
+        html = """
+        <html>
+        <head><title>VTU Circle » Advanced Algorithms BCS401</title></head>
+        <body>
+            <h1 class="entry-title">Advanced Algorithms BCS401</h1>
+            <div class="syllabus-box-set">
+                <p><b>Introduction :</b> What is an Algorithm? Fundamentals of Algorithmic Problem Solving. Framework for analysis.</p>
+            </div>
+            <div class="syllabus-box-set">
+                <p><b>Brute Force Approaches :</b> Exhaustive Search, Travelling Salesperson Problem, Knapsack Problem.</p>
+            </div>
+            <div class="syllabus-box-set">
+                <p><b>Transform and Conquer :</b> Balanced Search Trees, Heaps and Heapsort. Space-time tradeoffs.</p>
+            </div>
+            <div class="syllabus-box-set">
+                <p><b>Dynamic Programming :</b> Three basic examples, Knapsack Problem, Warshall and Floyd algorithms.</p>
+            </div>
+            <div class="syllabus-box-set">
+                <p><b>Limitations of Algorithmic Power :</b> Decision Trees, P, NP, and NP-Complete Problems.</p>
+            </div>
+        </body>
+        </html>
+        """
+        parsed = parse_vtucircle_page(html, source_url="https://vtucircle.com/test-bcs401/")
+        self.assertIsNotNone(parsed)
+        self.assertEqual(len(parsed["modules"]), 5)
+        self.assertEqual(parsed["modules"][0]["module_number"], 1)
+        self.assertIn("What is an Algorithm", parsed["modules"][0]["raw_text"])
+        self.assertIn("Exhaustive Search", parsed["modules"][1]["raw_text"])
+        self.assertIn("Decision Trees", parsed["modules"][4]["raw_text"])
+        self.assertEqual(parsed["page_title"], "Advanced Algorithms BCS401")
+
+    @patch("requests.get")
+    def test_fetch_and_parse_vtucircle_syllabus_live_flow(self, mock_get):
+        from curriculum.services.vtucircle_scraper import fetch_and_parse_vtucircle_syllabus
+
+        search_html = """
+        <html><body>
+            <h2 class="entry-title"><a href="https://vtucircle.com/operating-systems-bcs303/">Operating Systems BCS303</a></h2>
+        </body></html>
+        """
+        page_html = """
+        <html>
+        <head><title>VTU Circle » Operating Systems BCS303</title></head>
+        <body>
+            <h1 class="entry-title">Operating Systems BCS303</h1>
+            <div class="syllabus-box-set">Module 1: OS Structures</div>
+            <div class="syllabus-box-set">Module 2: Process Management</div>
+            <div class="syllabus-box-set">Module 3: Synchronization and Semaphores</div>
+            <div class="syllabus-box-set">Module 4: Virtual Memory Management</div>
+            <div class="syllabus-box-set">Module 5: File Systems and Disk Scheduling</div>
+        </body>
+        </html>
+        """
+        def side_effect(url, **kwargs):
+            res = requests.Response()
+            res.status_code = 200
+            if "?s=" in url:
+                res._content = search_html.encode("utf-8")
+            else:
+                res._content = page_html.encode("utf-8")
+            return res
+
+        mock_get.side_effect = side_effect
+
+        parsed = fetch_and_parse_vtucircle_syllabus(course_code="BCS303", subject_name="Operating Systems")
+        self.assertIsNotNone(parsed)
+        self.assertEqual(len(parsed["modules"]), 5)
+        self.assertIn("File Systems", parsed["modules"][4]["raw_text"])
+
+    @patch("requests.get")
+    def test_get_verified_syllabus_source_falls_back_to_vtucircle(self, mock_get):
+        from curriculum.services.ai_curriculum import get_verified_syllabus_source
+
+        search_html = """
+        <html><body>
+            <h2 class="entry-title"><a href="https://vtucircle.com/special-elective-bcs999/">Special Elective BCS999</a></h2>
+        </body></html>
+        """
+        page_html = """
+        <html><body>
+            <h1 class="entry-title">Special Elective BCS999</h1>
+            <div class="syllabus-box-set">Module 1: Special Concepts</div>
+            <div class="syllabus-box-set">Module 2: Advanced Logic</div>
+            <div class="syllabus-box-set">Module 3: Core Implementation</div>
+            <div class="syllabus-box-set">Module 4: Distributed Scalability</div>
+            <div class="syllabus-box-set">Module 5: Security and Audit</div>
+        </body></html>
+        """
+        def side_effect(url, **kwargs):
+            res = requests.Response()
+            res.status_code = 200
+            if "?s=" in url:
+                res._content = search_html.encode("utf-8")
+            else:
+                res._content = page_html.encode("utf-8")
+            return res
+
+        mock_get.side_effect = side_effect
+
+        source = get_verified_syllabus_source(course_code="BCS999", subject_name="Special Elective")
+        self.assertIsNotNone(source)
+        self.assertEqual(len(source), 5)
+        self.assertIn("Special Concepts", source[0]["raw_text"])
+

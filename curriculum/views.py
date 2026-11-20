@@ -315,39 +315,43 @@ def generation_status(request, task_id):
 
 def lookup_vtu_syllabus_view(request):
     """
-    Returns official VTU syllabus outline for a given subject code or name if matched in the catalog.
+    Returns official VTU syllabus outline for a given subject code or name if matched in the catalog
+    or retrieved via VTUCircle live search.
     Enables instant auto-fill and validation in the UI.
     """
     code = request.GET.get('code', '').strip()
     name = request.GET.get('name', '').strip()
-    from curriculum.services.vtu_syllabus_catalog import find_vtu_verified_syllabus, VTU_PRESCRIBED_CATALOG, normalize_lookup_token
+    from curriculum.services.vtu_syllabus_catalog import find_vtu_verified_syllabus, find_vtu_catalog_entry, format_syllabus_as_text
 
-    modules = find_vtu_verified_syllabus(code, name)
+    cat_entry = find_vtu_catalog_entry(code, name)
+    modules = cat_entry.get("modules") if cat_entry else None
+
+    # If not in catalog yet, search and fetch directly from VTUCircle
+    if not modules and (code or name):
+        try:
+            from curriculum.services.vtucircle_scraper import fetch_and_parse_vtucircle_syllabus
+            vtucircle_res = fetch_and_parse_vtucircle_syllabus(code, name, timeout=4)
+            if vtucircle_res and len(vtucircle_res.get("modules", [])) == 5:
+                cat_entry = find_vtu_catalog_entry(code, name)
+                modules = vtucircle_res["modules"]
+        except Exception as e:
+            logger.warning("Dynamic VTUCircle lookup failed in lookup_vtu_syllabus_view: %s", e)
+
     if not modules:
         return JsonResponse({'found': False})
 
-    cat_entry = None
-    code_norm = normalize_lookup_token(code)
-    name_norm = normalize_lookup_token(name)
-    for k, v in VTU_PRESCRIBED_CATALOG.items():
-        aliases_norm = [normalize_lookup_token(a) for a in v.get("aliases", [])]
-        if (code_norm and code_norm in aliases_norm) or (name_norm and (name_norm == normalize_lookup_token(v["canonical_name"]) or name_norm in aliases_norm)):
-            cat_entry = v
-            break
-
-    formatted_text = ""
-    for m in modules:
-        formatted_text += f"Module {m['module_number']}: {m['title']}\n{m.get('raw_text', '')}\n\n"
+    formatted_text = format_syllabus_as_text(modules)
 
     return JsonResponse({
         'found': True,
-        'canonical_name': cat_entry['canonical_name'] if cat_entry else name,
-        'canonical_code': cat_entry['canonical_code'] if cat_entry else code,
+        'canonical_name': cat_entry.get('canonical_name') if cat_entry else name,
+        'canonical_code': cat_entry.get('canonical_code') if cat_entry else code,
         'branch': cat_entry.get('branch', 'CSE') if cat_entry else 'CSE',
         'semester': cat_entry.get('semester', 3) if cat_entry else 3,
         'scheme': cat_entry.get('scheme', 'VTU 2022/2024/2025 Scheme') if cat_entry else 'VTU Scheme',
         'formatted_syllabus': formatted_text.strip(),
         'formatted_text': formatted_text.strip(),
+        'source_url': cat_entry.get('source_url', '') if cat_entry else '',
         'modules': modules
     })
 

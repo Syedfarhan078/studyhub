@@ -343,17 +343,18 @@ def normalize_lookup_token(text: str) -> str:
 def find_vtu_catalog_entry(course_code: str = "", subject_name: str = "") -> Optional[Dict[str, Any]]:
     """
     Finds the full catalog dictionary entry by course code or subject name.
+    Searches both built-in core specifications and dynamically ingested VTUCircle records.
     """
     code_norm = normalize_lookup_token(course_code)
     name_norm = normalize_lookup_token(subject_name)
 
-    # 1. Check direct code matches
+    # 1. Check direct code matches in built-in catalog
     for key, spec in VTU_PRESCRIBED_CATALOG.items():
         aliases_norm = [normalize_lookup_token(a) for a in spec.get("aliases", [])]
         if code_norm and code_norm in aliases_norm:
             return spec
 
-    # 2. Check subject name matches
+    # 2. Check subject name matches in built-in catalog
     for key, spec in VTU_PRESCRIBED_CATALOG.items():
         canonical_norm = normalize_lookup_token(spec.get("canonical_name", ""))
         aliases_norm = [normalize_lookup_token(a) for a in spec.get("aliases", [])]
@@ -366,6 +367,23 @@ def find_vtu_catalog_entry(course_code: str = "", subject_name: str = "") -> Opt
             return spec
         if name_norm and ("DIGITALDESIGN" in name_norm or "DDCO" in name_norm) and key == "DDCO":
             return spec
+
+    # 3. Check ingested / cached VTUCircle catalog
+    try:
+        from curriculum.services.vtucircle_scraper import load_local_vtucircle_cache
+        crawled_catalog = load_local_vtucircle_cache()
+        for key, spec in crawled_catalog.items():
+            aliases_norm = [normalize_lookup_token(a) for a in spec.get("aliases", [])]
+            canonical_code_norm = normalize_lookup_token(spec.get("canonical_code", ""))
+            canonical_name_norm = normalize_lookup_token(spec.get("canonical_name", ""))
+            page_title_norm = normalize_lookup_token(spec.get("page_title", ""))
+
+            if code_norm and (code_norm == canonical_code_norm or code_norm in aliases_norm or code_norm in key):
+                return spec
+            if name_norm and (name_norm == canonical_name_norm or name_norm in aliases_norm or name_norm in page_title_norm):
+                return spec
+    except Exception:
+        pass
 
     return None
 

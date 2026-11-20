@@ -725,6 +725,16 @@ def get_verified_syllabus_source(course_code: str, subject_name: str) -> list | 
     except Exception as e:
         logger.warning("Error checking VTU syllabus catalog: %s", e)
 
+    # Dynamic Fallback: Search & Fetch directly from VTUCircle
+    try:
+        from curriculum.services.vtucircle_scraper import fetch_and_parse_vtucircle_syllabus
+        vtucircle_res = fetch_and_parse_vtucircle_syllabus(course_code, subject_name)
+        if vtucircle_res and len(vtucircle_res.get("modules", [])) == 5:
+            logger.info("Dynamically retrieved official VTU syllabus from VTUCircle for '%s' (%s).", subject_name, course_code)
+            return vtucircle_res["modules"]
+    except Exception as e:
+        logger.warning("Error searching VTUCircle: %s", e)
+
     return None
 
 
