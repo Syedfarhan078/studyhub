@@ -157,10 +157,45 @@ def search_vtucircle(query: str, timeout: int = 6) -> List[str]:
         return []
 
 
+def is_result_relevant(url: str, page_title: str, course_code: str, subject_name: str) -> bool:
+    """
+    Validates whether a candidate URL or parsed page actually corresponds to the requested course.
+    Prevents false matches where search fallback returns completely unrelated pages (e.g. Physics for Maths).
+    """
+    u_lower = url.lower()
+    title_lower = (page_title or "").lower()
+
+    # Reject generic hub / category pages
+    if any(hub in u_lower for hub in ['/p-and-c-cycle', '/vtu-syllabus', '/first-year', '/academic-reports', '/vtu-sgpa', '/vtu-cgpa', '/question-paper']):
+        return False
+
+    code_clean = re.sub(r'[^a-zA-Z0-9]', '', course_code).lower()
+    if code_clean and len(code_clean) >= 4:
+        # Check if course code is represented in URL slug or title
+        if code_clean in u_lower or code_clean in title_lower:
+            return True
+        # Base code without leading 1 or 2 (e.g. 1BCS305 -> BCS305, 1BMATCS301 -> BMATCS301)
+        base_code = re.sub(r'^[12]', '', code_clean)
+        if base_code and len(base_code) >= 4 and (base_code in u_lower or base_code in title_lower):
+            return True
+
+    # If course code wasn't matched, check keyword overlap with subject name
+    if subject_name:
+        stopwords = {'and', 'or', 'the', 'of', 'for', 'in', 'to', 'with', 'using', 'laboratory', 'lab', 'introduction'}
+        name_words = [w for w in re.findall(r'[a-zA-Z]{3,}', subject_name.lower()) if w not in stopwords]
+        if name_words:
+            matched_words = [w for w in name_words if w in u_lower or w in title_lower]
+            min_required = 1 if len(name_words) == 1 else 2
+            if len(matched_words) >= min_required:
+                return True
+
+    return False
+
+
 def fetch_and_parse_vtucircle_syllabus(course_code: str = "", subject_name: str = "", timeout: int = 6) -> Optional[Dict[str, Any]]:
     """
     Finds and extracts syllabus from VTUCircle by searching for course code or subject name.
-    Returns 5 module outlines with raw text.
+    Returns 5 module outlines with raw text. Strictly validates that the retrieved page matches the requested course.
     """
     queries = []
     if course_code:
@@ -177,11 +212,15 @@ def fetch_and_parse_vtucircle_syllabus(course_code: str = "", subject_name: str 
             if u in visited:
                 continue
             visited.add(u)
+            if not is_result_relevant(u, "", course_code, subject_name):
+                continue
             try:
                 r = requests.get(u, headers=DEFAULT_HEADERS, timeout=timeout)
                 if r.status_code == 200:
                     parsed = parse_vtucircle_page(r.text, source_url=u)
                     if parsed and len(parsed.get('modules', [])) == 5:
+                        if not is_result_relevant(u, parsed.get('page_title', ''), course_code, subject_name):
+                            continue
                         # Extract course code and title heuristics
                         save_to_local_cache(
                             code=course_code,

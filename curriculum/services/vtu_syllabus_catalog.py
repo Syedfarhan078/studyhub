@@ -11,6 +11,198 @@ import re
 from typing import List, Dict, Any, Optional
 
 VTU_PRESCRIBED_CATALOG: Dict[str, Dict[str, Any]] = {
+    # ─── 3rd Semester: Probability, Distributions and Statistics (Maths-3) ───
+    "PROBABILITY_STATISTICS": {
+        "canonical_name": "Probability, Distributions and Statistics",
+        "canonical_code": "1BMATCS301",
+        "aliases": [
+            "1BMATCS301", "BMATCS301", "BCS301", "21MATCS31",
+            "PROBABILITY DISTRIBUTIONS AND STATISTICS",
+            "PROBABILITY, DISTRIBUTIONS AND STATISTICS",
+            "MATHEMATICS FOR COMPUTER SCIENCE", "MATHS 3"
+        ],
+        "branch": "CSE",
+        "semester": 3,
+        "scheme": "VTU 2024/2025 Scheme",
+        "modules": [
+            {
+                "module_number": 1,
+                "title": "Modular Arithmetic and Number Theoretic Algorithms",
+                "raw_text": (
+                    "Introduction of modular arithmetic and its applications in Computer Science and Engineering. "
+                    "Introduction to Congruences, Linear Congruences, The Remainder theorem, Solving Polynomials, "
+                    "Linear Diophantine Equation, System of Linear Congruences, Euler's Theorem, Wilson Theorem and "
+                    "Fermat's little theorem. Applications of Congruences-RSA algorithm."
+                ),
+                "chapters": [
+                    {
+                        "chapter_number": 1,
+                        "chapter_title": "Congruences and Linear Diophantine Equations",
+                        "topics": [
+                            "Modular Arithmetic and Congruence Relations",
+                            "Linear Congruences and The Remainder Theorem",
+                            "Solving Polynomial Congruences and Linear Diophantine Equations"
+                        ]
+                    },
+                    {
+                        "chapter_number": 2,
+                        "chapter_title": "Number Theoretic Theorems and Cryptography",
+                        "topics": [
+                            "Euler's Totient Function and Euler's Theorem",
+                            "Wilson's Theorem and Fermat's Little Theorem",
+                            "Applications of Congruences: RSA Cryptographic Algorithm"
+                        ]
+                    }
+                ],
+                "topics": [
+                    {"title": "Modular Arithmetic, Congruences, and Remainder Theorem", "chapter_number": 1, "chapter_title": "Congruences & Diophantine", "is_high_yield": True, "vtu_frequency_tag": "Core 8-10M VTU Question", "description": "Modular congruence properties, remainder calculations, and solving linear systems."},
+                    {"title": "Linear Diophantine Equations Solution Methodology", "chapter_number": 1, "chapter_title": "Congruences & Diophantine", "is_high_yield": True, "vtu_frequency_tag": "Frequent 8M Numerical Problem", "description": "Extended Euclidean algorithm and solving integer equations of form ax + by = c."},
+                    {"title": "Fermat's Little Theorem, Euler's Theorem, and Wilson's Theorem", "chapter_number": 2, "chapter_title": "Theorems & Cryptography", "is_high_yield": True, "vtu_frequency_tag": "Guaranteed 8-10M Proof/Numerical", "description": "Core theorems on prime moduli, pseudoprimes, and computing large powers."},
+                    {"title": "RSA Cryptographic Algorithm and Public Key Systems", "chapter_number": 2, "chapter_title": "Theorems & Cryptography", "is_high_yield": True, "vtu_frequency_tag": "Guaranteed 10M VTU Choice Question (Q1/Q2)", "description": "Key generation, encryption, and decryption using modular exponentiation and primes."}
+                ]
+            },
+            {
+                "module_number": 2,
+                "title": "Principles of Least Squares, Curve Fitting, and Regression",
+                "raw_text": (
+                    "Principles of least squares, Curve fitting by the method of least squares in the form: "
+                    "y = a + bx, y = a + bx + cx^2, and y = ax^b. Correlation, Coefficient of correlation, "
+                    "Lines of regression, Angle between regression lines, rank correlation."
+                ),
+                "chapters": [
+                    {
+                        "chapter_number": 1,
+                        "chapter_title": "Curve Fitting by Least Squares",
+                        "topics": [
+                            "Principles of Least Squares and Normal Equations",
+                            "Fitting Straight Lines (y = a + bx) and Parabolas (y = a + bx + cx^2)",
+                            "Fitting Exponential and Power Curves (y = ax^b)"
+                        ]
+                    },
+                    {
+                        "chapter_number": 2,
+                        "chapter_title": "Correlation and Regression Analysis",
+                        "topics": [
+                            "Karl Pearson's Coefficient of Correlation",
+                            "Lines of Regression and Angle between Regression Lines",
+                            "Spearman's Rank Correlation and Tied Ranks"
+                        ]
+                    }
+                ],
+                "topics": [
+                    {"title": "Method of Least Squares: Straight Line and Parabola Fitting", "chapter_number": 1, "chapter_title": "Curve Fitting", "is_high_yield": True, "vtu_frequency_tag": "Guaranteed 8-10M Numerical (Q3/Q4)", "description": "Deriving and solving normal equations for linear and quadratic parabolic fits."},
+                    {"title": "Power Curve Fitting (y = ax^b and y = ab^x)", "chapter_number": 1, "chapter_title": "Curve Fitting", "is_high_yield": True, "vtu_frequency_tag": "Frequent 8M Numerical Problem", "description": "Logarithmic transformation and linearisation for non-linear curve fitting."},
+                    {"title": "Karl Pearson's Coefficient of Correlation and Spearman's Rank", "chapter_number": 2, "chapter_title": "Correlation & Regression", "is_high_yield": True, "vtu_frequency_tag": "Core 8M VTU Numerical", "description": "Covariance calculations, scatter analysis, and rank correlation for tied/untied ranks."},
+                    {"title": "Lines of Regression and Angle between Regression Lines", "chapter_number": 2, "chapter_title": "Correlation & Regression", "is_high_yield": True, "vtu_frequency_tag": "Guaranteed 10M VTU Numerical", "description": "Regression equations of Y on X and X on Y, regression coefficients, and acute angle derivation."}
+                ]
+            },
+            {
+                "module_number": 3,
+                "title": "Random Variables and Probability Distributions",
+                "raw_text": (
+                    "Random variables (discrete and continuous), Probability mass function, Probability density function, "
+                    "Cumulative distribution function, Mathematical expectation, Variance, and Standard deviation. "
+                    "Theoretical distributions: Binomial distribution, Poisson distribution, and Normal distribution (properties and problems)."
+                ),
+                "chapters": [
+                    {
+                        "chapter_number": 1,
+                        "chapter_title": "Random Variables and Expectation",
+                        "topics": [
+                            "Discrete and Continuous Random Variables",
+                            "Probability Mass and Density Functions (PMF & PDF)",
+                            "Mathematical Expectation, Variance, and Moments"
+                        ]
+                    },
+                    {
+                        "chapter_number": 2,
+                        "chapter_title": "Theoretical Probability Distributions",
+                        "topics": [
+                            "Binomial Distribution Mean, Variance, and Problems",
+                            "Poisson Distribution as Limiting Case of Binomial",
+                            "Normal Distribution Curve, Standardization, and Area Tables"
+                        ]
+                    }
+                ],
+                "topics": [
+                    {"title": "Discrete and Continuous Random Variables (PMF, PDF, CDF)", "chapter_number": 1, "chapter_title": "Random Variables", "is_high_yield": False, "description": "Foundational definitions, normalization constants, and expectation calculations."},
+                    {"title": "Binomial and Poisson Probability Distributions", "chapter_number": 2, "chapter_title": "Theoretical Distributions", "is_high_yield": True, "vtu_frequency_tag": "Guaranteed 8-10M Numerical (Q5/Q6)", "description": "Recurrence relations, mean, variance, and solving engineering defect problems."},
+                    {"title": "Normal Distribution and Standard Normal Probability Tables", "chapter_number": 2, "chapter_title": "Theoretical Distributions", "is_high_yield": True, "vtu_frequency_tag": "Guaranteed 10M VTU Question", "description": "Gaussian bell curve, Z-score transformation, and evaluating probabilities using normal tables."}
+                ]
+            },
+            {
+                "module_number": 4,
+                "title": "Joint Probability Distributions and Markov Chains",
+                "raw_text": (
+                    "Joint probability distributions of two discrete random variables, Marginal distributions, Conditional distributions, "
+                    "Expectation, Covariance, Correlation coefficient. Stochastic processes, Markov chains, Transition probability matrix, "
+                    "State transition diagrams, Higher step transition probabilities, Chapman-Kolmogorov equations, Stationary distributions, Absorbing states."
+                ),
+                "chapters": [
+                    {
+                        "chapter_number": 1,
+                        "chapter_title": "Joint Probability Distributions",
+                        "topics": [
+                            "Joint Probability Mass Functions and Marginal Distributions",
+                            "Conditional Distributions and Independence of Variables",
+                            "Expectation, Covariance, and Correlation Coefficient"
+                        ]
+                    },
+                    {
+                        "chapter_number": 2,
+                        "chapter_title": "Markov Chains and Stochastic Processes",
+                        "topics": [
+                            "Stochastic Matrices and Transition Probability Matrices (TPM)",
+                            "State Transition Diagrams and Chapman-Kolmogorov Equations",
+                            "Stationary State Probability Vectors and Absorbing States"
+                        ]
+                    }
+                ],
+                "topics": [
+                    {"title": "Joint Probability Distributions, Marginal Expectations, and Covariance", "chapter_number": 1, "chapter_title": "Joint Distributions", "is_high_yield": True, "vtu_frequency_tag": "Guaranteed 10M Numerical (Q7/Q8)", "description": "Joint bivariate distributions, marginal distributions, independence check, and covariance."},
+                    {"title": "Markov Chains: Transition Probability Matrix and State Diagrams", "chapter_number": 2, "chapter_title": "Markov Chains", "is_high_yield": True, "vtu_frequency_tag": "Core 8M VTU Problem", "description": "Formulating transition probability matrices and state diagrams for stochastic systems."},
+                    {"title": "Stationary Probability Distributions and Higher Step Transitions", "chapter_number": 2, "chapter_title": "Markov Chains", "is_high_yield": True, "vtu_frequency_tag": "Guaranteed 10M VTU Numerical", "description": "Solving matrix equations vP = v for steady-state equilibrium distributions."}
+                ]
+            },
+            {
+                "module_number": 5,
+                "title": "Statistical Inference, Sampling Theory, and Hypothesis Testing",
+                "raw_text": (
+                    "Introduction to sampling theory, Populations and samples, Parameters and statistics, Null hypothesis, Alternative hypothesis, "
+                    "Level of significance, Critical region, Type I and Type II errors. Large sample tests: Test of significance for single mean and "
+                    "difference of two means. Small sample tests: Student's t-test (single mean, difference of means), Paired t-test, "
+                    "Chi-square test for goodness of fit and independence of attributes."
+                ),
+                "chapters": [
+                    {
+                        "chapter_number": 1,
+                        "chapter_title": "Sampling Theory and Large Sample Tests",
+                        "topics": [
+                            "Sampling Terminology, Null Hypothesis, and Error Types",
+                            "Level of Significance and Critical Regions",
+                            "Large Sample Significance Tests for Means (Z-Test)"
+                        ]
+                    },
+                    {
+                        "chapter_number": 2,
+                        "chapter_title": "Small Sample Tests and Chi-Square",
+                        "topics": [
+                            "Student's t-Distribution for Single Mean and Two Means",
+                            "Paired t-Test for Dependent Samples",
+                            "Chi-Square Distribution for Goodness of Fit and Contingency Tables"
+                        ]
+                    }
+                ],
+                "topics": [
+                    {"title": "Sampling Concepts, Hypotheses Formulation, and Significance Levels", "chapter_number": 1, "chapter_title": "Sampling & Large Samples", "is_high_yield": False, "description": "Type I vs Type II errors, one-tailed vs two-tailed tests, and critical Z values."},
+                    {"title": "Large Sample Z-Tests for Single Mean and Difference of Means", "chapter_number": 1, "chapter_title": "Sampling & Large Samples", "is_high_yield": True, "vtu_frequency_tag": "Frequent 8M Numerical Problem", "description": "Formulating Z-statistic and making hypothesis acceptance/rejection decisions."},
+                    {"title": "Student's t-Test and Paired t-Test for Small Sample Means", "chapter_number": 2, "chapter_title": "Small Samples & Chi-Square", "is_high_yield": True, "vtu_frequency_tag": "Guaranteed 10M VTU Numerical (Q9/Q10)", "description": "Degrees of freedom, sample variance calculation, and paired t-test execution."},
+                    {"title": "Chi-Square Test for Goodness of Fit and Independence of Attributes", "chapter_number": 2, "chapter_title": "Small Samples & Chi-Square", "is_high_yield": True, "vtu_frequency_tag": "Guaranteed 8-10M VTU Question", "description": "Contingency tables, observed vs expected frequencies, and Chi-square statistic evaluation."}
+                ]
+            }
+        ]
+    },
+
     # ─── 3rd Semester: Data Structures and Applications ──────────────────────
     "DATA_STRUCTURES": {
         "canonical_name": "Data Structures and Applications",
@@ -207,7 +399,7 @@ VTU_PRESCRIBED_CATALOG: Dict[str, Dict[str, Any]] = {
     "DDCO": {
         "canonical_name": "Digital Design and Computer Organization",
         "canonical_code": "BCS302",
-        "aliases": ["BCS302", "21CS33", "18CS33", "DDCO", "DIGITAL DESIGN AND COMPUTER ORGANIZATION"],
+        "aliases": ["BCS302", "1BCS303", "21CS33", "18CS33", "DDCO", "DIGITAL DESIGN AND COMPUTER ORGANIZATION", "DIGITAL DESIGN"],
         "branch": "CSE",
         "semester": 3,
         "scheme": "VTU 2022/2024/2025 Scheme",
@@ -270,7 +462,7 @@ VTU_PRESCRIBED_CATALOG: Dict[str, Dict[str, Any]] = {
     "OPERATING_SYSTEMS": {
         "canonical_name": "Operating Systems",
         "canonical_code": "BCS303",
-        "aliases": ["BCS303", "21CS44", "18CS43", "OPERATING SYSTEMS", "OPERATING SYSTEM", "OS"],
+        "aliases": ["BCS303", "1BCS304", "21CS44", "18CS43", "OPERATING SYSTEMS", "OPERATING SYSTEM", "OS"],
         "branch": "CSE",
         "semester": 3,
         "scheme": "VTU 2022/2024/2025 Scheme",

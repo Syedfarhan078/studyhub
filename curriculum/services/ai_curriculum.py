@@ -828,7 +828,11 @@ def validate_curriculum_against_source(data: dict, prescribed_modules: list | No
                 # Check if at least 1 core topic identifier is represented
                 represented = 0
                 for pt in pres_topics:
-                    pt_words = [w for w in re.findall(r"\w+", pt.lower()) if len(w) > 3]
+                    if isinstance(pt, dict):
+                        pt_text = (pt.get("title", "") + " " + pt.get("description", "")).lower()
+                    else:
+                        pt_text = str(pt).lower()
+                    pt_words = [w for w in re.findall(r"\w+", pt_text) if len(w) > 3]
                     if any(w in gen_topic_text for w in pt_words):
                         represented += 1
 
@@ -1615,13 +1619,17 @@ def generate_curriculum_data(subject_name, subject_code="", syllabus_text=""):
             f"CRITICAL GROUNDING RULES:\n"
             f"1. You MUST generate exactly 5 modules.\n"
             f"2. Each module's 'title' MUST EXACTLY match the prescribed title above.\n"
-            f"3. Preserve all prescribed topics and their conceptual meaning without silently omitting any.\n"
-            f"4. For each topic, generate a concise title, 1-sentence objective description, and exactly 3 high-intent search keywords.\n"
-            f"5. EXAM IMPORTANCE (80/20 HIGH-YIELD RULE):\n"
+            f"3. CHAPTERING (MANDATORY 2 CHAPTERS PER MODULE):\n"
+            f"   - Every module MUST be split into exactly 2 distinct chapters (Chapter 1 and Chapter 2), matching VTU's internal choice exam structure (e.g. Q1 from Chapter 1, Q2 from Chapter 2).\n"
+            f"   - NEVER assign all topics to Chapter 1. Assign the first 2-4 topics to 'chapter_number': 1 and the remaining 2-4 topics to 'chapter_number': 2.\n"
+            f"   - Give each chapter a distinct, informative 'chapter_title' matching that half of the syllabus.\n"
+            f"4. Preserve all prescribed topics and their conceptual meaning without silently omitting any.\n"
+            f"5. For each topic, generate a concise title, 1-sentence objective description, and exactly 3 high-intent search keywords.\n"
+            f"6. EXAM IMPORTANCE (80/20 HIGH-YIELD RULE):\n"
             f"   - Evaluate each topic from a university exam perspective (e.g. VTU Q1 vs Q2 choice questions).\n"
             f"   - For every module, pick the top 2-3 most important, high-scoring exam concepts (core algorithms, architectures, derivations, working principles, mathematical models) and set 'is_high_yield': true with a descriptive 'vtu_frequency_tag' (e.g. 'Core 10M Question for Q1/Q2', 'Key Architecture for SEE', 'Frequent Derivation/Algorithm').\n"
             f"   - Set 'is_high_yield': false for introductory, survey, motivation, historical, or broad overview topics (e.g. 'Introduction to...', 'Overview of...', 'Need for...'). Do NOT blindly mark topics 1 and 2 as high-yield just because they are listed first!\n"
-            f"6. Do NOT invent alternative modules, and do NOT replace prescribed titles."
+            f"7. Do NOT invent alternative modules, and do NOT replace prescribed titles."
         )
     elif has_custom_syllabus:
         user_prompt = (
@@ -1902,6 +1910,25 @@ def persist_curriculum_records(
                         topics_data = unwrapped_topics
                     else:
                         topics_data = m_data.get("topics", [])
+
+                    # Ensure modules with 4+ topics have at least 2 distinct chapters
+                    distinct_chps = set(t.get("chapter_number", 1) for t in topics_data)
+                    if len(distinct_chps) <= 1 and len(topics_data) >= 4:
+                        half = (len(topics_data) + 1) // 2
+                        m_title = (m_data.get("title") or "").strip()
+                        title_parts = re.split(r"[,&]|\band\b|:", m_title, flags=re.IGNORECASE)
+                        chp1_name = title_parts[0].strip() if len(title_parts) >= 1 and title_parts[0].strip() else "Core Fundamentals"
+                        chp2_name = title_parts[1].strip() if len(title_parts) >= 2 and title_parts[1].strip() else (topics_data[half].get("title") or "Advanced Applications")
+
+                        for idx, t_dict in enumerate(topics_data):
+                            if idx < half:
+                                t_dict["chapter_number"] = 1
+                                if not t_dict.get("chapter_title") or t_dict.get("chapter_title").lower() in ("introduction", "core fundamentals"):
+                                    t_dict["chapter_title"] = chp1_name
+                            else:
+                                t_dict["chapter_number"] = 2
+                                if not t_dict.get("chapter_title") or t_dict.get("chapter_title").lower() in ("introduction", chp1_name.lower()):
+                                    t_dict["chapter_title"] = chp2_name
 
                     for t_idx, t_data in enumerate(topics_data, start=1):
                         t_title = t_data.get("title") or f"Topic {t_idx}"
