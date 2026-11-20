@@ -17,11 +17,17 @@
         <p class="eyebrow">{{ subject.code }} · <span class="badge-academic">{{ subject.academic_tag }}</span> · {{ subject.modules.count }} modules · {{ total_topics }} topics</p>
         <h1 class="page-title">{{ subject.name }}</h1>
         <p class="lede">{{ subject.description|default:"Syllabus modules, video lectures, and technical articles." }}</p>
-        <p class="mb-0 mt-2">
+        <p class="mb-0 mt-2 d-flex align-items-center flex-wrap gap-2">
             {% if "Unverified" in subject.description %}
                 <span class="flag flag-warn">Reference syllabus, not verified against a pasted outline</span>
+                <button type="button" class="btn btn-sm btn-outline-danger py-0.5 px-2.5 fw-semibold d-inline-flex align-items-center gap-1" data-bs-toggle="modal" data-bs-target="#alignSyllabusModal" style="font-size:0.78rem;">
+                    <i class="bi bi-patch-check"></i> Align with Official VTU Syllabus
+                </button>
             {% else %}
                 <span class="flag flag-ok">Built from the prescribed syllabus</span>
+                <button type="button" class="btn btn-sm btn-link text-secondary p-0 text-decoration-none" data-bs-toggle="modal" data-bs-target="#alignSyllabusModal" style="font-size:0.78rem;">
+                    <i class="bi bi-pencil-square me-1"></i>Edit Syllabus Outline
+                </button>
             {% endif %}
         </p>
     </div>
@@ -843,6 +849,84 @@
                                 <button type="button" class="btn btn-sm btn-primary px-4 py-1.5 fw-semibold" data-bs-dismiss="modal">Done</button>
                             </div>
                         </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ALIGN / UPDATE OFFICIAL SYLLABUS MODAL -->
+            <div class="modal fade" id="alignSyllabusModal" tabindex="-1" aria-labelledby="alignSyllabusModalLabel" aria-hidden="true">
+                <div class="modal-dialog modal-dialog-centered modal-lg modal-dialog-scrollable">
+                    <div class="modal-content border-0 shadow-lg" style="border-radius: var(--radius);">
+                        <form id="alignSyllabusForm" action="{% url 'curriculum:generate_subject_ai' %}" method="POST" class="mb-0">
+                            {% csrf_token %}
+                            <input type="hidden" name="force_rebuild" value="1">
+                            <input type="hidden" name="subject_name" value="{{ subject.name }}">
+                            <input type="hidden" name="subject_code" value="{{ subject.code }}">
+                            <input type="hidden" name="branch" value="{{ subject.branch }}">
+                            <input type="hidden" name="semester" value="{{ subject.semester }}">
+                            <input type="hidden" name="scheme" value="{{ subject.scheme|default:'2022 Scheme' }}">
+
+                            <div class="modal-header border-bottom py-3 px-3 px-md-4">
+                                <div>
+                                    <span class="eyebrow mb-1 text-danger"><i class="bi bi-patch-check-fill me-1"></i>Curriculum Synchronization</span>
+                                    <h2 class="h5 modal-title mb-0" id="alignSyllabusModalLabel">Align with Official VTU Syllabus</h2>
+                                </div>
+                                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                            </div>
+
+                            <div class="modal-body p-3 p-md-4">
+                                <div id="alignLoadingSpinner" class="d-none text-center py-4">
+                                    <div class="spinner-border text-danger" role="status"></div>
+                                    <p class="small text-secondary mt-2 mb-0" id="alignLoadingText">Re-building modules with verified syllabus…</p>
+                                </div>
+
+                                <div id="alignFormContent">
+                                    <div class="alert alert-light border small text-secondary py-2.5 px-3 mb-3 d-flex align-items-center gap-2.5 rounded-3">
+                                        <i class="bi bi-info-circle text-primary fs-5 flex-shrink-0"></i>
+                                        <div style="font-size: 0.86rem; line-height: 1.45;">
+                                            <strong>Why are modules different?</strong> If a course was generated without pasting the syllabus outline, generic textbook topics were created. Re-syncing grounds your 5 modules directly in VTU's official examination outline.
+                                        </div>
+                                    </div>
+
+                                    <!-- 1-Click Official Catalog Detected Banner -->
+                                    <div class="card border-success bg-success-subtle p-3 mb-3 d-none" id="alignOfficialVtuBanner">
+                                        <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
+                                            <div>
+                                                <div class="fw-bold text-success" style="font-size: 0.92rem;">
+                                                    <i class="bi bi-check-circle-fill me-1"></i>Official VTU Outline Available for {{ subject.name }}
+                                                </div>
+                                                <div class="small text-success-emphasis" id="alignOfficialVtuSchemeText">
+                                                    VTU 2022 / 2024 / 2025 Scheme verified 5 modules.
+                                                </div>
+                                            </div>
+                                            <button type="button" class="btn btn-sm btn-success fw-semibold px-3 py-1.5" id="btn1ClickApplyVtu">
+                                                <i class="bi bi-magic me-1"></i>1-Click Apply Official Syllabus
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    <div class="mb-3">
+                                        <div class="d-flex justify-content-between align-items-center mb-1">
+                                            <label class="form-label mb-0 fw-semibold small">Prescribed Syllabus Outline (Module 1 through 5):</label>
+                                            <button type="button" class="btn btn-sm btn-link text-decoration-none p-0 d-none text-success fw-semibold" id="btnAlignAutoFillText" style="font-size:0.8rem;">
+                                                Auto-fill from Catalog
+                                            </button>
+                                        </div>
+                                        <textarea name="syllabus_text" id="alignSyllabusTextarea" rows="8" class="form-control" style="font-family: monospace; font-size: 0.85rem;" placeholder="Module 1: ...&#10;Module 2: ...&#10;Module 3: ...&#10;Module 4: ...&#10;Module 5: ..."></textarea>
+                                        <div class="form-text small mt-1">
+                                            You can paste any module outline from your university PDF, or click the 1-click button above.
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="modal-footer d-flex justify-content-between py-2.5 px-3 px-md-4 border-top">
+                                <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                                <button type="submit" class="btn btn-sm btn-danger fw-semibold px-4 py-1.5" id="btnSubmitAlignSyllabus">
+                                    <i class="bi bi-arrow-repeat me-1"></i>Rebuild &amp; Align Syllabus
+                                </button>
+                            </div>
+                        </form>
                     </div>
                 </div>
             </div>
@@ -2631,6 +2715,109 @@ document.addEventListener('DOMContentLoaded', function() {
                 calculateAndRenderScores();
                 predictorInitialized = true;
             }
+        });
+    }
+
+    // -------------------------------------------------------------------------
+    // ALIGN / UPDATE OFFICIAL SYLLABUS HANDLER
+    // -------------------------------------------------------------------------
+    const alignOfficialBanner = document.getElementById('alignOfficialVtuBanner');
+    const alignSyllabusTextarea = document.getElementById('alignSyllabusTextarea');
+    const btn1ClickApplyVtu = document.getElementById('btn1ClickApplyVtu');
+    const btnAlignAutoFillText = document.getElementById('btnAlignAutoFillText');
+    const alignSyllabusForm = document.getElementById('alignSyllabusForm');
+    const alignLoadingSpinner = document.getElementById('alignLoadingSpinner');
+    const alignFormContent = document.getElementById('alignFormContent');
+    const btnSubmitAlign = document.getElementById('btnSubmitAlignSyllabus');
+
+    let alignCatalogData = null;
+    fetch(`/subjects/lookup-syllabus/?code={{ subject.code|urlencode }}&name={{ subject.name|urlencode }}`, {
+        headers: { 'X-Requested-With': 'XMLHttpRequest' }
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.found) {
+            alignCatalogData = data;
+            if (alignOfficialBanner) alignOfficialBanner.classList.remove('d-none');
+            if (btnAlignAutoFillText) btnAlignAutoFillText.classList.remove('d-none');
+            if (alignSyllabusTextarea && !alignSyllabusTextarea.value.trim()) {
+                alignSyllabusTextarea.value = data.formatted_syllabus;
+            }
+        }
+    })
+    .catch(() => {});
+
+    function populateAlignSyllabus(e) {
+        if (e) e.preventDefault();
+        if (alignCatalogData && alignSyllabusTextarea) {
+            alignSyllabusTextarea.value = alignCatalogData.formatted_syllabus;
+        }
+    }
+
+    if (btn1ClickApplyVtu) btn1ClickApplyVtu.addEventListener('click', populateAlignSyllabus);
+    if (btnAlignAutoFillText) btnAlignAutoFillText.addEventListener('click', populateAlignSyllabus);
+
+    if (alignSyllabusForm) {
+        alignSyllabusForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+            if (alignLoadingSpinner) alignLoadingSpinner.classList.remove('d-none');
+            if (alignFormContent) alignFormContent.classList.add('d-none');
+            if (btnSubmitAlign) {
+                btnSubmitAlign.disabled = true;
+                btnSubmitAlign.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Rebuilding Syllabus…';
+            }
+
+            const formData = new FormData(this);
+            formData.set('async', '1');
+
+            fetch(this.action, {
+                method: 'POST',
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest'
+                },
+                body: formData
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (data.task_id) {
+                    const pollInt = setInterval(() => {
+                        fetch(`/subjects/generation-status/${data.task_id}/`, {
+                            headers: { 'X-Requested-With': 'XMLHttpRequest' }
+                        })
+                        .then(r => r.json())
+                        .then(statusData => {
+                            if (statusData.status === 'COMPLETED' || statusData.status === 'SUCCESS') {
+                                clearInterval(pollInt);
+                                window.location.reload();
+                            } else if (statusData.status === 'FAILED') {
+                                clearInterval(pollInt);
+                                alert("Failed to rebuild syllabus: " + (statusData.error || "Please try again."));
+                                if (alignLoadingSpinner) alignLoadingSpinner.classList.add('d-none');
+                                if (alignFormContent) alignFormContent.classList.remove('d-none');
+                                if (btnSubmitAlign) {
+                                    btnSubmitAlign.disabled = false;
+                                    btnSubmitAlign.innerHTML = '<i class="bi bi-arrow-repeat me-1"></i>Rebuild &amp; Align Syllabus';
+                                }
+                            }
+                        })
+                        .catch(() => {});
+                    }, 1000);
+                } else if (data.redirect_url) {
+                    window.location.reload();
+                } else {
+                    alert(data.error || "Unexpected error while rebuilding.");
+                    window.location.reload();
+                }
+            })
+            .catch(err => {
+                alert("Network error: " + err.message);
+                if (alignLoadingSpinner) alignLoadingSpinner.classList.add('d-none');
+                if (alignFormContent) alignFormContent.classList.remove('d-none');
+                if (btnSubmitAlign) {
+                    btnSubmitAlign.disabled = false;
+                    btnSubmitAlign.innerHTML = '<i class="bi bi-arrow-repeat me-1"></i>Rebuild &amp; Align Syllabus';
+                }
+            });
         });
     }
 

@@ -329,11 +329,11 @@
                         <div class="row g-3 mb-3">
                             <div class="col-md-8">
                                 <label class="form-label">Subject name <span class="text-danger">*</span></label>
-                                <input type="text" name="subject_name" required class="form-control" placeholder="Natural Language Processing">
+                                <input type="text" name="subject_name" id="modalSubjectName" required class="form-control" placeholder="Data Structures and Applications">
                             </div>
                             <div class="col-md-4">
                                 <label class="form-label">Course code</label>
-                                <input type="text" name="subject_code" class="form-control" placeholder="BAD703">
+                                <input type="text" name="subject_code" id="modalSubjectCode" class="form-control" placeholder="BCS304 / 1BCS305">
                             </div>
                         </div>
 
@@ -369,10 +369,20 @@
                         </div>
 
                         <div class="mb-3">
-                            <label class="form-label">Prescribed syllabus</label>
-                            <textarea name="syllabus_text" rows="5" class="form-control" placeholder="Paste the official module outline so the result matches your scheme.&#10;&#10;Module 1: …&#10;Module 2: …"></textarea>
-                            <div class="notice mt-2">
-                                If you leave this blank, the syllabus is drafted from the subject name and marked unverified. It may not match your college scheme.
+                            <div class="d-flex justify-content-between align-items-center mb-1">
+                                <label class="form-label mb-0">Prescribed syllabus</label>
+                                <button type="button" class="btn btn-sm btn-link text-decoration-none p-0 d-none text-success fw-semibold" id="btnAutoFillVtuSyllabus" style="font-size: 0.8rem;">
+                                    <i class="bi bi-patch-check-fill me-1"></i>Auto-fill Official VTU Syllabus
+                                </button>
+                            </div>
+                            <textarea name="syllabus_text" id="modalSyllabusText" rows="5" class="form-control" placeholder="Paste the official module outline so the result matches your scheme.&#10;&#10;Module 1: …&#10;Module 2: …"></textarea>
+                            <div id="vtuSyllabusDetectedNotice" class="alert alert-success d-none py-2 px-2.5 mt-2 mb-0" style="font-size: 0.82rem;">
+                                <i class="bi bi-patch-check-fill me-1 text-success"></i>
+                                <span id="vtuSyllabusDetectedMsg">Official VTU prescribed syllabus detected for this course code!</span>
+                                <a href="#" id="linkAutoFillSyllabus" class="fw-bold text-success text-decoration-underline ms-1">Auto-Fill 5 Modules</a>
+                            </div>
+                            <div class="notice mt-2" id="vtuSyllabusNoticeText">
+                                If left blank, StudyHub automatically grounds the generation in our official VTU syllabus catalog (Data Structures, DDCO, OS, etc.) so your modules always match university examination schemes.
                             </div>
                         </div>
                         <p class="note-quiet mb-0">The newly generated subject will be automatically pinned to your study desk.</p>
@@ -1522,6 +1532,76 @@ document.addEventListener('DOMContentLoaded', function() {
     // -------------------------------------------------------------------------
     // 3. AI SUBJECT GENERATION & AUTO-PINNING
     // -------------------------------------------------------------------------
+    const modalSubjectName = document.getElementById('modalSubjectName');
+    const modalSubjectCode = document.getElementById('modalSubjectCode');
+    const modalSyllabusText = document.getElementById('modalSyllabusText');
+    const btnAutoFillVtu = document.getElementById('btnAutoFillVtuSyllabus');
+    const vtuDetectedNotice = document.getElementById('vtuSyllabusDetectedNotice');
+    const vtuDetectedMsg = document.getElementById('vtuSyllabusDetectedMsg');
+    const linkAutoFill = document.getElementById('linkAutoFillSyllabus');
+    const modalBranchSelect = document.getElementById('modalBranchSelect');
+    const modalSemesterSelect = document.getElementById('modalSemesterSelect');
+
+    let vtuLookupTimeout = null;
+    let detectedVtuData = null;
+
+    function checkVtuSyllabusCatalog() {
+        const name = modalSubjectName ? modalSubjectName.value.trim() : '';
+        const code = modalSubjectCode ? modalSubjectCode.value.trim() : '';
+        if (!name && !code) {
+            if (vtuDetectedNotice) vtuDetectedNotice.classList.add('d-none');
+            if (btnAutoFillVtu) btnAutoFillVtu.classList.add('d-none');
+            return;
+        }
+
+        clearTimeout(vtuLookupTimeout);
+        vtuLookupTimeout = setTimeout(() => {
+            fetch(`/subjects/lookup-syllabus/?code=${encodeURIComponent(code)}&name=${encodeURIComponent(name)}`, {
+                headers: { 'X-Requested-With': 'XMLHttpRequest' }
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (data.found) {
+                    detectedVtuData = data;
+                    if (vtuDetectedNotice) {
+                        vtuDetectedNotice.classList.remove('d-none');
+                        if (vtuDetectedMsg) {
+                            vtuDetectedMsg.textContent = `Official VTU Syllabus detected for ${data.canonical_name} (${data.canonical_code})!`;
+                        }
+                    }
+                    if (btnAutoFillVtu) btnAutoFillVtu.classList.remove('d-none');
+                } else {
+                    detectedVtuData = null;
+                    if (vtuDetectedNotice) vtuDetectedNotice.classList.add('d-none');
+                    if (btnAutoFillVtu) btnAutoFillVtu.classList.add('d-none');
+                }
+            })
+            .catch(() => {});
+        }, 300);
+    }
+
+    function applyDetectedVtuSyllabus(e) {
+        if (e) e.preventDefault();
+        if (!detectedVtuData) return;
+        if (modalSyllabusText) modalSyllabusText.value = detectedVtuData.formatted_syllabus;
+        if (modalSubjectName && detectedVtuData.canonical_name) modalSubjectName.value = detectedVtuData.canonical_name;
+        if (modalSubjectCode && detectedVtuData.canonical_code && (!modalSubjectCode.value || modalSubjectCode.value.length < 3)) {
+            modalSubjectCode.value = detectedVtuData.canonical_code;
+        }
+        if (modalBranchSelect && detectedVtuData.branch) modalBranchSelect.value = detectedVtuData.branch;
+        if (modalSemesterSelect && detectedVtuData.semester) modalSemesterSelect.value = String(detectedVtuData.semester);
+
+        if (vtuDetectedNotice) {
+            vtuDetectedNotice.className = "alert alert-primary py-2 px-2.5 mt-2 mb-0";
+            vtuDetectedNotice.innerHTML = `<i class="bi bi-check-circle-fill me-1 text-primary"></i> <strong>Official VTU Syllabus Loaded!</strong> 5 modules auto-filled to match your semester scheme.`;
+        }
+    }
+
+    if (modalSubjectName) modalSubjectName.addEventListener('input', checkVtuSyllabusCatalog);
+    if (modalSubjectCode) modalSubjectCode.addEventListener('input', checkVtuSyllabusCatalog);
+    if (btnAutoFillVtu) btnAutoFillVtu.addEventListener('click', applyDetectedVtuSyllabus);
+    if (linkAutoFill) linkAutoFill.addEventListener('click', applyDetectedVtuSyllabus);
+
     const form = document.getElementById('aiGenerateForm');
     const submitBtn = document.getElementById('btnSubmitGenerate');
     const statusText = document.getElementById('aiStatusText');

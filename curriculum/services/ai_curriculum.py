@@ -715,6 +715,16 @@ def get_verified_syllabus_source(course_code: str, subject_name: str) -> list | 
     if clean_code and clean_code in _VERIFIED_SYLLABUS_CACHE:
         return _VERIFIED_SYLLABUS_CACHE[clean_code]
 
+    # Check authoritative VTU Prescribed Syllabus Knowledge Base (supports 2022, 2024, 2025 schemes)
+    try:
+        from curriculum.services.vtu_syllabus_catalog import find_vtu_verified_syllabus
+        vtu_source = find_vtu_verified_syllabus(course_code, subject_name)
+        if vtu_source and len(vtu_source) == 5:
+            logger.info("Matched authoritative VTU syllabus catalog for '%s' (%s).", subject_name, course_code)
+            return vtu_source
+    except Exception as e:
+        logger.warning("Error checking VTU syllabus catalog: %s", e)
+
     return None
 
 
@@ -1607,8 +1617,11 @@ def generate_curriculum_data(subject_name, subject_code="", syllabus_text=""):
         )
     else:
         user_prompt = (
-            f"Generate a comprehensive reference 5-module university curriculum for the subject '{clean_name}' "
-            f"(Course Code: '{clean_code}'). Provide detailed topics and realistic educational search keywords.\n\n"
+            f"Generate an authentic, highly structured 5-module engineering curriculum for the university course "
+            f"'{clean_name}' (Course Code: '{clean_code}') tailored for Visvesvaraya Technological University (VTU) engineering degree programs.\n\n"
+            f"UNIVERSITY CURRICULUM CONVENTIONS:\n"
+            f"- Strictly adhere to standard VTU department module arrangements (Module 1 through Module 5, each carrying 20 marks in semester examination question choice pools).\n"
+            f"- For core Computer Science subjects, align with official VTU module sequences. Never invent generic textbook chapters (e.g. In Data Structures, Module 1 must focus on Pointers, Dynamic Allocation, and Arrays/Matrices, NOT complexity analysis).\n\n"
             f"EXAM IMPORTANCE RULES (HIGH-YIELD 80/20 ANALYSIS):\n"
             f"- In every module, identify the top 2-3 core exam concepts (algorithms, architectures, derivations, working principles) and set 'is_high_yield': true with a descriptive 'vtu_frequency_tag' (e.g. 'Core 10M Question for Q1/Q2', 'Frequently Tested Algorithm').\n"
             f"- Set 'is_high_yield': false for introductory, survey, or high-level overview topics (e.g. 'Introduction to...', 'Overview of...'). Never mark topics 1 and 2 as high-yield merely because they are first in order."

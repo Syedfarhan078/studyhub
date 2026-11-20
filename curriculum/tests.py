@@ -3325,3 +3325,54 @@ class ExamHighYieldTaggerTests(TestCase):
         self.assertFalse(t_intro.is_high_yield)
         self.assertTrue(t_raft.is_high_yield)
         self.assertEqual(t_raft.vtu_frequency_tag, "Frequent 10M VTU Question")
+
+
+class VtuSyllabusCatalogAndLookupTests(TestCase):
+    def test_find_vtu_verified_syllabus_by_code_and_name(self):
+        from curriculum.services.vtu_syllabus_catalog import (
+            find_vtu_verified_syllabus,
+            find_vtu_catalog_entry,
+            format_syllabus_as_text
+        )
+
+        # Test 1BCS305 / BCS304 (3rd Sem Data Structures)
+        modules = find_vtu_verified_syllabus(course_code="1BCS305", subject_name="Data Structures and Application")
+        self.assertIsNotNone(modules)
+        self.assertEqual(len(modules), 5)
+        self.assertIn("Sparse Matrices", modules[0]["raw_text"])
+        self.assertIn("Stacks", modules[1]["raw_text"])
+        self.assertIn("Linked Lists", modules[2]["raw_text"])
+
+        # Test catalog entry lookup by name alias
+        cat_entry = find_vtu_catalog_entry(course_code="", subject_name="Data Structures and Applications")
+        self.assertIsNotNone(cat_entry)
+        self.assertEqual(cat_entry["canonical_name"], "Data Structures and Applications")
+
+        # Test DDCO lookup
+        modules_ddco = find_vtu_verified_syllabus(course_code="BCS302")
+        self.assertIsNotNone(modules_ddco)
+        self.assertEqual(len(modules_ddco), 5)
+
+        # Test formatted text
+        formatted = format_syllabus_as_text(modules)
+        self.assertIn("Module 1:", formatted)
+        self.assertIn("Module 5:", formatted)
+
+    def test_lookup_vtu_syllabus_ajax_view(self):
+        client = Client()
+        url = reverse("curriculum:lookup_vtu_syllabus")
+
+        # Lookup with 1BCS305
+        resp = client.get(url, {"code": "1BCS305", "name": "Data Structures and Application"})
+        self.assertEqual(resp.status_code, 200)
+        data = resp.json()
+        self.assertTrue(data.get("found"))
+        self.assertEqual(len(data.get("modules", [])), 5)
+        self.assertIn("Module 1:", data.get("formatted_text", ""))
+
+        # Lookup nonexistent
+        resp_missing = client.get(url, {"code": "XYZ999", "name": "Nonexistent Advanced Course"})
+        self.assertEqual(resp_missing.status_code, 200)
+        data_missing = resp_missing.json()
+        self.assertFalse(data_missing.get("found"))
+

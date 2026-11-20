@@ -75,14 +75,15 @@ def generate_subject_ai(request):
             messages.error(request, "Please enter a subject name to generate the syllabus.")
             return redirect('/')
 
-        # Duplicate protection: If subject already exists with 5 modules, redirect immediately
+        # Duplicate protection: If subject already exists with 5 modules, redirect immediately unless force_rebuild is requested
+        force_rebuild = request.POST.get('force_rebuild') in ('1', 'true', 'True')
         existing_subject = None
         if subject_code:
             existing_subject = Subject.objects.filter(code__iexact=subject_code, name__iexact=subject_name).first()
         if not existing_subject:
             existing_subject = Subject.objects.filter(name__iexact=subject_name).first()
 
-        if existing_subject and existing_subject.modules.exists():
+        if existing_subject and existing_subject.modules.exists() and not force_rebuild:
             redirect_url = reverse('curriculum:subject_detail', kwargs={'slug': existing_subject.slug})
             logger.info("Subject '%s' already exists with %d modules. Returning existing record.", existing_subject.name, existing_subject.modules.count())
             if is_ajax:
@@ -101,6 +102,12 @@ def generate_subject_ai(request):
                 })
             messages.info(request, f"Subject '{existing_subject.name}' already exists.")
             return redirect(redirect_url)
+
+        if existing_subject and force_rebuild:
+            logger.info("Force rebuilding syllabus modules for subject '%s' (%s).", existing_subject.name, existing_subject.code)
+            existing_subject.modules.all().delete()
+            existing_subject.visual_sheet = None
+            existing_subject.save(update_fields=['visual_sheet'])
 
         # Background generation via PostgreSQL GenerationJob for interactive web client
         if is_ajax:
@@ -303,6 +310,45 @@ def generation_status(request, task_id):
         'redirect_url': redirect_url,
         'subject_slug': subject_slug,
         'error': job.error_message or None,
+    })
+
+
+def lookup_vtu_syllabus_view(request):
+    """
+    Returns official VTU syllabus outline for a given subject code or name if matched in the catalog.
+    Enables instant auto-fill and validation in the UI.
+    """
+    code = request.GET.get('code', '').strip()
+    name = request.GET.get('name', '').strip()
+    from curriculum.services.vtu_syllabus_catalog import find_vtu_verified_syllabus, VTU_PRESCRIBED_CATALOG, normalize_lookup_token
+
+    modules = find_vtu_verified_syllabus(code, name)
+    if not modules:
+        return JsonResponse({'found': False})
+
+    cat_entry = None
+    code_norm = normalize_lookup_token(code)
+    name_norm = normalize_lookup_token(name)
+    for k, v in VTU_PRESCRIBED_CATALOG.items():
+        aliases_norm = [normalize_lookup_token(a) for a in v.get("aliases", [])]
+        if (code_norm and code_norm in aliases_norm) or (name_norm and (name_norm == normalize_lookup_token(v["canonical_name"]) or name_norm in aliases_norm)):
+            cat_entry = v
+            break
+
+    formatted_text = ""
+    for m in modules:
+        formatted_text += f"Module {m['module_number']}: {m['title']}\n{m.get('raw_text', '')}\n\n"
+
+    return JsonResponse({
+        'found': True,
+        'canonical_name': cat_entry['canonical_name'] if cat_entry else name,
+        'canonical_code': cat_entry['canonical_code'] if cat_entry else code,
+        'branch': cat_entry.get('branch', 'CSE') if cat_entry else 'CSE',
+        'semester': cat_entry.get('semester', 3) if cat_entry else 3,
+        'scheme': cat_entry.get('scheme', 'VTU 2022/2024/2025 Scheme') if cat_entry else 'VTU Scheme',
+        'formatted_syllabus': formatted_text.strip(),
+        'formatted_text': formatted_text.strip(),
+        'modules': modules
     })
 
 
