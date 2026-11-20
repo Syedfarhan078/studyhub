@@ -3481,8 +3481,9 @@ class VTUCircleScraperAndIntegrationTests(TestCase):
 
         mock_get.side_effect = side_effect
 
-        source = get_verified_syllabus_source(course_code="BCS999", subject_name="Special Elective")
-        self.assertIsNotNone(source)
-        self.assertEqual(len(source), 5)
-        self.assertIn("Special Concepts", source[0]["raw_text"])
+        with override_settings(ALLOW_VTUCIRCLE_LIVE_TESTS=True):
+            source = get_verified_syllabus_source(course_code="BCS999", subject_name="Special Elective")
+            self.assertIsNotNone(source)
+            self.assertEqual(len(source), 5)
+            self.assertIn("Special Concepts", source[0]["raw_text"])
 

@@ -378,9 +378,10 @@ def find_vtu_catalog_entry(course_code: str = "", subject_name: str = "") -> Opt
             canonical_name_norm = normalize_lookup_token(spec.get("canonical_name", ""))
             page_title_norm = normalize_lookup_token(spec.get("page_title", ""))
 
-            if code_norm and (code_norm == canonical_code_norm or code_norm in aliases_norm or code_norm in key):
+            key_norm = normalize_lookup_token(key)
+            if code_norm and (code_norm == canonical_code_norm or code_norm == key_norm or code_norm in aliases_norm):
                 return spec
-            if name_norm and (name_norm == canonical_name_norm or name_norm in aliases_norm or name_norm in page_title_norm):
+            if name_norm and (name_norm == canonical_name_norm or name_norm == page_title_norm or name_norm in aliases_norm):
                 return spec
     except Exception:
         pass

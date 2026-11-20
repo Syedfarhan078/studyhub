@@ -600,7 +600,7 @@ def parse_prescribed_syllabus(raw_text: str) -> list:
 
     header_pattern = re.compile(
         r"^(?:\s*#+\s*)?"
-        r"(?:(?:module|unit|chapter)\s*([1-5]|i|ii|iii|iv|v)\b[\s:.\-–—]*|"
+        r"(?:(?:module|unit|chapter|mod|m)[\s\-–—:_]*([1-5]|i|ii|iii|iv|v)\b[\s:.\-–—]*|"
         r"([1-5])[\s:.\-–—]+)"
         r"(.*)$",
         re.IGNORECASE
@@ -726,14 +726,16 @@ def get_verified_syllabus_source(course_code: str, subject_name: str) -> list | 
         logger.warning("Error checking VTU syllabus catalog: %s", e)
 
     # Dynamic Fallback: Search & Fetch directly from VTUCircle
-    try:
-        from curriculum.services.vtucircle_scraper import fetch_and_parse_vtucircle_syllabus
-        vtucircle_res = fetch_and_parse_vtucircle_syllabus(course_code, subject_name)
-        if vtucircle_res and len(vtucircle_res.get("modules", [])) == 5:
-            logger.info("Dynamically retrieved official VTU syllabus from VTUCircle for '%s' (%s).", subject_name, course_code)
-            return vtucircle_res["modules"]
-    except Exception as e:
-        logger.warning("Error searching VTUCircle: %s", e)
+    import sys
+    if 'test' not in sys.argv or getattr(settings, 'ALLOW_VTUCIRCLE_LIVE_TESTS', False):
+        try:
+            from curriculum.services.vtucircle_scraper import fetch_and_parse_vtucircle_syllabus
+            vtucircle_res = fetch_and_parse_vtucircle_syllabus(course_code, subject_name)
+            if vtucircle_res and len(vtucircle_res.get("modules", [])) == 5:
+                logger.info("Dynamically retrieved official VTU syllabus from VTUCircle for '%s' (%s).", subject_name, course_code)
+                return vtucircle_res["modules"]
+        except Exception as e:
+            logger.warning("Error searching VTUCircle: %s", e)
 
     return None
 
@@ -1591,7 +1593,14 @@ def generate_curriculum_data(subject_name, subject_code="", syllabus_text=""):
                     chp_topics = ", ".join(chp.get("topics", []))
                     spec += f"\n  Chapter {chp.get('chapter_number', 1)} ({c_title}): {chp_topics}"
             else:
-                m_topics = ", ".join(m["topics"]) if m["topics"] else m.get("raw_text", "")
+                raw_topics = m.get("topics") or []
+                if raw_topics:
+                    if isinstance(raw_topics[0], dict):
+                        m_topics = ", ".join(t.get("title", "") for t in raw_topics if t.get("title"))
+                    else:
+                        m_topics = ", ".join(str(t) for t in raw_topics)
+                else:
+                    m_topics = m.get("raw_text", "")
                 if m_topics:
                     spec += f"\n  Prescribed Topics/Content: {m_topics}"
             module_spec_lines.append(spec)
